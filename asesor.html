@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CRM Manantial – Asesor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
+  <?!= include('styles.css'); ?>
+  <style>
+    body { max-width: 480px; margin: 0 auto; padding: 0 0 80px; }
+    .top-bar {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo { font-size: 1rem; font-weight: 700; color: var(--accent); }
+    .user-chip { font-size: 0.75rem; color: var(--text-dim); text-align: right; }
+    .page { display: none; padding: 16px; animation: fadeIn 0.2s ease; }
+    .page.active { display: block; }
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 100%; max-width: 480px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      z-index: 100;
+    }
+    .nav-btn {
+      flex: 1; padding: 12px 0; display: flex; flex-direction: column; align-items: center;
+      gap: 3px; background: none; border: none; color: var(--text-dim); font-size: 0.65rem;
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;
+      transition: color 0.15s;
+    }
+    .nav-btn svg, .nav-btn .nav-icon { font-size: 20px; }
+    .nav-btn.active { color: var(--accent); }
+    /* Flujo de 3 pasos */
+    .flow-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    /* Actividad cards */
+    .actividad-item {
+      padding: 14px 16px;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+      cursor: pointer; transition: all 0.15s; display: flex; justify-content: space-between; align-items: center;
+    }
+    .actividad-item:hover, .actividad-item.selected {
+      border-color: var(--accent); background: var(--accent-lt);
+    }
+    .actividad-item.selected .actividad-check { opacity: 1; }
+    .actividad-check { opacity: 0; color: var(--accent); font-size: 1.1rem; transition: opacity 0.15s; }
+    .actividad-nombre { font-weight: 600; font-size: 0.9rem; }
+    .actividad-valor  { font-size: 0.82rem; color: var(--accent); font-weight: 700; margin-top: 2px; }
+    .actividad-cat    { font-size: 0.72rem; color: var(--muted); }
+    /* Método pago */
+    .metodo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .metodo-btn {
+      padding: 16px 8px; border-radius: 12px; border: 2px solid var(--border);
+      background: var(--surface2); color: var(--text); display: flex; flex-direction: column;
+      align-items: center; gap: 6px; cursor: pointer; transition: all 0.15s;
+      font-size: 0.78rem; font-weight: 600;
+    }
+    .metodo-btn .metodo-icon { font-size: 1.6rem; }
+    .metodo-btn.selected { border-color: var(--accent); background: var(--accent-lt); color: var(--accent); }
+    /* Resumen success */
+    .success-card {
+      text-align: center; padding: 32px 20px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    }
+    .success-icon { font-size: 3.5rem; margin-bottom: 12px; }
+    .summary-row  { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(45,49,72,0.5); font-size: 0.875rem; }
+    .summary-row:last-child { border: none; }
+    /* Cartera semáforo */
+    .cartera-item {
+      padding: 14px 0; border-bottom: 1px solid rgba(45,49,72,0.5); display: flex; align-items: center; gap: 12px;
+    }
+    .cartera-item:last-child { border: none; }
+    .cartera-info { flex: 1; min-width: 0; }
+    .cartera-nombre  { font-weight: 600; font-size: 0.875rem; }
+    .cartera-detalle { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+    .cartera-monto   { font-size: 0.85rem; font-weight: 700; color: var(--accent); text-align: right; }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <div class="logo">⛪ Manantial</div>
+  <div class="user-chip">
+    <div style="font-weight:600;color:var(--text)"><?= userName ?></div>
+    <div><?= userSede ?></div>
+  </div>
+</div>
+
+<!-- PÁGINA: NUEVA TRANSACCIÓN (3 pasos) -->
+<div id="page-nueva" class="page active">
+
+  <!-- Indicador de pasos -->
+  <div id="step-indicator" class="steps mt-16 mb-8" style="padding:0 4px">
+    <div class="step active" id="step-ind-1">
+      <div class="step-circle">1</div>
+      <div class="step-label">Persona</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step active" id="step-ind-2" style="opacity:.4">
+      <div class="step-circle">2</div>
+      <div class="step-label">Actividad</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step active" id="step-ind-3" style="opacity:.4">
+      <div class="step-circle">3</div>
+      <div class="step-label">Pago</div>
+    </div>
+  </div>
+
+  <!-- PASO 1: Buscar / crear persona -->
+  <div id="step1" class="flow-card mt-8">
+    <div>
+      <h2>Buscar persona</h2>
+      <p style="font-size:.82rem;margin-top:4px">Cédula, nombre o correo</p>
+    </div>
+    <div class="input-icon">
+      <span class="icon">🔍</span>
+      <input id="busqueda-persona" class="input" type="text" placeholder="Buscar por nombre, cédula…" autocomplete="off">
+    </div>
+    <div id="resultados-busqueda"></div>
+
+    <!-- Persona seleccionada -->
+    <div id="persona-seleccionada" class="hidden">
+      <div class="alert alert-success">
+        <span>👤</span>
+        <div>
+          <div id="ps-nombre" style="font-weight:700"></div>
+          <div id="ps-detalle" style="font-size:.78rem;margin-top:2px;color:var(--text-dim)"></div>
+        </div>
+        <button class="btn btn-ghost" style="margin-left:auto;padding:4px 8px;font-size:.8rem" onclick="resetPersona()">✕</button>
+      </div>
+    </div>
+
+    <!-- Formulario nueva persona (inline) -->
+    <div id="form-nueva-persona" class="hidden">
+      <div style="font-size:.82rem;font-weight:700;color:var(--yellow);margin-bottom:12px">➕ Registrar nueva persona</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="input-group">
+          <label>Nombre completo *</label>
+          <input id="np-nombre" class="input" placeholder="Nombre y apellidos">
+        </div>
+        <div class="input-group">
+          <label>Cédula *</label>
+          <input id="np-documento" class="input" type="number" placeholder="Número de documento">
+        </div>
+        <div class="input-group">
+          <label>Celular</label>
+          <input id="np-celular" class="input" type="tel" placeholder="3001234567">
+        </div>
+        <div class="input-group">
+          <label>Correo</label>
+          <input id="np-correo" class="input" type="email" placeholder="correo@ejemplo.com">
+        </div>
+        <div class="input-group">
+          <label>Sede *</label>
+          <select id="np-sede" class="input">
+            <option value="">Selecciona…</option>
+            <option value="Norte">Norte</option>
+            <option value="Suba">Suba</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="btn-crear-persona" onclick="crearPersonaYContinuar()">
+          Registrar y continuar →
+        </button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-secondary" style="flex:1;font-size:.82rem" onclick="showFormNuevaPersona()">
+        ➕ Nueva persona
+      </button>
+      <button id="btn-paso2" class="btn btn-primary" style="flex:2" onclick="irPaso2()" disabled>
+        Continuar →
+      </button>
+    </div>
+  </div>
+
+  <!-- PASO 2: Actividad -->
+  <div id="step2" class="flow-card mt-8 hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h2>Selecciona la actividad</h2>
+      <button class="btn btn-ghost" style="font-size:.8rem;padding:4px 8px" onclick="irPaso1()">← Volver</button>
+    </div>
+    <div id="lista-actividades">
+      <div class="skeleton" style="height:56px;margin-bottom:8px"></div>
+      <div class="skeleton" style="height:56px;margin-bottom:8px"></div>
+      <div class="skeleton" style="height:56px"></div>
+    </div>
+
+    <!-- Sub-paso inscripción -->
+    <div id="subpaso-inscripcion" class="hidden">
+      <div style="font-size:.8rem;font-weight:700;color:var(--accent);margin-bottom:10px">📋 Datos de inscripción</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="input-group">
+          <label>Módulo</label>
+          <select id="insc-modulo" class="input">
+            <option value="">— Selecciona un módulo —</option>
+            <option>Mentor Espiritual</option>
+            <option>Caracter y Servicio</option>
+            <option>Especialidad Cosmovisión</option>
+            <option>Familia</option>
+            <option>Espíritu Santo</option>
+            <option>Especialización Cosmovisión (RI)</option>
+            <option>Especialización Cosmovisión (SS)</option>
+            <option>Especialización Cosmovisión (PDN)</option>
+            <option>Maestros I</option>
+            <option>Maestros II</option>
+            <option>Maestros III</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Horario</label>
+          <select id="insc-horario" class="input">
+            <option value="">— Selecciona un horario —</option>
+            <option>Lunes 7:00 p. m.</option>
+            <option>Miércoles 7:00 p. m.</option>
+            <option>Jueves 7:00 p. m.</option>
+            <option>Sábado 7:00 a. m.</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monto variable -->
+    <div id="monto-variable" class="hidden">
+      <div class="input-group">
+        <label>Monto a pagar (COP) *</label>
+        <input id="monto-input" class="input" type="number" min="0" placeholder="0" style="font-size:1.1rem;font-weight:700">
+      </div>
+    </div>
+
+    <div id="monto-fijo-display" class="hidden">
+      <div class="alert alert-info">
+        💰 Monto: <strong id="monto-fijo-val"></strong>
+      </div>
+    </div>
+
+    <button id="btn-paso3" class="btn btn-primary btn-full" onclick="irPaso3()" disabled>
+      Continuar →
+    </button>
+  </div>
+
+  <!-- PASO 3: Método de pago + confirmar -->
+  <div id="step3" class="flow-card mt-8 hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h2>Método de pago</h2>
+      <button class="btn btn-ghost" style="font-size:.8rem;padding:4px 8px" onclick="volverPaso2()">← Volver</button>
+    </div>
+
+    <!-- Resumen previo -->
+    <div class="card card-sm" style="background:var(--surface2)">
+      <div class="summary-row">
+        <span class="text-muted">Persona</span>
+        <span id="res-persona" class="fw-600 truncate" style="max-width:60%"></span>
+      </div>
+      <div class="summary-row">
+        <span class="text-muted">Actividad</span>
+        <span id="res-actividad" class="fw-600 truncate" style="max-width:60%"></span>
+      </div>
+      <div class="summary-row">
+        <span class="text-muted">Monto</span>
+        <span id="res-monto" class="fw-600 text-accent"></span>
+      </div>
+    </div>
+
+    <div class="metodo-grid">
+      <button class="metodo-btn" onclick="seleccionarMetodo('Efectivo', this)">
+        <span class="metodo-icon">💵</span> Efectivo
+      </button>
+      <button class="metodo-btn" onclick="seleccionarMetodo('Datáfono', this)">
+        <span class="metodo-icon">💳</span> Datáfono
+      </button>
+      <button class="metodo-btn" onclick="seleccionarMetodo('Nequi', this)">
+        <span class="metodo-icon">📱</span> Nequi
+      </button>
+    </div>
+
+    <!-- Sub-paso Datáfono -->
+    <div id="subpaso-datafono" class="hidden">
+      <div style="font-size:.8rem;font-weight:700;color:var(--accent);margin:12px 0 10px">💳 Datos del datáfono</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="input-group">
+          <label>Franquicia *</label>
+          <select id="dt-franquicia" class="input">
+            <option value="">— Selecciona —</option>
+            <option>Maester</option>
+            <option>Visa</option>
+            <option>American Express</option>
+            <option>Dinners</option>
+            <option>Maestro Débito</option>
+            <option>V. Electro Débito</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Tipo de tarjeta *</label>
+          <select id="dt-tipo-tarjeta" class="input">
+            <option value="">— Selecciona —</option>
+            <option>Débito</option>
+            <option>Crédito</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Valor (COP) *</label>
+          <input id="dt-valor" class="input" type="number" min="0" placeholder="0">
+        </div>
+        <div class="input-group">
+          <label>¿Quien paga es el beneficiario del pago? *</label>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarBeneficiario('Si', this)" style="flex:1">Sí</button>
+            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarBeneficiario('No', this)" style="flex:1">No</button>
+          </div>
+        </div>
+        <div id="subpaso-beneficiario" class="hidden">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="input-group">
+              <label>Nombre del beneficiario *</label>
+              <input id="dt-nombre-benef" class="input" placeholder="Nombres y apellidos">
+            </div>
+            <div class="input-group">
+              <label>Número de documento del beneficiario *</label>
+              <input id="dt-doc-benef" class="input" type="number" placeholder="Número de identificación">
+            </div>
+            <div class="input-group">
+              <label>Celular del beneficiario *</label>
+              <input id="dt-celular-benef" class="input" type="number" placeholder="Número de celular">
+            </div>
+          </div>
+        </div>
+        <div class="input-group">
+          <label>No. Autorización *</label>
+          <input id="dt-autorizacion" class="input" type="number" placeholder="Número de autorización">
+        </div>
+        <div class="input-group">
+          <label>No. Datáfono *</label>
+          <select id="dt-no-datafono" class="input">
+            <option value="">— Selecciona —</option>
+            <option>1</option>
+            <option>2</option>
+            <option>3</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <button id="btn-registrar" class="btn btn-primary btn-full btn-lg" onclick="registrarTransaccion()" disabled>
+      Registrar pago
+    </button>
+  </div>
+
+  <!-- ÉXITO -->
+  <div id="step-success" class="hidden mt-8">
+    <div class="success-card">
+      <div class="success-icon">🎉</div>
+      <h2 style="color:var(--green)">¡Pago registrado!</h2>
+      <p style="margin:8px 0 24px;font-size:.85rem">El pago fue registrado exitosamente.</p>
+      <div id="success-resumen" style="text-align:left;background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:20px"></div>
+      <button class="btn btn-primary btn-full btn-lg" onclick="nuevaTransaccion()">
+        ➕ Nueva transacción
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- PÁGINA: MI CARTERA -->
+<div id="page-cartera" class="page">
+  <div style="padding:16px">
+    <h2>Mi cartera</h2>
+    <p style="font-size:.82rem;margin-top:4px;margin-bottom:16px">Estado de legalización de tus personas</p>
+    <div id="lista-cartera">
+      <div class="skeleton" style="height:64px;margin-bottom:10px"></div>
+      <div class="skeleton" style="height:64px;margin-bottom:10px"></div>
+      <div class="skeleton" style="height:64px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PÁGINA: HISTORIAL DE HOY -->
+<div id="page-historial" class="page">
+  <div style="padding:16px">
+    <h2>Historial del turno</h2>
+    <p style="font-size:.82rem;margin-top:4px;margin-bottom:16px">Transacciones de hoy</p>
+    <!-- Totales por método -->
+    <div id="totales-turno" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+      <div class="kpi-card kpi-accent" style="padding:12px">
+        <div class="kpi-label">Efectivo</div>
+        <div id="tot-efectivo" class="kpi-value" style="font-size:1.1rem">–</div>
+      </div>
+      <div class="kpi-card kpi-green" style="padding:12px">
+        <div class="kpi-label">Datáfono</div>
+        <div id="tot-datafono" class="kpi-value" style="font-size:1.1rem">–</div>
+      </div>
+      <div class="kpi-card" style="padding:12px">
+        <div class="kpi-label">Nequi</div>
+        <div id="tot-nequi" class="kpi-value" style="font-size:1.1rem">–</div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+      <span class="text-muted" style="font-size:.82rem">Total recaudado hoy</span>
+      <span id="tot-total" style="font-size:1.3rem;font-weight:700;color:var(--accent)">–</span>
+    </div>
+    <div id="historial-lista"></div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" onclick="showPage('nueva', this)">
+    <span class="nav-icon">➕</span> Nueva
+  </button>
+  <button class="nav-btn" onclick="showPage('cartera', this); cargarCartera()">
+    <span class="nav-icon">🗂️</span> Cartera
+  </button>
+  <button class="nav-btn" onclick="showPage('historial', this); cargarHistorial()">
+    <span class="nav-icon">📋</span> Historial
+  </button>
+</nav>
+
+<?!= include('utils.js'); ?>
+<script>
+// ─── ESTADO GLOBAL ────────────────────────────────────────────────────────────
+const STATE = {
+  persona:    null,   // {id, nombre, documento, correo, sede}
+  actividad:  null,   // {id, nombre, valorBase, valorVariable, requiereInscripcion, ...}
+  monto:      0,
+  metodoPago: null,
+  modulo:     '',
+  horario:    '',
+  dtBeneficiarioMismo: null
+};
+let actividadesCache = [];
+
+// ─── NAVEGACIÓN ───────────────────────────────────────────────────────────────
+function showPage(name, btn) {
+  qsa('.page').forEach(p => p.classList.remove('active'));
+  qs(`#page-${name}`).classList.add('active');
+  qsa('.nav-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+// ─── PASO 1: BÚSQUEDA DE PERSONA ─────────────────────────────────────────────
+const debouncedBuscar = debounce(async (q) => {
+  if (q.length < 2) { setHtml('#resultados-busqueda',''); return; }
+  try {
+    const resultados = await gsr('buscarPersonas', q);
+    renderResultados(resultados, q);
+  } catch(e) { toast.error('Error al buscar: ' + e.message); }
+}, 400);
+
+qs('#busqueda-persona').addEventListener('input', e => debouncedBuscar(e.target.value.trim()));
+
+function renderResultados(lista, query) {
+  const c = qs('#resultados-busqueda');
+  if (!lista.length) {
+    c.innerHTML = `<div class="search-results"><div class="search-item" onclick="showFormNuevaPersona()"><div class="search-item-name">Sin resultados para "${escHtml(query)}"</div><div class="search-item-sub">Tap para registrar nueva persona →</div></div></div>`;
+    return;
+  }
+  c.innerHTML = `<div class="search-results">${lista.map(p => `
+    <div class="search-item" onclick='seleccionarPersona(${JSON.stringify(p)})'>
+      <div class="search-item-name">👤 ${escHtml(p.nombre)}</div>
+      <div class="search-item-sub">CC ${escHtml(p.documento)} · ${escHtml(p.celular||'')} · ${escHtml(p.sede)}</div>
+    </div>`).join('')}</div>`;
+}
+
+function seleccionarPersona(p) {
+  STATE.persona = p;
+  setHtml('#resultados-busqueda','');
+  qs('#busqueda-persona').value = '';
+  setHtml('#ps-nombre', escHtml(p.nombre));
+  setHtml('#ps-detalle', `CC ${escHtml(p.documento)} · ${escHtml(p.sede)}${p.correo ? ' · ' + escHtml(p.correo) : ''}`);
+  show('#persona-seleccionada');
+  hide('#form-nueva-persona');
+  qs('#btn-paso2').disabled = false;
+}
+
+function resetPersona() {
+  STATE.persona = null;
+  hide('#persona-seleccionada');
+  hide('#form-nueva-persona');
+  qs('#btn-paso2').disabled = true;
+}
+
+function showFormNuevaPersona() {
+  hide('#resultados-busqueda');
+  show('#form-nueva-persona');
+  hide('#persona-seleccionada');
+  qs('#busqueda-persona').value = '';
+}
+
+async function crearPersonaYContinuar() {
+  const btn = qs('#btn-crear-persona');
+  const datos = {
+    nombre:    qs('#np-nombre').value.trim(),
+    documento: qs('#np-documento').value.trim(),
+    celular:   qs('#np-celular').value.trim(),
+    correo:    qs('#np-correo').value.trim(),
+    sede:      qs('#np-sede').value
+  };
+  if (!datos.nombre || !datos.documento || !datos.sede) {
+    toast.warn('Nombre, cédula y sede son obligatorios'); return;
+  }
+  setLoading(btn, true);
+  try {
+    const res = await gsr('crearPersona', datos);
+    if (res.yaExistia) toast.info('La persona ya estaba registrada');
+    seleccionarPersona(res.persona);
+    hide('#form-nueva-persona');
+    toast.success('Persona lista ✓');
+  } catch(e) { toast.error(e.message); }
+  finally { setLoading(btn, false); }
+}
+
+// ─── PASO 2: ACTIVIDADES ──────────────────────────────────────────────────────
+async function irPaso2() {
+  if (!STATE.persona) { toast.warn('Selecciona una persona primero'); return; }
+  hide('#step1'); show('#step2');
+  actualizarStepIndicator(2);
+  if (!actividadesCache.length) await cargarActividades();
+}
+
+async function cargarActividades() {
+  try {
+    actividadesCache = await gsr('listarActividades');
+    renderActividades(actividadesCache);
+  } catch(e) {
+    toast.error('Error cargando actividades'); console.error(e);
+  }
+}
+
+function renderActividades(lista) {
+  const c = qs('#lista-actividades');
+  if (!lista.length) { c.innerHTML = '<p class="text-muted text-center">Sin actividades configuradas</p>'; return; }
+  c.innerHTML = lista.map(a => `
+    <div class="actividad-item" onclick='seleccionarActividad(${JSON.stringify(a)}, this)' id="act-${a.id}">
+      <div>
+        <div class="actividad-nombre">${escHtml(a.nombre)}</div>
+        <div class="actividad-cat">${escHtml(a.categoria)}</div>
+        ${!a.valorVariable ? `<div class="actividad-valor">${fmt.cop(a.valorBase)}</div>` : '<div class="actividad-valor">Monto libre</div>'}
+      </div>
+      <span class="actividad-check">✓</span>
+    </div>`).join('');
+}
+
+function seleccionarActividad(act, el) {
+  STATE.actividad = act;
+  qsa('.actividad-item').forEach(i => i.classList.remove('selected'));
+  el.classList.add('selected');
+
+  if (act.valorVariable) {
+    show('#monto-variable'); hide('#monto-fijo-display');
+    qs('#monto-input').value = '';
+    qs('#monto-input').focus();
+  } else {
+    hide('#monto-variable');
+    show('#monto-fijo-display');
+    setHtml('#monto-fijo-val', fmt.cop(act.valorBase));
+    STATE.monto = act.valorBase;
+  }
+
+  toggle('#subpaso-inscripcion', act.requiereInscripcion);
+  qs('#btn-paso3').disabled = false;
+}
+
+function irPaso3() {
+  if (!STATE.actividad) { toast.warn('Selecciona una actividad'); return; }
+  if (STATE.actividad.valorVariable) {
+    const v = Number(qs('#monto-input').value);
+    if (!v || v <= 0) { toast.warn('Ingresa el monto a pagar'); return; }
+    STATE.monto = v;
+  }
+  STATE.modulo  = qs('#insc-modulo').value.trim();
+  STATE.horario = qs('#insc-horario').value.trim();
+
+  // Poblar resumen
+  setHtml('#res-persona',   escHtml(STATE.persona.nombre));
+  setHtml('#res-actividad', escHtml(STATE.actividad.nombre));
+  setHtml('#res-monto',     fmt.cop(STATE.monto));
+
+  hide('#step2'); show('#step3');
+  actualizarStepIndicator(3);
+}
+
+function volverPaso2() {
+  hide('#step3'); show('#step2');
+  actualizarStepIndicator(2);
+}
+
+function irPaso1() {
+  hide('#step2'); show('#step1');
+  actualizarStepIndicator(1);
+}
+
+// ─── PASO 3: PAGO ─────────────────────────────────────────────────────────────
+function seleccionarMetodo(metodo, btn) {
+  STATE.metodoPago = metodo;
+  qsa('.metodo-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  toggle('#subpaso-datafono', metodo === 'Datáfono');
+  if (metodo === 'Datáfono') qs('#dt-valor').value = STATE.monto || '';
+  qs('#btn-registrar').disabled = false;
+}
+
+function seleccionarBeneficiario(valor, btn) {
+  STATE.dtBeneficiarioMismo = valor;
+  qsa('.dt-benef-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  toggle('#subpaso-beneficiario', valor === 'No');
+}
+
+async function registrarTransaccion() {
+  if (!STATE.metodoPago) { toast.warn('Selecciona un método de pago'); return; }
+
+  const dtData = {};
+  if (STATE.metodoPago === 'Datáfono') {
+    const franquicia  = qs('#dt-franquicia').value;
+    const tipoTarjeta = qs('#dt-tipo-tarjeta').value;
+    const valor       = Number(qs('#dt-valor').value);
+    const noAut       = qs('#dt-autorizacion').value.trim();
+    const noDatafono  = qs('#dt-no-datafono').value;
+
+    if (!franquicia)          { toast.warn('Selecciona la franquicia'); return; }
+    if (!tipoTarjeta)         { toast.warn('Selecciona el tipo de tarjeta'); return; }
+    if (!valor || valor <= 0) { toast.warn('Ingresa el valor del datáfono'); return; }
+    if (!STATE.dtBeneficiarioMismo) { toast.warn('Indica si quien paga es el beneficiario'); return; }
+    if (!noAut)               { toast.warn('Ingresa el número de autorización'); return; }
+    if (!noDatafono)          { toast.warn('Selecciona el número de datáfono'); return; }
+
+    Object.assign(dtData, {
+      dtFranquicia:          franquicia,
+      dtTipoTarjeta:         tipoTarjeta,
+      dtValor:               valor,
+      dtBeneficiarioMismo:   STATE.dtBeneficiarioMismo,
+      dtNombreBeneficiario:  '',
+      dtDocBeneficiario:     '',
+      dtCelularBeneficiario: '',
+      dtNoAutorizacion:      noAut,
+      dtNoDatafono:          noDatafono
+    });
+
+    if (STATE.dtBeneficiarioMismo === 'No') {
+      const nombreBenef  = qs('#dt-nombre-benef').value.trim();
+      const docBenef     = qs('#dt-doc-benef').value.trim();
+      const celularBenef = qs('#dt-celular-benef').value.trim();
+      if (!nombreBenef)  { toast.warn('Ingresa el nombre del beneficiario'); return; }
+      if (!docBenef)     { toast.warn('Ingresa el documento del beneficiario'); return; }
+      if (!celularBenef) { toast.warn('Ingresa el celular del beneficiario'); return; }
+      dtData.dtNombreBeneficiario  = nombreBenef;
+      dtData.dtDocBeneficiario     = docBenef;
+      dtData.dtCelularBeneficiario = celularBenef;
+    }
+  }
+
+  const btn = qs('#btn-registrar');
+  setLoading(btn, true);
+  const payload = {
+    idPersona:       STATE.persona.id,
+    nombrePersona:   STATE.persona.nombre,
+    correoPersona:   STATE.persona.correo || '',
+    idActividad:     STATE.actividad.id,
+    nombreActividad: STATE.actividad.nombre,
+    monto:           STATE.monto,
+    metodoPago:      STATE.metodoPago,
+    sede:            STATE.persona.sede,
+    modulo:          STATE.modulo,
+    horario:         STATE.horario,
+    ...dtData
+  };
+  try {
+    const res = await gsr('crearTransaccion', payload);
+    mostrarExito(res.transaccion, res.inscripcion);
+    toast.success('Pago registrado ✓');
+  } catch(e) { toast.error('Error: ' + e.message); }
+  finally { setLoading(btn, false); }
+}
+
+function mostrarExito(t, ins) {
+  hide('#step3');
+  const rows = [
+    ['Persona',    t.nombrePersona],
+    ['Actividad',  t.actividad],
+    ['Monto',      fmt.cop(t.monto)],
+    ['Método',     t.metodoPago],
+    ['Fecha',      t.timestamp],
+    ['Periodo',    t.periodo],
+    ...(ins ? [['Inscripción', '✓ Creada']] : [])
+  ];
+  setHtml('#success-resumen', rows.map(([k,v]) => `
+    <div class="summary-row"><span class="text-muted">${escHtml(k)}</span><span class="fw-600">${escHtml(v)}</span></div>`).join(''));
+  show('#step-success');
+  actualizarStepIndicator(4);
+}
+
+function nuevaTransaccion() {
+  STATE.persona = STATE.actividad = STATE.metodoPago = null;
+  STATE.monto = 0; STATE.modulo = ''; STATE.horario = ''; STATE.dtBeneficiarioMismo = null;
+  qs('#insc-modulo').selectedIndex = 0; qs('#insc-horario').selectedIndex = 0;
+  hide('#subpaso-datafono'); hide('#subpaso-beneficiario');
+  qs('#dt-franquicia').selectedIndex = 0; qs('#dt-tipo-tarjeta').selectedIndex = 0; qs('#dt-no-datafono').selectedIndex = 0;
+  qs('#dt-valor').value = ''; qs('#dt-autorizacion').value = '';
+  qs('#dt-nombre-benef').value = ''; qs('#dt-doc-benef').value = ''; qs('#dt-celular-benef').value = '';
+  qsa('.dt-benef-btn').forEach(b => b.classList.remove('selected'));
+  hide('#step-success'); hide('#step2'); hide('#step3');
+  show('#step1');
+  hide('#persona-seleccionada'); hide('#form-nueva-persona');
+  hide('#subpaso-inscripcion'); hide('#monto-variable'); hide('#monto-fijo-display');
+  qs('#btn-paso2').disabled = true; qs('#btn-paso3').disabled = true; qs('#btn-registrar').disabled = true;
+  qsa('.actividad-item').forEach(i => i.classList.remove('selected'));
+  qsa('.metodo-btn').forEach(b => b.classList.remove('selected'));
+  actualizarStepIndicator(1);
+}
+
+// ─── STEP INDICATOR ───────────────────────────────────────────────────────────
+function actualizarStepIndicator(paso) {
+  for (let i = 1; i <= 3; i++) {
+    const ind = qs(`#step-ind-${i}`);
+    if (!ind) continue;
+    ind.style.opacity = i <= paso ? '1' : '0.4';
+    const circle = ind.querySelector('.step-circle');
+    if (i < paso)  { circle.textContent = '✓'; circle.style.background = 'var(--green)'; circle.style.borderColor = 'var(--green)'; }
+    else if (i === paso) { circle.textContent = i; circle.style.background = 'var(--accent)'; circle.style.borderColor = 'var(--accent)'; }
+    else { circle.textContent = i; circle.style.background = ''; circle.style.borderColor = ''; }
+  }
+}
+
+// ─── CARTERA ──────────────────────────────────────────────────────────────────
+async function cargarCartera() {
+  setHtml('#lista-cartera','<div class="skeleton" style="height:64px;margin-bottom:10px"></div>'.repeat(4));
+  try {
+    const items = await gsr('getCarteraAsesor');
+    renderCartera(items);
+  } catch(e) { toast.error('Error cargando cartera'); }
+}
+
+function renderCartera(items) {
+  const c = qs('#lista-cartera');
+  if (!items.length) { c.innerHTML = '<p class="text-muted text-center mt-16">Sin personas en cartera</p>'; return; }
+  c.innerHTML = items.map(i => `
+    <div class="cartera-item">
+      ${badgeSemaforo(i.semaforo)}
+      <div class="cartera-info">
+        <div class="cartera-nombre">${escHtml(i.nombrePersona)}</div>
+        <div class="cartera-detalle">${escHtml(i.ultimaActividad)} · ${i.diasDesde}d · Iglesia: ${i.estadoIglesia} | Academia: ${i.estadoAcademia}</div>
+      </div>
+      <div class="cartera-monto">${fmt.cop(i.ultimaMonto)}</div>
+    </div>`).join('');
+}
+
+// ─── HISTORIAL ────────────────────────────────────────────────────────────────
+async function cargarHistorial() {
+  setHtml('#historial-lista','<div class="skeleton" style="height:56px;margin-bottom:8px"></div>'.repeat(5));
+  try {
+    const res = await gsr('getHistorialTurno');
+    setText('#tot-efectivo', fmt.cop(res.totales.efectivo));
+    setText('#tot-datafono', fmt.cop(res.totales.datafono));
+    setText('#tot-nequi',    fmt.cop(res.totales.nequi));
+    setText('#tot-total',    fmt.cop(res.totales.total));
+    renderHistorial(res.transacciones);
+  } catch(e) { toast.error('Error cargando historial'); }
+}
+
+function renderHistorial(lista) {
+  const c = qs('#historial-lista');
+  if (!lista.length) { c.innerHTML = '<p class="text-muted text-center mt-16">Sin transacciones hoy</p>'; return; }
+  c.innerHTML = `<div class="card" style="padding:0">` + lista.map(t => `
+    <div style="padding:12px 16px;border-bottom:1px solid rgba(45,49,72,.5);display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:600;font-size:.875rem">${escHtml(t.nombrePersona)}</div>
+        <div style="font-size:.75rem;color:var(--text-dim)">${escHtml(t.actividad)} · ${escHtml(t.timestamp)}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700;color:var(--accent)">${fmt.cop(t.monto)}</div>
+        <div style="font-size:.72rem">${badgeEstado(t.metodoPago)}</div>
+      </div>
+    </div>`).join('') + `</div>`;
+}
+</script>
+</body>
+</html>

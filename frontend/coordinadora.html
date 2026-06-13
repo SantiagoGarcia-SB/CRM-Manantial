@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRM Manantial – Coordinadora</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <?!= include('estilos'); ?>
+  <style>
+    body { display: flex; min-height: 100vh; overflow: hidden; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      height: 100vh; overflow-y: auto; overflow-x: hidden;
+      position: fixed; top: 0; left: 0; z-index: 50;
+    }
+    .sidebar-brand {
+      padding: 20px 16px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-brand h1 { font-size: 1.1rem; color: var(--accent); margin-bottom: 4px; }
+    .sidebar-brand p  { font-size: 0.72rem; color: var(--text-dim); }
+    .sidebar-user {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+    }
+    .sidebar-user .name  { font-weight: 700; color: var(--text); }
+    .sidebar-user .email { color: var(--text-dim); margin-top: 2px; }
+    .sidebar-nav { flex: 1; padding: 8px 0; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px;
+      font-size: 0.82rem; font-weight: 600;
+      color: var(--text-dim);
+      cursor: pointer; transition: all 0.15s;
+      border-left: 3px solid transparent;
+      user-select: none;
+    }
+    .nav-item:hover  { color: var(--text); background: var(--surface2); }
+    .nav-item.active { color: var(--accent); background: var(--accent-lt); border-left-color: var(--accent); }
+    .nav-icon { width: 18px; text-align: center; font-size: 1rem; }
+    .nav-badge {
+      margin-left: auto; background: var(--red); color: #fff;
+      font-size: 0.65rem; font-weight: 700; padding: 1px 6px; border-radius: 10px;
+    }
+
+    /* ── MAIN CONTENT ── */
+    .main { margin-left: 220px; flex: 1; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; }
+    .topbar {
+      position: sticky; top: 0; z-index: 40;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .topbar-title { font-size: 1.1rem; font-weight: 700; }
+    .topbar-actions { display: flex; gap: 8px; }
+    .content { padding: 24px; flex: 1; }
+
+    /* ── SECTIONS (SPA) ── */
+    .section { display: none; animation: fadeIn 0.2s ease; }
+    .section.active { display: block; }
+
+    /* ── CHARTS ── */
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+    .chart-title { font-size: 0.85rem; font-weight: 700; color: var(--text-dim); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    .charts-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+    /* ── LEGALIZACION ── */
+    .legal-check {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid rgba(45,49,72,.5);
+    }
+    .legal-check:last-child { border: none; }
+    .legal-check input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+    .legal-info { flex: 1; min-width: 0; }
+    .legal-nombre { font-weight: 600; font-size: 0.875rem; }
+    .legal-sub    { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+    .legal-meta   { text-align: right; flex-shrink: 0; }
+    .legal-dias   { font-size: 0.72rem; color: var(--muted); }
+    .legal-monto  { font-weight: 700; color: var(--accent); font-size: 0.875rem; }
+
+    /* ── FILTER BAR ── */
+    .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: flex-end; }
+    .filter-bar .input { min-width: 140px; flex: 1; }
+    .filter-bar select { max-width: 160px; }
+
+    /* ── MODAL FORMS ── */
+    .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 520px) { .form-grid-2 { grid-template-columns: 1fr; } }
+
+    /* ── COMPARACION ── */
+    .comp-bar-wrap { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .comp-row { display: grid; grid-template-columns: 140px 1fr 80px 1fr 80px; gap: 8px; align-items: center; font-size: 0.82rem; }
+    .comp-label { color: var(--text-dim); font-weight: 600; truncate; }
+    .comp-val   { text-align: right; font-weight: 700; font-size: 0.78rem; }
+
+    /* ── PERSONA FICHA ── */
+    .ficha-header { background: var(--surface2); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+
+    @media (max-width: 900px) {
+      .sidebar { width: 60px; }
+      .nav-item span:not(.nav-icon) { display: none; }
+      .sidebar-brand p, .sidebar-user .email, .sidebar-user .name { display: none; }
+      .main { margin-left: 60px; }
+      .charts-grid, .charts-grid-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ SIDEBAR ════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <h1>⛪ Manantial</h1>
+    <p>CRM · Panel coordinadora</p>
+  </div>
+  <div class="sidebar-user">
+    <div class="name"><?= userName ?></div>
+    <div class="email"><?= userEmail ?> · <?= userSede ?></div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-item active"  onclick="navTo('dashboard')">   <span class="nav-icon">📊</span><span>Dashboard</span></div>
+    <div class="nav-item"         onclick="navTo('alertas')">     <span class="nav-icon">🔔</span><span>Alertas</span><span id="badge-alertas" class="nav-badge hidden">!</span></div>
+    <div class="nav-item"         onclick="navTo('transacciones')"><span class="nav-icon">💰</span><span>Transacciones</span></div>
+    <div class="nav-item"         onclick="navTo('inscripciones')"><span class="nav-icon">📋</span><span>Inscripciones</span></div>
+    <div class="nav-item"         onclick="navTo('personas')">     <span class="nav-icon">👥</span><span>Personas</span></div>
+    <div class="nav-item"         onclick="navTo('legalizacion')"> <span class="nav-icon">✅</span><span>Legalización</span></div>
+    <div class="nav-item"         onclick="navTo('analisis')">     <span class="nav-icon">📈</span><span>Análisis</span></div>
+    <div class="nav-item"         onclick="navTo('comparacion')">  <span class="nav-icon">⚖️</span><span>Comparación</span></div>
+    <div class="nav-item"         onclick="navTo('actividades')">  <span class="nav-icon">🎯</span><span>Actividades</span></div>
+    <div class="nav-item"         onclick="navTo('asesores')">     <span class="nav-icon">👤</span><span>Asesores</span></div>
+    <div class="nav-item"         onclick="navTo('vista-asesor')"> <span class="nav-icon">👁️</span><span>Vista Asesor</span></div>
+  </nav>
+</aside>
+
+<!-- ═══════════════════════════ MAIN CONTENT ══════════════════════════════ -->
+<div class="main">
+  <div class="topbar">
+    <div id="topbar-title" class="topbar-title">Dashboard</div>
+    <div class="topbar-actions">
+      <span id="periodo-badge" class="badge badge-blue">Cargando periodo…</span>
+      <button class="btn btn-secondary" onclick="recargarSeccion()">⟳ Actualizar</button>
+    </div>
+  </div>
+  <div class="content">
+
+  <!-- ─────────────────── 1. DASHBOARD ─────────────────────────────── -->
+  <div id="sec-dashboard" class="section active">
+    <div id="kpis-grid" class="kpi-grid mb-24">
+      <div class="kpi-card kpi-accent skeleton" style="min-height:100px"></div>
+      <div class="kpi-card kpi-green skeleton" style="min-height:100px"></div>
+      <div class="kpi-card kpi-yellow skeleton" style="min-height:100px"></div>
+      <div class="kpi-card kpi-red skeleton" style="min-height:100px"></div>
+      <div class="kpi-card skeleton" style="min-height:100px"></div>
+    </div>
+    <div class="charts-grid mb-24">
+      <div class="chart-card">
+        <div class="chart-title">Recaudo por actividad</div>
+        <canvas id="chart-actividades" height="220"></canvas>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="chart-card">
+          <div class="chart-title">Por sede</div>
+          <canvas id="chart-sede" height="120"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Por método de pago</div>
+          <canvas id="chart-metodo" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="charts-grid">
+      <div>
+        <h3 class="mb-16">Actividad reciente</h3>
+        <div id="feed-reciente"></div>
+      </div>
+      <div>
+        <h3 class="mb-16">Desempeño asesores</h3>
+        <div id="tabla-desempeno"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── 2. ALERTAS ───────────────────────────────── -->
+  <div id="sec-alertas" class="section">
+    <div class="charts-grid-3 mb-24">
+      <div class="chart-card">
+        <div class="chart-title">Legalización Iglesia</div>
+        <div id="prog-iglesia"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Legalización Academia</div>
+        <div id="prog-academia"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Asesores sin actividad</div>
+        <div id="asesores-inactivos"></div>
+      </div>
+    </div>
+    <h3 class="mb-16">Transacciones sin legalizar → +7 días</h3>
+    <div id="tabla-alertas-leg"></div>
+  </div>
+
+  <!-- ─────────────────── 3. TRANSACCIONES ─────────────────────────── -->
+  <div id="sec-transacciones" class="section">
+    <div class="tabs mb-16">
+      <button class="tab active" onclick="tabTrans('hoy',this)">Hoy</button>
+      <button class="tab" onclick="tabTrans('semana',this)">Esta semana</button>
+      <button class="tab" onclick="tabTrans('todo',this)">Todo</button>
+    </div>
+    <div class="filter-bar">
+      <input id="f-sede"    class="input" placeholder="Sede…" list="sedes-dl">
+      <datalist id="sedes-dl"><option value="Norte"><option value="Suba"></datalist>
+      <input id="f-asesor"  class="input" placeholder="Asesor email…">
+      <input id="f-activ"   class="input" placeholder="Actividad…">
+      <select id="f-metodo" class="input">
+        <option value="">Método…</option>
+        <option value="Efectivo">Efectivo</option>
+        <option value="Datáfono">Datáfono</option>
+        <option value="Nequi">Nequi</option>
+      </select>
+      <select id="f-ig" class="input">
+        <option value="">Estado Iglesia…</option>
+        <option value="Pendiente">Pendiente</option>
+        <option value="Legalizado">Legalizado</option>
+        <option value="NA">N/A</option>
+      </select>
+      <button class="btn btn-primary" onclick="filtrarTransacciones()">Filtrar</button>
+    </div>
+    <div id="tabla-transacciones"></div>
+    <div id="pag-trans" class="flex gap-8 mt-16"></div>
+  </div>
+
+  <!-- ─────────────────── 4. INSCRIPCIONES ─────────────────────────── -->
+  <div id="sec-inscripciones" class="section">
+    <div id="kpis-insc" class="kpi-grid mb-24"></div>
+    <div class="filter-bar">
+      <input id="fi-activ" class="input" placeholder="Actividad…">
+      <input id="fi-sede"  class="input" placeholder="Sede…" list="sedes-dl">
+      <button class="btn btn-primary" onclick="filtrarInscripciones()">Filtrar</button>
+    </div>
+    <div id="tabla-inscripciones"></div>
+  </div>
+
+  <!-- ─────────────────── 5. PERSONAS ──────────────────────────────── -->
+  <div id="sec-personas" class="section">
+    <div class="filter-bar">
+      <input id="fp-busq" class="input" placeholder="Buscar por nombre, cédula, correo…">
+      <input id="fp-sede" class="input" placeholder="Sede…" list="sedes-dl">
+      <button class="btn btn-primary" onclick="filtrarPersonas()">Buscar</button>
+    </div>
+    <div id="tabla-personas"></div>
+    <!-- Ficha de persona (modal) -->
+    <div id="modal-ficha" class="modal-backdrop">
+      <div class="modal" style="max-width:660px">
+        <div class="modal-header">
+          <h3 id="ficha-titulo">Ficha de persona</h3>
+          <button class="modal-close" onclick="closeModal('modal-ficha')">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="ficha-datos" class="ficha-header"></div>
+          <h3>Historial de transacciones</h3>
+          <div id="ficha-historial"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── 6. LEGALIZACIÓN ──────────────────────────── -->
+  <div id="sec-legalizacion" class="section">
+    <div class="tabs mb-16">
+      <button class="tab active" onclick="tabLegal('iglesia', this)">🏛️ Cola Iglesia</button>
+      <button class="tab"        onclick="tabLegal('academia', this)">🎓 Cola Academia</button>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <button class="btn btn-success" onclick="marcarSeleccionados()">✅ Legalizar seleccionados</button>
+      <button class="btn btn-secondary" onclick="exportarColaActual()">⬇ Exportar pendientes</button>
+    </div>
+    <div id="cola-legal"></div>
+  </div>
+
+  <!-- ─────────────────── 7. ANÁLISIS ──────────────────────────────── -->
+  <div id="sec-analisis" class="section">
+    <div class="filter-bar mb-24">
+      <select id="periodo-analisis" class="input" onchange="cargarAnalisis()">
+        <option value="">Todos los periodos</option>
+      </select>
+    </div>
+    <div id="kpis-analisis" class="kpi-grid mb-24"></div>
+    <div class="charts-grid mb-24">
+      <div class="chart-card">
+        <div class="chart-title">Top actividades – recaudo</div>
+        <canvas id="chart-top-act" height="260"></canvas>
+      </div>
+      <div>
+        <div class="chart-card mb-16">
+          <div class="chart-title">Por sede</div>
+          <canvas id="chart-analisis-sede" height="140"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Por método</div>
+          <canvas id="chart-analisis-metodo" height="140"></canvas>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <button class="btn btn-secondary" onclick="exportarAnalisis()">⬇ Exportar CSV</button>
+    </div>
+    <div id="tabla-analisis-asesores"></div>
+  </div>
+
+  <!-- ─────────────────── 8. COMPARACIÓN ───────────────────────────── -->
+  <div id="sec-comparacion" class="section">
+    <div class="filter-bar mb-24">
+      <div class="input-group" style="flex:1">
+        <label>Periodo A</label>
+        <select id="comp-p1" class="input"></select>
+      </div>
+      <div class="input-group" style="flex:1">
+        <label>Periodo B</label>
+        <select id="comp-p2" class="input"></select>
+      </div>
+      <button class="btn btn-primary" onclick="cargarComparacion()" style="align-self:flex-end">Comparar</button>
+    </div>
+    <div id="comp-resultado"></div>
+  </div>
+
+  <!-- ─────────────────── 9. ACTIVIDADES ───────────────────────────── -->
+  <div id="sec-actividades" class="section">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+      <button class="btn btn-primary" onclick="abrirModalActividad()">➕ Nueva actividad</button>
+    </div>
+    <div id="tabla-actividades"></div>
+    <div id="modal-actividad" class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 id="modal-act-titulo">Nueva actividad</h3>
+          <button class="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-grid-2">
+            <div class="input-group"><label>Nombre *</label><input id="ma-nombre" class="input" placeholder="Ej: Escuela Dominical"></div>
+            <div class="input-group"><label>Categoría *</label><input id="ma-cat" class="input" placeholder="Ej: Academia"></div>
+          </div>
+          <div class="form-grid-2">
+            <div class="input-group"><label>Valor base (COP)</label><input id="ma-valor" class="input" type="number" min="0" placeholder="0"></div>
+            <div style="display:flex;flex-direction:column;gap:10px;padding-top:22px">
+              <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
+                <input type="checkbox" id="ma-variable" style="width:16px;height:16px;accent-color:var(--accent)"> Monto variable
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
+                <input type="checkbox" id="ma-inscripcion" style="width:16px;height:16px;accent-color:var(--accent)"> Requiere inscripción
+              </label>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:.8rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em">Requiere legalización</div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
+              <input type="checkbox" id="ma-iglesia" style="width:16px;height:16px;accent-color:var(--accent)"> Plataforma Iglesia
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
+              <input type="checkbox" id="ma-academia" style="width:16px;height:16px;accent-color:var(--accent)"> Academia El Camino
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal('modal-actividad')">Cancelar</button>
+          <button id="btn-guardar-act" class="btn btn-primary" onclick="guardarActividad()">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── 10. ASESORES ─────────────────────────────── -->
+  <div id="sec-asesores" class="section">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+      <button class="btn btn-primary" onclick="abrirModalAsesor()">➕ Nuevo asesor</button>
+    </div>
+    <div id="tabla-asesores"></div>
+    <div id="modal-asesor" class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 id="modal-as-titulo">Nuevo asesor</h3>
+          <button class="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-grid-2">
+            <div class="input-group"><label>Email *</label><input id="as-email" class="input" type="email" placeholder="asesor@iglesia.com"></div>
+            <div class="input-group"><label>Nombre *</label><input id="as-nombre" class="input" placeholder="Nombre completo"></div>
+          </div>
+          <div class="form-grid-2">
+            <div class="input-group">
+              <label>Sede *</label>
+              <select id="as-sede" class="input">
+                <option value="">Selecciona…</option>
+                <option value="Norte">Norte</option>
+                <option value="Suba">Suba</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>Rol *</label>
+              <select id="as-rol" class="input">
+                <option value="asesor">Asesor</option>
+                <option value="coordinadora">Coordinadora</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal('modal-asesor')">Cancelar</button>
+          <button id="btn-guardar-as" class="btn btn-primary" onclick="guardarAsesor()">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── 11. VISTA ASESOR ─────────────────────────── -->
+  <div id="sec-vista-asesor" class="section">
+    <div class="alert alert-info mb-24">
+      <span>👁️</span>
+      <span>Vista de solo lectura del flujo que ve el asesor en su dispositivo móvil.</span>
+    </div>
+    <iframe id="iframe-asesor" src="about:blank"
+      style="width:375px;height:700px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);display:block;margin:0 auto">
+    </iframe>
+  </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<?!= include('utils'); ?>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// ESTADO GLOBAL Y CONFIGURACIÓN
+// ═══════════════════════════════════════════════════════════════════════════
+let CHARTS = {};
+let CURRENT_SECTION  = 'dashboard';
+let LEGAL_TAB_ACTUAL = 'iglesia';
+let TRANS_TAB_RANGO  = 'hoy';
+let TRANS_PAGE       = 1;
+let ACTIV_EDITANDO   = null;
+let ASESOR_EDITANDO  = null;
+let PERIODOS_CACHE   = [];
+
+const CHART_COLORS = ['#6c63ff','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#8b5cf6','#06b6d4'];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NAVEGACIÓN SPA
+// ═══════════════════════════════════════════════════════════════════════════
+const SECTION_LOADERS = {
+  dashboard:    cargarDashboard,
+  alertas:      cargarAlertas,
+  transacciones:() => filtrarTransacciones(1),
+  inscripciones:() => filtrarInscripciones(1),
+  personas:     () => filtrarPersonas(1),
+  legalizacion: () => cargarCola(LEGAL_TAB_ACTUAL),
+  analisis:     cargarAnalisis,
+  comparacion:  cargarSelectoresPeriodos,
+  actividades:  cargarActividades,
+  asesores:     cargarAsesores,
+  'vista-asesor': () => {}
+};
+
+function navTo(sec) {
+  if (CURRENT_SECTION === sec) return;
+  qsa('.section').forEach(s => s.classList.remove('active'));
+  qsa('.nav-item').forEach(n => n.classList.remove('active'));
+  qs(`#sec-${sec}`).classList.add('active');
+  const navItems = qsa('.nav-item');
+  const secMap = ['dashboard','alertas','transacciones','inscripciones','personas','legalizacion','analisis','comparacion','actividades','asesores','vista-asesor'];
+  const idx = secMap.indexOf(sec);
+  if (idx >= 0 && navItems[idx]) navItems[idx].classList.add('active');
+  const titles = { dashboard:'Dashboard', alertas:'Alertas', transacciones:'Transacciones', inscripciones:'Inscripciones', personas:'Personas', legalizacion:'Legalización', analisis:'Análisis', comparacion:'Comparación de periodos', actividades:'Catálogo de actividades', asesores:'Gestión de asesores', 'vista-asesor':'Vista Asesor (preview)' };
+  setText('#topbar-title', titles[sec] || sec);
+  CURRENT_SECTION = sec;
+  (SECTION_LOADERS[sec] || (() => {}))();
+}
+
+function recargarSeccion() { (SECTION_LOADERS[CURRENT_SECTION] || (() => {}))(); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+async function cargarDashboard() {
+  try {
+    const [kpis, porAct, porSede, porMetodo, reciente, desempeno] = await Promise.all([
+      gsr('getKPIsDashboard'),
+      gsr('getRecaudoPorActividad'),
+      gsr('getDistribucionPorSede'),
+      gsr('getDistribucionPorMetodo'),
+      gsr('getActividadReciente', 15),
+      gsr('getDesempenoAsesores')
+    ]);
+
+    // Periodo badge
+    if (kpis.periodoActivo) setText('#periodo-badge', kpis.periodoActivo.nombre);
+    else setHtml('#periodo-badge', '<span style="color:var(--red)">Sin periodo activo</span>');
+
+    // KPIs
+    setHtml('#kpis-grid', `
+      <div class="kpi-card kpi-accent">
+        <div class="kpi-label">Recaudo total</div>
+        <div class="kpi-value">${fmt.cop(kpis.recaudoTotal)}</div>
+        <div class="kpi-delta">Periodo activo</div>
+      </div>
+      <div class="kpi-card kpi-green">
+        <div class="kpi-label">Inscripciones activas</div>
+        <div class="kpi-value">${fmt.num(kpis.inscripcionesActivas)}</div>
+      </div>
+      <div class="kpi-card kpi-yellow">
+        <div class="kpi-label">Pendientes leg.</div>
+        <div class="kpi-value">${fmt.num(kpis.pagosPendientes)}</div>
+      </div>
+      <div class="kpi-card kpi-red">
+        <div class="kpi-label">Sin legalizar</div>
+        <div class="kpi-value">${fmt.num(kpis.sinLegalizar)}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Trans. hoy</div>
+        <div class="kpi-value">${fmt.num(kpis.transaccionesHoy)}</div>
+      </div>`);
+
+    // Gráfica barras actividades
+    buildBarChart('chart-actividades', porAct.map(a=>a.actividad), porAct.map(a=>a.recaudado), 'Recaudo COP');
+    // Donuts
+    buildDonutChart('chart-sede',   porSede.map(s=>s.sede),   porSede.map(s=>s.recaudado));
+    buildDonutChart('chart-metodo', porMetodo.map(m=>m.metodo), porMetodo.map(m=>m.recaudado));
+
+    // Feed reciente
+    setHtml('#feed-reciente', reciente.length
+      ? `<div class="card" style="padding:0">${reciente.map(t=>`
+          <div style="padding:10px 14px;border-bottom:1px solid rgba(45,49,72,.4);display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-weight:600;font-size:.82rem">${escHtml(t.nombrePersona)}</div>
+              <div style="font-size:.72rem;color:var(--text-dim)">${escHtml(t.actividad)} · ${escHtml(t.asesorNombre)}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:700;color:var(--accent);font-size:.85rem">${fmt.cop(t.monto)}</div>
+              <div style="font-size:.7rem;color:var(--text-dim)">${escHtml(t.fecha)}</div>
+            </div>
+          </div>`).join('')}</div>`
+      : '<p class="text-muted">Sin actividad reciente</p>');
+
+    // Tabla desempeño
+    renderTable('tabla-desempeno', desempeno.slice(0,8), [
+      { key:'nombre',       label:'Asesor' },
+      { key:'transacciones',label:'Trans.',  render: v => fmt.num(v) },
+      { key:'recaudado',    label:'Recaudo', render: v => fmt.cop(v) }
+    ]);
+
+  } catch(e) { toast.error('Error cargando dashboard: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. ALERTAS
+// ═══════════════════════════════════════════════════════════════════════════
+async function cargarAlertas() {
+  try {
+    const a = await gsr('getAlertasDashboard');
+
+    // Badges de conteo
+    const totalAlertas = a.sinLegalizar7Dias.length + a.asesoresSinActividad.length;
+    if (totalAlertas > 0) { setText('#badge-alertas', totalAlertas); show('#badge-alertas'); }
+    else hide('#badge-alertas');
+
+    // Progress bars legalización
+    const ig = a.resumenLeg.iglesia;
+    const ac = a.resumenLeg.academia;
+    setHtml('#prog-iglesia', `
+      <div style="margin-bottom:8px;display:flex;justify-content:space-between;font-size:.82rem">
+        <span>${ig.legalizados}/${ig.total} legalizados</span><span class="text-accent fw-600">${ig.pct}%</span>
+      </div>
+      <div class="progress"><div class="progress-bar progress-accent" style="width:${ig.pct}%"></div></div>
+      <div style="margin-top:8px;font-size:.75rem;color:var(--yellow)">${ig.pendientes} pendientes</div>`);
+    setHtml('#prog-academia', `
+      <div style="margin-bottom:8px;display:flex;justify-content:space-between;font-size:.82rem">
+        <span>${ac.legalizados}/${ac.total} legalizados</span><span class="text-accent fw-600">${ac.pct}%</span>
+      </div>
+      <div class="progress"><div class="progress-bar progress-green" style="width:${ac.pct}%"></div></div>
+      <div style="margin-top:8px;font-size:.75rem;color:var(--yellow)">${ac.pendientes} pendientes</div>`);
+
+    // Asesores inactivos
+    setHtml('#asesores-inactivos', a.asesoresSinActividad.length
+      ? a.asesoresSinActividad.map(as=>`
+          <div style="padding:8px 0;border-bottom:1px solid rgba(45,49,72,.5);font-size:.82rem">
+            <div class="fw-600">${escHtml(as.nombre)}</div>
+            <div class="text-muted">Última: ${escHtml(as.ultimaActividad)}</div>
+          </div>`).join('')
+      : '<p class="text-muted" style="font-size:.82rem">Todos activos ✓</p>');
+
+    // Tabla alertas legalización
+    renderTable('tabla-alertas-leg', a.sinLegalizar7Dias, [
+      { key:'nombrePersona', label:'Persona' },
+      { key:'actividad',     label:'Actividad' },
+      { key:'tipo',          label:'Cola',    render: v => badgeEstado(v === 'iglesia' ? 'Iglesia' : 'Academia') },
+      { key:'diasPendiente', label:'Días',    render: v => `<span class="badge badge-red">${v}d</span>` },
+      { key:'monto',         label:'Monto',   render: v => fmt.cop(v) },
+      { key:'asesorNombre',  label:'Asesor' }
+    ]);
+  } catch(e) { toast.error('Error cargando alertas: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. TRANSACCIONES
+// ═══════════════════════════════════════════════════════════════════════════
+function tabTrans(rango, btn) {
+  TRANS_TAB_RANGO = rango; TRANS_PAGE = 1;
+  qsa('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  filtrarTransacciones(1);
+}
+
+async function filtrarTransacciones(page = 1) {
+  TRANS_PAGE = page;
+  const filtros = {
+    rango:       TRANS_TAB_RANGO === 'todo' ? undefined : TRANS_TAB_RANGO,
+    sede:        qs('#f-sede').value.trim(),
+    asesorEmail: qs('#f-asesor').value.trim(),
+    actividad:   qs('#f-activ').value.trim(),
+    metodoPago:  qs('#f-metodo').value,
+    estadoIglesia: qs('#f-ig').value,
+    page, pageSize: 50
+  };
+  try {
+    const res = await gsr('listarTransacciones', filtros);
+    renderTable('tabla-transacciones', res.transacciones, [
+      { key:'timestamp',     label:'Fecha' },
+      { key:'nombrePersona', label:'Persona' },
+      { key:'actividad',     label:'Actividad' },
+      { key:'monto',         label:'Monto',    render: v => fmt.cop(v) },
+      { key:'metodoPago',    label:'Método',   render: v => badgeEstado(v) },
+      { key:'sede',          label:'Sede' },
+      { key:'asesorNombre',  label:'Asesor' },
+      { key:'estadoIglesia', label:'Iglesia',  render: v => badgeEstado(v) },
+      { key:'estadoAcademia',label:'Academia', render: v => badgeEstado(v) }
+    ]);
+    renderPaginacion('pag-trans', res, filtrarTransacciones);
+  } catch(e) { toast.error('Error: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. INSCRIPCIONES
+// ═══════════════════════════════════════════════════════════════════════════
+async function filtrarInscripciones(page = 1) {
+  const filtros = { actividad: qs('#fi-activ').value.trim(), sede: qs('#fi-sede').value.trim(), page, pageSize: 50 };
+  try {
+    const [res, kpis] = await Promise.all([
+      gsr('listarInscripciones', filtros),
+      gsr('getKPIsInscripciones')
+    ]);
+    setHtml('#kpis-insc', `
+      <div class="kpi-card kpi-accent">
+        <div class="kpi-label">Total inscripciones</div>
+        <div class="kpi-value">${fmt.num(kpis.totalInscripciones)}</div>
+      </div>
+      <div class="kpi-card kpi-green">
+        <div class="kpi-label">Total recaudado</div>
+        <div class="kpi-value" style="font-size:1.3rem">${fmt.cop(kpis.totalRecaudado)}</div>
+      </div>`);
+    renderTable('tabla-inscripciones', res.inscripciones, [
+      { key:'fecha',         label:'Fecha' },
+      { key:'actividad',     label:'Actividad' },
+      { key:'modulo',        label:'Módulo' },
+      { key:'horario',       label:'Horario' },
+      { key:'sede',          label:'Sede' },
+      { key:'monto',         label:'Monto',    render: v => fmt.cop(v) },
+      { key:'metodoPago',    label:'Método',   render: v => badgeEstado(v) },
+      { key:'estadoIglesia', label:'Iglesia',  render: v => badgeEstado(v) },
+      { key:'estadoAcademia',label:'Academia', render: v => badgeEstado(v) }
+    ]);
+  } catch(e) { toast.error('Error: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. PERSONAS
+// ═══════════════════════════════════════════════════════════════════════════
+async function filtrarPersonas(page = 1) {
+  const filtros = { busqueda: qs('#fp-busq').value.trim(), sede: qs('#fp-sede').value.trim(), page, pageSize: 50 };
+  try {
+    const res = await gsr('listarPersonas', filtros);
+    renderTable('tabla-personas', res.personas, [
+      { key:'nombre',        label:'Nombre' },
+      { key:'documento',     label:'Cédula' },
+      { key:'celular',       label:'Celular' },
+      { key:'correo',        label:'Correo' },
+      { key:'sede',          label:'Sede' },
+      { key:'fechaRegistro', label:'Registro' },
+      { key:'id', label:'', render: (v,r) => `<button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" onclick="abrirFicha('${v}')">Ver →</button>` }
+    ]);
+  } catch(e) { toast.error('Error: ' + e.message); }
+}
+
+async function abrirFicha(id) {
+  setHtml('#ficha-datos','<div class="skeleton" style="height:80px"></div>');
+  setHtml('#ficha-historial','<div class="skeleton" style="height:200px"></div>');
+  openModal('modal-ficha');
+  try {
+    const { persona, transacciones } = await gsr('obtenerPersona', id);
+    setText('#ficha-titulo', persona.nombre);
+    setHtml('#ficha-datos', `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.85rem">
+        <div><div class="text-muted">CC</div><div class="fw-600">${escHtml(persona.documento)}</div></div>
+        <div><div class="text-muted">Sede</div><div class="fw-600">${escHtml(persona.sede)}</div></div>
+        <div><div class="text-muted">Celular</div><div class="fw-600">${escHtml(persona.celular||'–')}</div></div>
+        <div><div class="text-muted">Correo</div><div class="fw-600 truncate">${escHtml(persona.correo||'–')}</div></div>
+        <div><div class="text-muted">Registro</div><div class="fw-600">${escHtml(persona.fechaRegistro)}</div></div>
+      </div>`);
+    renderTable('ficha-historial', transacciones, [
+      { key:'timestamp', label:'Fecha' },
+      { key:'actividad', label:'Actividad' },
+      { key:'monto',     label:'Monto',  render: v => fmt.cop(v) },
+      { key:'metodoPago',label:'Método', render: v => badgeEstado(v) },
+      { key:'estadoIglesia',  label:'Iglesia', render: v => badgeEstado(v) },
+      { key:'estadoAcademia', label:'Academia',render: v => badgeEstado(v) }
+    ]);
+  } catch(e) { toast.error('Error: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. LEGALIZACIÓN
+// ═══════════════════════════════════════════════════════════════════════════
+function tabLegal(tipo, btn) {
+  LEGAL_TAB_ACTUAL = tipo;
+  qsa('#sec-legalizacion .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  cargarCola(tipo);
+}
+
+async function cargarCola(tipo) {
+  setHtml('#cola-legal','<div class="skeleton" style="height:300px"></div>');
+  try {
+    const fn  = tipo === 'iglesia' ? 'obtenerColaIglesia' : 'obtenerColaAcademia';
+    const items = await gsr(fn);
+    renderCola(items);
+  } catch(e) { toast.error('Error cargando cola: ' + e.message); }
+}
+
+function renderCola(items) {
+  if (!items.length) { setHtml('#cola-legal','<p class="text-muted text-center mt-24">Cola vacía ✓</p>'); return; }
+  setHtml('#cola-legal', `<div class="card" style="padding:0 16px">${items.map(i=>`
+    <div class="legal-check">
+      <input type="checkbox" data-id="${escHtml(i.idTrans)}" data-tipo="${escHtml(i.tipo)}">
+      <div class="legal-info">
+        <div class="legal-nombre">${escHtml(i.nombrePersona)}</div>
+        <div class="legal-sub">${escHtml(i.actividad)} · ${escHtml(i.metodoPago)} · ${escHtml(i.asesorNombre)} · ${escHtml(i.fecha)}</div>
+      </div>
+      <div class="legal-meta">
+        <div class="legal-monto">${fmt.cop(i.monto)}</div>
+        <div class="legal-dias ${i.urgente ? 'text-red' : 'text-yellow'}">${i.diasPendiente}d</div>
+      </div>
+    </div>`).join('')}</div>`);
+}
+
+async function marcarSeleccionados() {
+  const checks = qsa('#cola-legal input[type=checkbox]:checked');
+  if (!checks.length) { toast.warn('Selecciona al menos un registro'); return; }
+  try {
+    await Promise.all(checks.map(c => gsr('marcarLegalizado', c.dataset.id, c.dataset.tipo, '')));
+    toast.success(`${checks.length} registro(s) legalizados`);
+    cargarCola(LEGAL_TAB_ACTUAL);
+  } catch(e) { toast.error('Error: ' + e.message); }
+}
+
+async function exportarColaActual() {
+  try {
+    const data = await gsr('exportarPendientes', LEGAL_TAB_ACTUAL);
+    exportCSV(data, `cola_${LEGAL_TAB_ACTUAL}_${new Date().toISOString().slice(0,10)}.csv`);
+  } catch(e) { toast.error('Error exportando: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. ANÁLISIS
+// ═══════════════════════════════════════════════════════════════════════════
+async function cargarAnalisis() {
+  const periodoId = qs('#periodo-analisis').value || undefined;
+  try {
+    const [porAct, porSede, porMetodo, desempeno] = await Promise.all([
+      gsr('getRecaudoPorActividad', periodoId),
+      gsr('getDistribucionPorSede', periodoId),
+      gsr('getDistribucionPorMetodo', periodoId),
+      gsr('getDesempenoAsesores', periodoId)
+    ]);
+
+    const totalRec = porAct.reduce((s,a)=>s+a.recaudado,0);
+    const totalTrans = porAct.reduce((s,a)=>s+a.cantidad,0);
+    setHtml('#kpis-analisis', `
+      <div class="kpi-card kpi-accent"><div class="kpi-label">Total recaudo</div><div class="kpi-value" style="font-size:1.4rem">${fmt.cop(totalRec)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Transacciones</div><div class="kpi-value">${fmt.num(totalTrans)}</div></div>`);
+
+    buildBarChart('chart-top-act', porAct.slice(0,10).map(a=>a.actividad), porAct.slice(0,10).map(a=>a.recaudado), 'Recaudo');
+    buildDonutChart('chart-analisis-sede',   porSede.map(s=>s.sede),   porSede.map(s=>s.recaudado));
+    buildDonutChart('chart-analisis-metodo', porMetodo.map(m=>m.metodo), porMetodo.map(m=>m.recaudado));
+
+    renderTable('tabla-analisis-asesores', desempeno, [
+      { key:'nombre',         label:'Asesor' },
+      { key:'sede',           label:'Sede' },
+      { key:'transacciones',  label:'Trans.',   render: v => fmt.num(v) },
+      { key:'recaudado',      label:'Recaudo',  render: v => fmt.cop(v) },
+      { key:'ultimaActividad',label:'Última actividad' }
+    ]);
+  } catch(e) { toast.error('Error cargando análisis: ' + e.message); }
+}
+
+function exportarAnalisis() {
+  const porAct = [];
+  gsr('getRecaudoPorActividad').then(data => exportCSV(data, 'analisis_actividades.csv')).catch(e=>toast.error(e.message));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 8. COMPARACIÓN DE PERIODOS
+// ═══════════════════════════════════════════════════════════════════════════
+async function cargarSelectoresPeriodos() {
+  if (PERIODOS_CACHE.length) return;
+  try {
+    PERIODOS_CACHE = await gsr('listarPeriodos');
+    const opts = PERIODOS_CACHE.map(p => `<option value="${escHtml(p.id)}">${escHtml(p.nombre)}</option>`).join('');
+    setHtml('#comp-p1', '<option value="">Periodo A…</option>' + opts);
+    setHtml('#comp-p2', '<option value="">Periodo B…</option>' + opts);
+    setHtml('#periodo-analisis', '<option value="">Todos</option>' + opts);
+  } catch(e) { toast.error('Error cargando periodos'); }
+}
+
+async function cargarComparacion() {
+  const id1 = qs('#comp-p1').value;
+  const id2 = qs('#comp-p2').value;
+  if (!id1 || !id2) { toast.warn('Selecciona dos periodos'); return; }
+  if (id1 === id2)   { toast.warn('Selecciona periodos diferentes'); return; }
+  setHtml('#comp-resultado','<div class="skeleton" style="height:200px"></div>');
+  try {
+    const comp = await gsr('getComparacionPeriodos', id1, id2);
+    const p1 = comp.periodo1, p2 = comp.periodo2, v = comp.variacion;
+    setHtml('#comp-resultado', `
+      <div class="kpi-grid mb-24">
+        <div class="kpi-card kpi-accent">
+          <div class="kpi-label">Recaudo ${escHtml(p1.periodo.nombre)}</div>
+          <div class="kpi-value" style="font-size:1.2rem">${fmt.cop(p1.totalRecaudado)}</div>
+        </div>
+        <div class="kpi-card kpi-green">
+          <div class="kpi-label">Recaudo ${escHtml(p2.periodo.nombre)}</div>
+          <div class="kpi-value" style="font-size:1.2rem">${fmt.cop(p2.totalRecaudado)}</div>
+        </div>
+        <div class="kpi-card ${v.recaudo >= 0 ? 'kpi-green' : 'kpi-red'}">
+          <div class="kpi-label">Variación recaudo</div>
+          <div class="kpi-value">${fmt.pct(v.recaudo)}</div>
+        </div>
+        <div class="kpi-card ${v.inscripciones >= 0 ? 'kpi-green' : 'kpi-red'}">
+          <div class="kpi-label">Variación inscrip.</div>
+          <div class="kpi-value">${fmt.pct(v.inscripciones)}</div>
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Actividades – Recaudo comparado</div>
+          <canvas id="chart-comp-act" height="260"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Por sede – comparado</div>
+          <canvas id="chart-comp-sede" height="260"></canvas>
+        </div>
+      </div>`);
+
+    // Gráfica comparativa actividades
+    const acts1 = {}, acts2 = {};
+    p1.porActividad.forEach(a => { acts1[a.actividad] = a.recaudado; });
+    p2.porActividad.forEach(a => { acts2[a.actividad] = a.recaudado; });
+    const allActs = [...new Set([...p1.porActividad.map(a=>a.actividad), ...p2.porActividad.map(a=>a.actividad)])].slice(0,10);
+    buildGroupedBarChart('chart-comp-act', allActs,
+      [{ label: p1.periodo.nombre, data: allActs.map(a=>acts1[a]||0), color: '#6c63ff' },
+       { label: p2.periodo.nombre, data: allActs.map(a=>acts2[a]||0), color: '#10b981' }]);
+
+    buildGroupedBarChart('chart-comp-sede', p1.porSede.map(s=>s.sede),
+      [{ label: p1.periodo.nombre, data: p1.porSede.map(s=>s.recaudado), color: '#6c63ff' },
+       { label: p2.periodo.nombre, data: p2.porSede.map(s=>{ const f=p2.porSede.find(x=>x.sede===s.sede); return f?f.recaudado:0; }), color: '#10b981' }]);
+
+  } catch(e) { toast.error('Error comparando periodos: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 9. ACTIVIDADES CRUD
+// ═══════════════════════════════════════════════════════════════════════════
+async function cargarActividades() {
+  try {
+    const acts = await gsr('listarTodasActividades');
+    renderTable('tabla-actividades', acts, [
+      { key:'nombre',              label:'Nombre' },
+      { key:'categoria',           label:'Categoría' },
+      { key:'valorBase',           label:'Valor base', render: v => fmt.cop(v) },
+      { key:'valorVariable',       label:'Variable',   render: v => v ? '✓' : '–' },
+      { key:'requiereInscripcion', label:'Inscripción',render: v => v ? '✓' : '–' },
+      { key:'legalizarIglesia',    label:'Iglesia',    render: v => v ? '✓' : '–' },
+      { key:'legalizarAcademia',   label:'Academia',   render: v => v ? '✓' : '–' },
+      { key:'activa',              label:'Activa',     render: v => v ? '<span class="badge badge-green">Sí</span>' : '<span class="badge badge-red">No</span>' },
+      { key:'id', label:'', render: (v,r) => `
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" onclick='editarActividad(${JSON.stringify(r)})'>✏️</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" onclick="toggleAct('${v}',${!r.activa})">${r.activa?'🚫':'✅'}</button>
+        </div>` }
+    ]);
+  } catch(e) { toast.error('Error: ' + e.message); }
+}
+
+function abrirModalActividad() {
+  ACTIV_EDITANDO = null;
+  setText('#modal-act-titulo','Nueva actividad');
+  qs('#ma-nombre').value = ''; qs('#ma-cat').value = ''; qs('#ma-valor').value = '';
+  qs('#ma-variable').checked = false; qs('#ma-inscripcion').checked = false;
+  qs('#ma-iglesia').checked = false;  qs('#ma-academia').checked = false;
+  openModal('modal-actividad');
+}
+
+function editarActividad(act) {
+  ACTIV_EDITANDO = act;
+  setText('#modal-act-titulo','Editar actividad');
+  qs('#ma-nombre').value    = act.nombre;
+  qs('#ma-cat').value       = act.categoria;
+  qs('#ma-valor').value     = act.valorBase;
+  qs('#ma-variable').checked    = act.valorVariable;
+  qs('#ma-inscripcion').checked = act.requiereInscripcion;
+  qs('#ma-iglesia').checked     = act.legalizarIglesia;
+  qs('#ma-academia').checked    = act.legalizarAcademia;
+  openModal('modal-actividad');
+}
+
+async function guardarActividad() {
+  const datos = {
+    nombre:              qs('#ma-nombre').value.trim(),
+    categoria:           qs('#ma-cat').value.trim(),
+    valorBase:           Number(qs('#ma-valor').value),
+    valorVariable:       qs('#ma-variable').checked,
+    requiereInscripcion: qs('#ma-inscripcion').checked,
+    legalizarIglesia:    qs('#ma-iglesia').checked,
+    legalizarAcademia:   qs('#ma-academia').checked
+  };
+  const btn = qs('#btn-guardar-act');
+  setLoading(btn, true);
+  try {
+    if (ACTIV_EDITANDO) await gsr('actualizarActividad', ACTIV_EDITANDO.id, datos);
+    else                await gsr('crearActividad', datos);
+    toast.success('Actividad guardada');
+    closeModal('modal-actividad');
+    cargarActividades();
+  } catch(e) { toast.error(e.message); }
+  finally { setLoading(btn, false); }
+}
+
+async function toggleAct(id, activa) {
+  try { await gsr('toggleActividad', id, activa); toast.success('Actualizado'); cargarActividades(); }
+  catch(e) { toast.error(e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 10. ASESORES CRUD
+// ═══════════════════════════════════════════════════════════════════════════
+async function cargarAsesores() {
+  try {
+    const asesores = await gsr('listarAsesores');
+    const desempeno = await gsr('getDesempenoAsesores');
+    const desMap = {};
+    desempeno.forEach(d => { desMap[d.email] = d; });
+
+    renderTable('tabla-asesores', asesores, [
+      { key:'nombre',  label:'Nombre' },
+      { key:'email',   label:'Email' },
+      { key:'sede',    label:'Sede' },
+      { key:'rol',     label:'Rol',    render: v => `<span class="badge badge-blue">${v}</span>` },
+      { key:'activo',  label:'Estado', render: v => v ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-red">Inactivo</span>' },
+      { key:'email', label:'Trans.', render: v => fmt.num((desMap[v]||{}).transacciones||0) },
+      { key:'email', label:'Recaudo', render: v => fmt.cop((desMap[v]||{}).recaudado||0) },
+      { key:'email', label:'Última', render: v => (desMap[v]||{}).ultimaActividad||'–' },
+      { key:'email', label:'', render: (v,r) => `
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" onclick='editarAsesor(${JSON.stringify(r)})'>✏️</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" onclick="toggleAs('${v}',${!r.activo})">${r.activo?'🚫':'✅'}</button>
+        </div>` }
+    ]);
+  } catch(e) { toast.error('Error: ' + e.message); }
+}
+
+function abrirModalAsesor() {
+  ASESOR_EDITANDO = null;
+  setText('#modal-as-titulo','Nuevo asesor');
+  qs('#as-email').value = ''; qs('#as-nombre').value = '';
+  qs('#as-sede').value = ''; qs('#as-rol').value = 'asesor';
+  qs('#as-email').disabled = false;
+  openModal('modal-asesor');
+}
+
+function editarAsesor(as) {
+  ASESOR_EDITANDO = as;
+  setText('#modal-as-titulo','Editar asesor');
+  qs('#as-email').value = as.email;   qs('#as-email').disabled = true;
+  qs('#as-nombre').value = as.nombre;
+  qs('#as-sede').value = as.sede;
+  qs('#as-rol').value = as.rol;
+  openModal('modal-asesor');
+}
+
+async function guardarAsesor() {
+  const btn = qs('#btn-guardar-as');
+  setLoading(btn, true);
+  try {
+    if (ASESOR_EDITANDO) {
+      await gsr('actualizarAsesor', ASESOR_EDITANDO.email, {
+        nombre: qs('#as-nombre').value.trim(),
+        sede:   qs('#as-sede').value,
+        rol:    qs('#as-rol').value
+      });
+    } else {
+      await gsr('crearAsesor', {
+        email:  qs('#as-email').value.trim(),
+        nombre: qs('#as-nombre').value.trim(),
+        sede:   qs('#as-sede').value,
+        rol:    qs('#as-rol').value
+      });
+    }
+    toast.success('Asesor guardado');
+    closeModal('modal-asesor');
+    cargarAsesores();
+  } catch(e) { toast.error(e.message); }
+  finally { setLoading(btn, false); }
+}
+
+async function toggleAs(email, activo) {
+  try { await gsr('toggleAsesor', email, activo); toast.success('Actualizado'); cargarAsesores(); }
+  catch(e) { toast.error(e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHART HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+function destroyChart(id) { if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; } }
+
+function buildBarChart(id, labels, data, dataLabel) {
+  destroyChart(id);
+  const ctx = qs(`#${id}`);
+  if (!ctx) return;
+  CHARTS[id] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: dataLabel, data, backgroundColor: CHART_COLORS[0] + 'cc', borderColor: CHART_COLORS[0], borderWidth: 1, borderRadius: 4 }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2d3148' } },
+        y: { ticks: { color: '#94a3b8', callback: v => '$' + Intl.NumberFormat('es-CO').format(v) }, grid: { color: '#2d3148' } }
+      }
+    }
+  });
+}
+
+function buildDonutChart(id, labels, data) {
+  destroyChart(id);
+  const ctx = qs(`#${id}`);
+  if (!ctx) return;
+  CHARTS[id] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: CHART_COLORS, borderColor: '#181c27', borderWidth: 2 }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 }, padding: 10, boxWidth: 12 } }
+      },
+      cutout: '65%'
+    }
+  });
+}
+
+function buildGroupedBarChart(id, labels, datasets) {
+  destroyChart(id);
+  const ctx = qs(`#${id}`);
+  if (!ctx) return;
+  CHARTS[id] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: datasets.map(d => ({
+        label: d.label, data: d.data,
+        backgroundColor: d.color + 'bb', borderColor: d.color, borderWidth: 1, borderRadius: 3
+      }))
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2d3148' } },
+        y: { ticks: { color: '#94a3b8', callback: v => '$' + Intl.NumberFormat('es-CO').format(v) }, grid: { color: '#2d3148' } }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAGINACIÓN HELPER
+// ═══════════════════════════════════════════════════════════════════════════
+function renderPaginacion(containerId, res, loadFn) {
+  const total = Math.ceil(res.total / res.pageSize);
+  if (total <= 1) { setHtml(`#${containerId}`, ''); return; }
+  const prev = res.page > 1    ? `<button class="btn btn-secondary" onclick="${loadFn.name}(${res.page-1})">← Anterior</button>` : '';
+  const next = res.page < total? `<button class="btn btn-secondary" onclick="${loadFn.name}(${res.page+1})">Siguiente →</button>` : '';
+  setHtml(`#${containerId}`, `${prev}<span class="text-muted" style="font-size:.82rem;padding:0 12px">Pág. ${res.page}/${total} · ${res.total} registros</span>${next}`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  cargarDashboard();
+  cargarSelectoresPeriodos();
+  // Cargar badge de alertas en background
+  gsr('getAlertasDashboard').then(a => {
+    const n = a.sinLegalizar7Dias.length;
+    if (n > 0) { setText('#badge-alertas', n); show('#badge-alertas'); }
+  }).catch(()=>{});
+});
+</script>
+</body>
+</html>

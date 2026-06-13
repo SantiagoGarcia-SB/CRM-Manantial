@@ -1,0 +1,173 @@
+<script>
+// ─── CRM UTILS ────────────────────────────────────────────────────────────────
+
+// ── Formatters ────────────────────────────────────────────────────────────────
+const fmt = {
+  cop(n) {
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0);
+  },
+  num(n, dec = 0) {
+    return new Intl.NumberFormat('es-CO', { maximumFractionDigits: dec }).format(n || 0);
+  },
+  date(str) {
+    if (!str) return '–';
+    return str;
+  },
+  pct(n) {
+    return (n >= 0 ? '+' : '') + n + '%';
+  }
+};
+
+// ── Toast notifications ───────────────────────────────────────────────────────
+const toast = (() => {
+  let container;
+  function getContainer() {
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      document.body.appendChild(container);
+    }
+    return container;
+  }
+  function show(msg, type = 'info', duration = 3500) {
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
+    el.innerHTML = `<span>${icons[type] || ''}</span><span>${escHtml(msg)}</span>`;
+    getContainer().appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(20px)'; el.style.transition = '0.3s'; setTimeout(() => el.remove(), 300); }, duration);
+  }
+  return { success: m => show(m,'success'), error: m => show(m,'error'), info: m => show(m,'info'), warn: m => show(m,'warning') };
+})();
+
+// ── google.script.run wrapper ─────────────────────────────────────────────────
+/**
+ * Llama a una función del backend y retorna una Promise.
+ * @param {string} fnName  - Nombre de la función GAS
+ * @param {...any} args    - Argumentos
+ * @returns {Promise<any>}
+ */
+function gsr(fnName, ...args) {
+  return new Promise((resolve, reject) => {
+    const runner = google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(e => reject(new Error(e.message || String(e))));
+    runner[fnName](...args);
+  });
+}
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+function qs(sel, ctx = document)  { return ctx.querySelector(sel); }
+function qsa(sel, ctx = document) { return [...ctx.querySelectorAll(sel)]; }
+function el(tag, props = {}, ...children) {
+  const e = document.createElement(tag);
+  Object.entries(props).forEach(([k, v]) => {
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  });
+  children.forEach(c => c && e.append(typeof c === 'string' ? document.createTextNode(c) : c));
+  return e;
+}
+function show(elOrSel) { const e = typeof elOrSel === 'string' ? qs(elOrSel) : elOrSel; if (e) e.classList.remove('hidden'); }
+function hide(elOrSel) { const e = typeof elOrSel === 'string' ? qs(elOrSel) : elOrSel; if (e) e.classList.add('hidden');    }
+function toggle(elOrSel, force) { const e = typeof elOrSel === 'string' ? qs(elOrSel) : elOrSel; if (e) e.classList.toggle('hidden', !force); }
+function setHtml(sel, html) { const e = typeof sel === 'string' ? qs(sel) : sel; if (e) e.innerHTML = html; }
+function setText(sel, text) { const e = typeof sel === 'string' ? qs(sel) : sel; if (e) e.textContent = text; }
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Badge helpers ─────────────────────────────────────────────────────────────
+function badgeEstado(estado) {
+  const map = {
+    'Legalizado':  '<span class="badge badge-green">Legalizado</span>',
+    'Pendiente':   '<span class="badge badge-yellow">Pendiente</span>',
+    'NA':          '<span class="badge badge-muted">N/A</span>',
+    'Efectivo':    '<span class="badge badge-green">Efectivo</span>',
+    'Datáfono':    '<span class="badge badge-blue">Datáfono</span>',
+    'Nequi':       '<span class="badge badge-blue">Nequi</span>'
+  };
+  return map[estado] || `<span class="badge badge-muted">${escHtml(estado)}</span>`;
+}
+function badgeSemaforo(s) {
+  return `<span class="semaforo semaforo-${s}" title="${s}"></span>`;
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+function openModal(id)  {
+  const m = qs(`#${id}`);
+  if (m) { m.classList.add('open'); document.body.style.overflow = 'hidden'; }
+}
+function closeModal(id) {
+  const m = qs(`#${id}`);
+  if (m) { m.classList.remove('open'); document.body.style.overflow = ''; }
+}
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-backdrop')) closeModal(e.target.id);
+  if (e.target.classList.contains('modal-close') || e.target.closest('.modal-close')) {
+    const mb = e.target.closest('.modal-backdrop');
+    if (mb) closeModal(mb.id);
+  }
+});
+
+// ── Tabla helpers ─────────────────────────────────────────────────────────────
+/**
+ * Renderiza una tabla genérica a partir de array de objetos.
+ * @param {string} containerId
+ * @param {Object[]} rows
+ * @param {Array<{key:string, label:string, render?:Function}>} cols
+ */
+function renderTable(containerId, rows, cols) {
+  const wrap = qs(`#${containerId}`);
+  if (!wrap) return;
+  if (!rows || rows.length === 0) {
+    wrap.innerHTML = '<p class="text-muted text-center mt-24">Sin registros</p>';
+    return;
+  }
+  const thead = `<thead><tr>${cols.map(c => `<th>${escHtml(c.label)}</th>`).join('')}</tr></thead>`;
+  const tbody = `<tbody>${rows.map(r =>
+    `<tr>${cols.map(c => `<td>${c.render ? c.render(r[c.key], r) : escHtml(String(r[c.key] ?? ''))}</td>`).join('')}</tr>`
+  ).join('')}</tbody>`;
+  wrap.innerHTML = `<div class="table-wrap"><table>${thead}${tbody}</table></div>`;
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+function exportCSV(rows, filename = 'export.csv') {
+  if (!rows || !rows.length) { toast.warn('Sin datos para exportar'); return; }
+  const headers = Object.keys(rows[0]);
+  const csv = [headers.join(','), ...rows.map(r =>
+    headers.map(h => {
+      const v = String(r[h] ?? '').replace(/"/g, '""');
+      return v.includes(',') || v.includes('\n') ? `"${v}"` : v;
+    }).join(',')
+  )].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Debounce ──────────────────────────────────────────────────────────────────
+function debounce(fn, delay = 350) {
+  let timer;
+  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
+}
+
+// ── Loading state ─────────────────────────────────────────────────────────────
+function setLoading(btn, loading) {
+  if (!btn) return;
+  if (loading) { btn.disabled = true; btn._text = btn.innerHTML; btn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle"></span>'; }
+  else         { btn.disabled = false; btn.innerHTML = btn._text || btn.innerHTML; }
+}
+
+// ── Número de pesos COP inline ────────────────────────────────────────────────
+function inputMoney(input) {
+  input.addEventListener('input', function() {
+    const raw = this.value.replace(/\D/g,'');
+    this.dataset.raw = raw;
+  });
+}
+</script>
