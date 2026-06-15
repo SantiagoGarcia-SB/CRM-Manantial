@@ -86,7 +86,7 @@ function enviarConfirmacion(datos) {
       </div>
       <p style="color:#718096;font-size:13px;line-height:1.6;">
         Conserva este correo como comprobante. Si tienes alguna pregunta,
-        comunícate con tu asesor de seguimiento.
+        comunícate con tu asesor del punto de información de tu sede.
       </p>
     </div>
     <div class="footer">
@@ -120,7 +120,7 @@ Iglesia Manantial – Punto de Información
   try {
     GmailApp.sendEmail(datos.correo, asunto, cuerpoTexto, {
       htmlBody: cuerpoHtml,
-      name:     'Iglesia Manantial – CRM',
+      name:     'Iglesia Manantial Sedes Norte y Suba',
       noReply:  true
     });
     return { ok: true };

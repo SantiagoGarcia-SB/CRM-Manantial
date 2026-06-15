@@ -347,4 +347,22 @@ tbody td { padding: 11px 14px; color: var(--text); vertical-align: middle; }
   .btn-lg   { font-size: 0.9rem; }
   h1        { font-size: 1.3rem; }
 }
+
+/* ─── MOBILE GLOBALS ───────────────────────────────────────────────────────── */
+/* Prevent iOS auto-zoom when focusing inputs (requires font-size >= 16px) */
+@media (max-width: 768px) {
+  .input { font-size: 16px !important; }
+
+  /* Push toasts above the bottom navigation bar */
+  #toast-container {
+    bottom: 76px;
+    left: 16px;
+    right: 16px;
+    align-items: stretch;
+  }
+  .toast { max-width: 100%; }
+
+  /* Tables scroll horizontally instead of breaking layout */
+  .table-wrap { -webkit-overflow-scrolling: touch; }
+}
 </style>

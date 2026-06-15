@@ -26,20 +26,19 @@ function crearEntradaLegalizacion_(idTrans, tipo) {
  * Solo transacciones con Legalizar_Iglesia=true y Estado=Pendiente.
  * @returns {Object[]}
  */
-function obtenerColaIglesia() {
+function obtenerColaIglesia(token) {
+  authenticate_(token);
+  requireRol_('coordinadora');
   return obtenerCola_('iglesia');
 }
 
-/**
- * Obtiene la cola de legalización para Academia El Camino.
- * @returns {Object[]}
- */
-function obtenerColaAcademia() {
+function obtenerColaAcademia(token) {
+  authenticate_(token);
+  requireRol_('coordinadora');
   return obtenerCola_('academia');
 }
 
 function obtenerCola_(tipo) {
-  requireRol_('coordinadora');
   const legalizaciones = sheetToObjects_('Legalizaciones')
     .filter(l => l.Tipo === tipo && l.Estado === 'Pendiente');
 
@@ -84,7 +83,8 @@ function obtenerCola_(tipo) {
  * @param {string} notas
  * @returns {{ok:boolean}}
  */
-function marcarLegalizado(idTrans, tipo, notas = '') {
+function marcarLegalizado(token, idTrans, tipo, notas = '') {
+  authenticate_(token);
   requireRol_('coordinadora');
   const ahora = new Date();
 
@@ -111,7 +111,7 @@ function marcarLegalizado(idTrans, tipo, notas = '') {
   if (!found) throw new Error(`No se encontró legalización pendiente para trans=${idTrans} tipo=${tipo}`);
 
   // 2. Actualizar estado en la Transacción
-  actualizarEstadoLegalizacion(idTrans, tipo, 'Legalizado');
+  actualizarEstadoLegalizacion_(idTrans, tipo, 'Legalizado');
 
   return { ok: true };
 }
@@ -121,9 +121,10 @@ function marcarLegalizado(idTrans, tipo, notas = '') {
  * @param {'iglesia'|'academia'} tipo
  * @returns {Object[]}
  */
-function exportarPendientes(tipo) {
+function exportarPendientes(token, tipo) {
+  authenticate_(token);
   requireRol_('coordinadora');
-  const cola = tipo === 'iglesia' ? obtenerColaIglesia() : obtenerColaAcademia();
+  const cola = obtenerCola_(tipo);
   // Retornar array plano apto para construcción de CSV
   return cola.map(item => ({
     'ID Trans':       item.idTrans,
@@ -144,10 +145,14 @@ function exportarPendientes(tipo) {
  * @returns {{iglesia:{total:number, pendientes:number, legalizados:number, pct:number},
  *            academia:{total:number, pendientes:number, legalizados:number, pct:number}}}
  */
-function getResumenLegalizacion() {
+function getResumenLegalizacion(token) {
+  authenticate_(token);
   requireRol_('coordinadora');
-  const legalizaciones = sheetToObjects_('Legalizaciones');
+  return getResumenLegalizacion_();
+}
 
+function getResumenLegalizacion_() {
+  const legalizaciones = sheetToObjects_('Legalizaciones');
   function calcular(tipo) {
     const filtradas   = legalizaciones.filter(l => l.Tipo === tipo);
     const pendientes  = filtradas.filter(l => l.Estado === 'Pendiente').length;
@@ -156,11 +161,7 @@ function getResumenLegalizacion() {
     const pct         = total > 0 ? Math.round((legalizados / total) * 100) : 0;
     return { total, pendientes, legalizados, pct };
   }
-
-  return {
-    iglesia:  calcular('iglesia'),
-    academia: calcular('academia')
-  };
+  return { iglesia: calcular('iglesia'), academia: calcular('academia') };
 }
 
 /**
@@ -168,10 +169,16 @@ function getResumenLegalizacion() {
  * @param {number} dias - Umbral en días (default 7)
  * @returns {Object[]}
  */
-function getAlertasPendientes(dias = 7) {
+function getAlertasPendientes(token, dias = 7) {
+  authenticate_(token);
   requireRol_('coordinadora');
-  const iglesia  = obtenerColaIglesia().filter(i => i.diasPendiente > dias);
-  const academia = obtenerColaAcademia().filter(i => i.diasPendiente > dias);
+  return getAlertasPendientes_(dias);
+}
+
+function getAlertasPendientes_(dias) {
+  if (dias === undefined) dias = 7;
+  const iglesia  = obtenerCola_('iglesia').filter(i => i.diasPendiente > dias);
+  const academia = obtenerCola_('academia').filter(i => i.diasPendiente > dias);
 
   return [...iglesia, ...academia]
     .sort((a, b) => b.diasPendiente - a.diasPendiente)

@@ -38,7 +38,8 @@ function mapActividad_(a) {
  * Lista solo las actividades activas (para el flujo del asesor).
  * @returns {Object[]}
  */
-function listarActividades() {
+function listarActividades(token) {
+  authenticate_(token);
   requireRol_('asesor', 'coordinadora');
   return sheetToObjects_('Actividades')
     .filter(a => toBool_(a.Activa))
@@ -50,7 +51,8 @@ function listarActividades() {
  * Lista TODAS las actividades (para gestión de la coordinadora).
  * @returns {Object[]}
  */
-function listarTodasActividades() {
+function listarTodasActividades(token) {
+  authenticate_(token);
   requireRol_('coordinadora');
   return sheetToObjects_('Actividades')
     .map(mapActividad_)
@@ -62,8 +64,7 @@ function listarTodasActividades() {
  * @param {string} id
  * @returns {Object}
  */
-function obtenerActividad(id) {
-  requireRol_('asesor', 'coordinadora');
+function obtenerActividad_(id) {
   const actividades = sheetToObjects_('Actividades');
   const found = actividades.find(a => a.ID_Actividad === id);
   if (!found) throw new Error('Actividad no encontrada: ' + id);
@@ -76,7 +77,8 @@ function obtenerActividad(id) {
  *          requiereInscripcion:boolean, legalizarIglesia:boolean, legalizarAcademia:boolean}} datos
  * @returns {{ok:boolean, id:string}}
  */
-function crearActividad(datos) {
+function crearActividad(token, datos) {
+  authenticate_(token);
   requireRol_('coordinadora');
   validateRequired_(datos, ['nombre', 'categoria']);
 
@@ -104,7 +106,8 @@ function crearActividad(datos) {
  * @param {Object} datos
  * @returns {{ok:boolean}}
  */
-function actualizarActividad(id, datos) {
+function actualizarActividad(token, id, datos) {
+  authenticate_(token);
   requireRol_('coordinadora');
   const sheet   = getSheet_('Actividades');
   const values  = sheet.getDataRange().getValues();
@@ -141,7 +144,8 @@ function actualizarActividad(id, datos) {
  * @param {boolean} activa
  * @returns {{ok:boolean}}
  */
-function toggleActividad(id, activa) {
+function toggleActividad(token, id, activa) {
+  authenticate_(token);
   requireRol_('coordinadora');
   const sheet   = getSheet_('Actividades');
   const values  = sheet.getDataRange().getValues();
@@ -164,7 +168,8 @@ function toggleActividad(id, activa) {
  * Lista todos los periodos.
  * @returns {Object[]}
  */
-function listarPeriodos() {
+function listarPeriodos(token) {
+  authenticate_(token);
   requireRol_('asesor', 'coordinadora');
   return sheetToObjects_('Periodos').map(p => ({
     id:          p.ID_Periodo,
@@ -182,7 +187,8 @@ function listarPeriodos() {
  * @param {{nombre:string, tipo:string, año:number, fechaInicio:string, fechaFin:string, activo:boolean}} datos
  * @returns {{ok:boolean, id:string}}
  */
-function crearPeriodo(datos) {
+function crearPeriodo(token, datos) {
+  authenticate_(token);
   requireRol_('coordinadora');
   validateRequired_(datos, ['nombre', 'tipo', 'año']);
 
@@ -203,7 +209,8 @@ function crearPeriodo(datos) {
  * @param {string} id
  * @returns {{ok:boolean}}
  */
-function activarPeriodo(id) {
+function activarPeriodo(token, id) {
+  authenticate_(token);
   requireRol_('coordinadora');
   desactivarTodosLosPeriodos_();
   const sheet   = getSheet_('Periodos');

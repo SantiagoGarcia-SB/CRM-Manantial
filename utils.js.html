@@ -47,7 +47,19 @@ const toast = (() => {
  * @param {...any} args    - Argumentos
  * @returns {Promise<any>}
  */
+// Llama una función protegida: auto-prepend el token de sesión.
 function gsr(fnName, ...args) {
+  return new Promise((resolve, reject) => {
+    const token = window._sessionToken || '';
+    const runner = google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(e => reject(new Error(e.message || String(e))));
+    runner[fnName](token, ...args);
+  });
+}
+
+// Llama una función pública (sin token): solicitarAcceso, verificarCodigo, cerrarSesion, getCurrentUserInfo.
+function gsrPublic(fnName, ...args) {
   return new Promise((resolve, reject) => {
     const runner = google.script.run
       .withSuccessHandler(resolve)

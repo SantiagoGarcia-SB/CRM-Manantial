@@ -3,7 +3,7 @@
 //   crearTransaccion(payload)           → {ok, transaccion, inscripcion?}
 //   listarTransacciones(filtros)        → {transacciones:[], total:number}
 //   obtenerResumenAsesor(email?)        → {transacciones:[], resumen:{}}
-//   getHistorialTurno()                 → {transacciones:[], totales:{}}
+//   getHistorialTurno(sede?)             → {transacciones:[], totales:{}}
 //   getCarteraAsesor()                  → Object[]  (semáforo por persona)
 //   actualizarEstadoLegalizacion(id,tipo,estado) → {ok}
 
@@ -32,7 +32,8 @@
  *   dtNoDatafono?:            string
  * }
  */
-function crearTransaccion(payload) {
+function crearTransaccion(token, payload) {
+  authenticate_(token);
   const asesorInfo = requireRol_('asesor', 'coordinadora');
   validateRequired_(payload, ['idPersona','nombrePersona','idActividad','nombreActividad','monto','metodoPago','sede']);
 
@@ -42,7 +43,7 @@ function crearTransaccion(payload) {
   if (Number(payload.monto) < 0) throw new Error('El monto no puede ser negativo.');
 
   // Obtener actividad para leer sus flags
-  const actividad = obtenerActividad(payload.idActividad);
+  const actividad = obtenerActividad_(payload.idActividad);
 
   // Obtener periodo activo
   const periodo = getPeriodoActivo_();
@@ -156,11 +157,15 @@ function crearTransaccion(payload) {
  *          periodo?:string, page?:number, pageSize?:number}} filtros
  * @returns {{transacciones:Object[], total:number}}
  */
-function listarTransacciones(filtros = {}) {
+function listarTransacciones(token, filtros = {}) {
+  authenticate_(token);
   requireRol_('coordinadora');
   let trans = sheetToObjects_('Transacciones');
 
-  if (filtros.sede)          trans = trans.filter(t => t.Sede === filtros.sede);
+  if (filtros.sede) {
+    const sedeMap = buildAsesorSedeMap_();
+    trans = trans.filter(t => sedeMap[t.Asesor_Email] === filtros.sede);
+  }
   if (filtros.asesorEmail)   trans = trans.filter(t => t.Asesor_Email === filtros.asesorEmail);
   if (filtros.actividad)     trans = trans.filter(t => (t.Actividad||'').toLowerCase().includes(filtros.actividad.toLowerCase()));
   if (filtros.metodoPago)    trans = trans.filter(t => t.Metodo_Pago === filtros.metodoPago);
@@ -209,16 +214,22 @@ function listarTransacciones(filtros = {}) {
  * Retorna el resumen del turno actual (hoy) para el asesor logueado.
  * @returns {{transacciones:Object[], totales:{efectivo:number, datafono:number, nequi:number, total:number}}}
  */
-function getHistorialTurno() {
+function getHistorialTurno(token, sede) {
+  authenticate_(token);
   const asesorInfo = requireRol_('asesor', 'coordinadora');
   const ahora      = new Date();
   const inicioHoy  = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
 
-  const trans = sheetToObjects_('Transacciones')
-    .filter(t =>
-      t.Asesor_Email === asesorInfo.email &&
-      t.Timestamp && new Date(t.Timestamp) >= inicioHoy
-    )
+  let filas = sheetToObjects_('Transacciones')
+    .filter(t => t.Timestamp && new Date(t.Timestamp) >= inicioHoy);
+
+  if (sede) {
+    filas = filas.filter(t => t.Sede === sede);
+  } else {
+    filas = filas.filter(t => t.Asesor_Email === asesorInfo.email);
+  }
+
+  const trans = filas
     .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))
     .map(mapTransaccion_);
 
@@ -238,7 +249,8 @@ function getHistorialTurno() {
  * Semáforo: verde=legalizado, amarillo=pendiente ≤7 días, rojo=pendiente >7 días
  * @returns {Object[]}
  */
-function getCarteraAsesor() {
+function getCarteraAsesor(token) {
+  authenticate_(token);
   const asesorInfo = requireRol_('asesor', 'coordinadora');
   const ahora      = new Date();
 
@@ -290,8 +302,13 @@ function getCarteraAsesor() {
  * @param {'Pendiente'|'Legalizado'|'NA'} estado
  * @returns {{ok:boolean}}
  */
-function actualizarEstadoLegalizacion(idTrans, tipo, estado) {
+function actualizarEstadoLegalizacion(token, idTrans, tipo, estado) {
+  authenticate_(token);
   requireRol_('coordinadora');
+  return actualizarEstadoLegalizacion_(idTrans, tipo, estado);
+}
+
+function actualizarEstadoLegalizacion_(idTrans, tipo, estado) {
   const sheet   = getSheet_('Transacciones');
   const values  = sheet.getDataRange().getValues();
   const headers = values[0];

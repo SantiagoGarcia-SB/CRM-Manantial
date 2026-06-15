@@ -35,12 +35,16 @@ function crearInscripcionDesdeTransaccion_(datos) {
  * @param {{actividad?:string, sede?:string, periodo?:string, page?:number, pageSize?:number}} filtros
  * @returns {{inscripciones:Object[], total:number}}
  */
-function listarInscripciones(filtros = {}) {
+function listarInscripciones(token, filtros = {}) {
+  authenticate_(token);
   requireRol_('coordinadora');
   let inscripciones = sheetToObjects_('Inscripciones');
 
   if (filtros.actividad)   inscripciones = inscripciones.filter(i => (i.Actividad || '').toLowerCase().includes(filtros.actividad.toLowerCase()));
-  if (filtros.sede)        inscripciones = inscripciones.filter(i => i.Sede === filtros.sede);
+  if (filtros.sede) {
+    const sedeMap = buildAsesorSedeMap_();
+    inscripciones = inscripciones.filter(i => sedeMap[i.Asesor_Email] === filtros.sede);
+  }
   if (filtros.periodo)     inscripciones = inscripciones.filter(i => i.Periodo === filtros.periodo);
   if (filtros.modulo)      inscripciones = inscripciones.filter(i => (i.Modulo || '').toLowerCase().includes(filtros.modulo.toLowerCase()));
   if (filtros.asesorEmail) inscripciones = inscripciones.filter(i => i.Asesor_Email === filtros.asesorEmail);
@@ -94,7 +98,8 @@ function listarInscripciones(filtros = {}) {
  * @param {string} periodoId - Opcional: filtrar por periodo
  * @returns {{porActividad:Object[], totalInscripciones:number, totalRecaudado:number}}
  */
-function getKPIsInscripciones(periodoId) {
+function getKPIsInscripciones(token, periodoId) {
+  authenticate_(token);
   requireRol_('coordinadora');
   let inscripciones = sheetToObjects_('Inscripciones');
   if (periodoId) inscripciones = inscripciones.filter(i => i.Periodo === periodoId);

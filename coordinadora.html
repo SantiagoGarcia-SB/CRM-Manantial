@@ -119,16 +119,144 @@
     /* ── PERSONA FICHA ── */
     .ficha-header { background: var(--surface2); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
 
-    @media (max-width: 900px) {
+    /* ── MINI SIDEBAR (tablet landscape) ── */
+    @media (min-width: 769px) and (max-width: 900px) {
       .sidebar { width: 60px; }
       .nav-item span:not(.nav-icon) { display: none; }
       .sidebar-brand p, .sidebar-user .email, .sidebar-user .name { display: none; }
       .main { margin-left: 60px; }
       .charts-grid, .charts-grid-3 { grid-template-columns: 1fr; }
     }
+
+    /* ── HAMBURGER (hidden on desktop) ── */
+    .hamburger {
+      display: none;
+      background: none; border: none;
+      color: var(--text); font-size: 1.4rem;
+      padding: 4px 8px; margin-right: 8px;
+      cursor: pointer; line-height: 1;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ── SIDEBAR OVERLAY ── */
+    .sidebar-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 90;
+    }
+    .sidebar-overlay.open { display: block; }
+
+    /* ── MOBILE (≤ 768px) ── */
+    @media (max-width: 768px) {
+      .hamburger { display: inline-flex; align-items: center; }
+
+      /* Sidebar becomes a drawer sliding from the left */
+      .sidebar {
+        width: 260px !important;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 100;
+      }
+      .sidebar.open { transform: translateX(0); }
+
+      /* Force-show sidebar text when drawer is open */
+      .sidebar.open .nav-item span:not(.nav-icon),
+      .sidebar.open .sidebar-brand p,
+      .sidebar.open .sidebar-user .email,
+      .sidebar.open .sidebar-user .name { display: block !important; }
+      .sidebar.open .nav-item span:not(.nav-icon) { display: inline !important; }
+
+      /* No left margin — main fills full width */
+      .main { margin-left: 0 !important; }
+
+      /* Topbar */
+      .topbar { padding: 10px 16px; }
+      .topbar-title { font-size: 0.95rem; }
+
+      /* Content padding */
+      .content { padding: 12px 16px; }
+
+      /* Global filter bar: single scrollable row */
+      .global-filter-bar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding: 6px 16px;
+        gap: 6px;
+        top: 49px;
+      }
+      .global-filter-bar::-webkit-scrollbar { display: none; }
+      .global-filter-bar .input {
+        min-width: 120px; max-width: 160px;
+        height: 30px; font-size: 16px; padding: 4px 8px;
+      }
+      .global-filter-bar .gf-label { display: none; }
+      .global-filter-bar .gf-clear { flex-shrink: 0; }
+
+      /* Charts stack */
+      .charts-grid, .charts-grid-3 { grid-template-columns: 1fr !important; }
+
+      /* KPIs: 2 columns */
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+
+      /* Filter bars inside sections */
+      .filter-bar { flex-direction: column; }
+      .filter-bar .input, .filter-bar select { max-width: 100%; }
+
+      /* Modals: bottom sheet */
+      .modal-backdrop {
+        padding: 0;
+        align-items: flex-end;
+      }
+      .modal {
+        max-width: 100%;
+        border-radius: 14px 14px 0 0;
+        max-height: 92vh;
+      }
+
+      /* Comp rows */
+      .comp-row { grid-template-columns: 100px 1fr 60px 1fr 60px; font-size: 0.75rem; }
+    }
+    /* ── SMALL PHONES (≤ 400px) ── */
+    @media (max-width: 400px) {
+      .kpi-grid { grid-template-columns: 1fr 1fr; }
+      .kpi-value { font-size: 1.3rem; }
+      .tabs .tab { padding: 10px 12px; font-size: 0.78rem; }
+    }
   </style>
 </head>
 <body>
+
+<!-- PANTALLA DE LOGIN COORDINADORA -->
+<div id="login-screen-coord" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--bg)">
+  <div style="font-size:2rem;margin-bottom:8px">⛪</div>
+  <h1 style="font-size:1.2rem;color:var(--accent);margin-bottom:4px">CRM Manantial</h1>
+  <p style="font-size:.82rem;color:var(--text-dim);margin-bottom:24px">Panel Coordinadora</p>
+  <div id="login-step-email" class="card" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px">
+    <div class="input-group">
+      <label>Correo electrónico</label>
+      <input id="login-email" class="input" type="email" inputmode="email" placeholder="tu@correo.com"
+        onkeydown="if(event.key==='Enter') loginSolicitarCodigo()">
+    </div>
+    <button id="btn-solicitar" class="btn btn-primary btn-full" onclick="loginSolicitarCodigo()">Enviar código →</button>
+  </div>
+  <div id="login-step-codigo" class="card hidden" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px">
+    <p style="font-size:.85rem;text-align:center;margin:0">Código enviado a<br><strong id="login-email-display" style="color:var(--accent)"></strong></p>
+    <div class="input-group">
+      <label>Código de 6 dígitos</label>
+      <input id="login-codigo" class="input" type="number" inputmode="numeric" placeholder="000000"
+        style="font-size:1.3rem;letter-spacing:6px;text-align:center"
+        onkeydown="if(event.key==='Enter') loginVerificarCodigo()">
+    </div>
+    <button id="btn-verificar" class="btn btn-primary btn-full" onclick="loginVerificarCodigo()">Ingresar →</button>
+    <button class="btn btn-ghost btn-full" onclick="loginVolver()" style="font-size:.82rem">← Cambiar correo</button>
+  </div>
+</div>
+
+<!-- APP COORDINADORA (oculta hasta hacer login) -->
+<div id="coord-app" class="hidden" style="display:contents">
 
 <!-- ═══════════════════════════════ SIDEBAR ════════════════════════════════ -->
 <aside class="sidebar">
@@ -137,8 +265,9 @@
     <p>CRM · Panel coordinadora</p>
   </div>
   <div class="sidebar-user">
-    <div class="name"><?= userName ?></div>
-    <div class="email"><?= userEmail ?> · <?= userSede ?></div>
+    <div id="coord-user-name" class="name"></div>
+    <div id="coord-user-email" class="email"></div>
+    <div style="margin-top:4px"><a onclick="salir()" style="font-size:0.7rem;color:var(--text-dim);cursor:pointer;text-decoration:underline">Cerrar sesión</a></div>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-item active"  onclick="navTo('dashboard')">   <span class="nav-icon">📊</span><span>Dashboard</span></div>
@@ -154,9 +283,13 @@
   </nav>
 </aside>
 
+<!-- Overlay that closes the sidebar when tapped on mobile -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
 <!-- ═══════════════════════════ MAIN CONTENT ══════════════════════════════ -->
 <div class="main">
   <div class="topbar">
+    <button class="hamburger" onclick="toggleSidebar()" aria-label="Abrir menú">☰</button>
     <div id="topbar-title" class="topbar-title">Dashboard</div>
     <div class="topbar-actions">
       <button class="btn btn-secondary" onclick="recargarSeccion()">⟳ Actualizar</button>
@@ -434,8 +567,95 @@
   </div><!-- /content -->
 </div><!-- /main -->
 
+</div><!-- /coord-app -->
+
 <?!= include('utils.js'); ?>
 <script>
+// ─── SESIÓN ───────────────────────────────────────────────────────────────────
+window._sessionToken = '';
+let _coordLoginEmail = '';
+
+async function initApp() {
+  const token = localStorage.getItem('crm_token');
+  if (!token) { mostrarLoginCoord(); return; }
+  try {
+    const info = await gsrPublic('getCurrentUserInfo', token);
+    if (info.rol !== 'coordinadora') {
+      localStorage.removeItem('crm_token');
+      mostrarLoginCoord('Tu cuenta no tiene rol de coordinadora.');
+      return;
+    }
+    window._sessionToken = token;
+    setText('#coord-user-name', info.nombre);
+    setText('#coord-user-email', info.sede);
+    hide('#login-screen-coord');
+    show('#coord-app');
+    iniciarDashboard();
+  } catch (e) {
+    localStorage.removeItem('crm_token');
+    mostrarLoginCoord();
+  }
+}
+
+function mostrarLoginCoord(errorMsg) {
+  hide('#coord-app');
+  show('#login-screen-coord');
+  if (errorMsg) toast.error(errorMsg);
+}
+
+async function loginSolicitarCodigo() {
+  const email = qs('#login-email').value.trim().toLowerCase();
+  if (!email) { toast.warn('Ingresa tu correo'); return; }
+  const btn = qs('#btn-solicitar');
+  setLoading(btn, true);
+  try {
+    await gsrPublic('solicitarAcceso', email);
+    _coordLoginEmail = email;
+    setHtml('#login-email-display', escHtml(email));
+    hide('#login-step-email');
+    show('#login-step-codigo');
+    qs('#login-codigo').value = '';
+    qs('#login-codigo').focus();
+  } catch (e) { toast.error(e.message); }
+  finally { setLoading(btn, false); }
+}
+
+async function loginVerificarCodigo() {
+  const code = qs('#login-codigo').value.trim();
+  if (!code) { toast.warn('Ingresa el código'); return; }
+  const btn = qs('#btn-verificar');
+  setLoading(btn, true);
+  try {
+    const res = await gsrPublic('verificarCodigo', _coordLoginEmail, code);
+    if (res.rol !== 'coordinadora') { toast.error('Tu cuenta no tiene rol de coordinadora.'); return; }
+    window._sessionToken = res.token;
+    localStorage.setItem('crm_token', res.token);
+    setText('#coord-user-name', res.nombre);
+    setText('#coord-user-email', res.sede);
+    hide('#login-screen-coord');
+    show('#coord-app');
+    iniciarDashboard();
+    toast.success('Bienvenida, ' + res.nombre + ' ✓');
+  } catch (e) { toast.error(e.message); }
+  finally { setLoading(btn, false); }
+}
+
+function loginVolver() {
+  show('#login-step-email');
+  hide('#login-step-codigo');
+}
+
+function salir() {
+  gsrPublic('cerrarSesion', window._sessionToken).catch(() => {});
+  window._sessionToken = '';
+  localStorage.removeItem('crm_token');
+  mostrarLoginCoord();
+  qs('#login-email').value = '';
+  _coordLoginEmail = '';
+}
+
+document.addEventListener('DOMContentLoaded', initApp);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ESTADO GLOBAL Y CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════════════════
@@ -504,8 +724,23 @@ const SECTION_LOADERS = {
   'vista-asesor': () => {}
 };
 
+// ─── MOBILE SIDEBAR ──────────────────────────────────────────────────────────
+function toggleSidebar() {
+  const sidebar = qs('.sidebar');
+  const overlay = qs('#sidebar-overlay');
+  const isOpen = sidebar.classList.toggle('open');
+  overlay.classList.toggle('open', isOpen);
+  document.body.style.overflow = isOpen ? 'hidden' : '';
+}
+function closeSidebar() {
+  qs('.sidebar').classList.remove('open');
+  qs('#sidebar-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
 function navTo(sec) {
-  if (CURRENT_SECTION === sec) return;
+  if (CURRENT_SECTION === sec) { closeSidebar(); return; }
+  closeSidebar();
   qsa('.section').forEach(s => s.classList.remove('active'));
   qsa('.nav-item').forEach(n => n.classList.remove('active'));
   qs(`#sec-${sec}`).classList.add('active');
@@ -537,15 +772,18 @@ async function cargarDashboard() {
     ]);
 
     // KPIs
+    const etiquetaScope = kpis.filtroPeriodo ? kpis.filtroPeriodo.nombre : 'Histórico';
+    const etiquetaSede  = GLOBAL_SEDE ? ` · ${GLOBAL_SEDE}` : '';
     setHtml('#kpis-grid', `
       <div class="kpi-card kpi-accent">
         <div class="kpi-label">Recaudo total</div>
         <div class="kpi-value">${fmt.cop(kpis.recaudoTotal)}</div>
-        <div class="kpi-delta">Periodo activo</div>
+        <div class="kpi-delta">${escHtml(etiquetaScope + etiquetaSede)}</div>
       </div>
       <div class="kpi-card kpi-green">
-        <div class="kpi-label">Inscripciones activas</div>
+        <div class="kpi-label">Inscripciones</div>
         <div class="kpi-value">${fmt.num(kpis.inscripcionesActivas)}</div>
+        <div class="kpi-delta">${escHtml(etiquetaScope + etiquetaSede)}</div>
       </div>
       <div class="kpi-card kpi-yellow">
         <div class="kpi-label">Pendientes leg.</div>
@@ -554,10 +792,12 @@ async function cargarDashboard() {
       <div class="kpi-card kpi-red">
         <div class="kpi-label">Sin legalizar</div>
         <div class="kpi-value">${fmt.num(kpis.sinLegalizar)}</div>
+        <div class="kpi-delta">${escHtml(etiquetaSede || 'Todas las sedes')}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Trans. hoy</div>
         <div class="kpi-value">${fmt.num(kpis.transaccionesHoy)}</div>
+        <div class="kpi-delta">${escHtml(etiquetaSede || 'Todas las sedes')}</div>
       </div>`);
 
     // Gráfica barras actividades
@@ -1108,16 +1348,13 @@ function renderPaginacion(containerId, res, loadFn) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════════════════════════
-window.addEventListener('DOMContentLoaded', () => {
+function iniciarDashboard() {
   cargarDashboard();
-  // Cargar badge de alertas en background
   gsr('getAlertasDashboard').then(a => {
     const n = a.sinLegalizar7Dias.length;
     if (n > 0) { setText('#badge-alertas', n); show('#badge-alertas'); }
-  }).catch(()=>{});
-});
+  }).catch(() => {});
+}
 </script>
 </body>
 </html>

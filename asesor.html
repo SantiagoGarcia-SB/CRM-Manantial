@@ -5,10 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>CRM Manantial – Asesor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap">
   <?!= include('styles.css'); ?>
   <style>
-    body { max-width: 480px; margin: 0 auto; padding: 0 0 80px; }
+    body { max-width: 480px; margin: 0 auto; }
+
+    /* ── Pantallas superpuestas ─── */
+    .fullscreen {
+      position: fixed; inset: 0; z-index: 50;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      background: var(--bg);
+    }
+
+    /* ── Top bar / nav / páginas (app principal) ─── */
     .top-bar {
       position: sticky; top: 0; z-index: 100;
       background: var(--surface);
@@ -18,7 +27,7 @@
     }
     .logo { font-size: 1rem; font-weight: 700; color: var(--accent); }
     .user-chip { font-size: 0.75rem; color: var(--text-dim); text-align: right; }
-    .page { display: none; padding: 16px; animation: fadeIn 0.2s ease; }
+    .page { display: none; padding: 16px 16px 100px; animation: fadeIn 0.2s ease; }
     .page.active { display: block; }
     .bottom-nav {
       position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
@@ -27,35 +36,40 @@
       border-top: 1px solid var(--border);
       display: flex;
       z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom);
     }
     .nav-btn {
-      flex: 1; padding: 12px 0; display: flex; flex-direction: column; align-items: center;
+      flex: 1; padding: 10px 0; min-height: 56px;
+      display: flex; flex-direction: column; align-items: center;
       gap: 3px; background: none; border: none; color: var(--text-dim); font-size: 0.65rem;
       font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;
       transition: color 0.15s;
+      -webkit-tap-highlight-color: transparent;
     }
-    .nav-btn svg, .nav-btn .nav-icon { font-size: 20px; }
+    .nav-btn svg, .nav-btn .nav-icon { font-size: 22px; }
     .nav-btn.active { color: var(--accent); }
-    /* Flujo de 3 pasos */
+
+    @media (min-width: 600px) {
+      body { max-width: 520px; border-left: 1px solid var(--border); border-right: 1px solid var(--border); min-height: 100vh; }
+      .bottom-nav { max-width: 520px; }
+    }
+
+    /* ── Flujo 3 pasos ─── */
     .flow-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px;
       display: flex; flex-direction: column; gap: 16px;
     }
-    /* Actividad cards */
     .actividad-item {
       padding: 14px 16px;
       background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
       cursor: pointer; transition: all 0.15s; display: flex; justify-content: space-between; align-items: center;
     }
-    .actividad-item:hover, .actividad-item.selected {
-      border-color: var(--accent); background: var(--accent-lt);
-    }
+    .actividad-item:hover, .actividad-item.selected { border-color: var(--accent); background: var(--accent-lt); }
     .actividad-item.selected .actividad-check { opacity: 1; }
     .actividad-check { opacity: 0; color: var(--accent); font-size: 1.1rem; transition: opacity 0.15s; }
     .actividad-nombre { font-weight: 600; font-size: 0.9rem; }
     .actividad-valor  { font-size: 0.82rem; color: var(--accent); font-weight: 700; margin-top: 2px; }
     .actividad-cat    { font-size: 0.72rem; color: var(--muted); }
-    /* Método pago */
     .metodo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .metodo-btn {
       padding: 16px 8px; border-radius: 12px; border: 2px solid var(--border);
@@ -65,40 +79,132 @@
     }
     .metodo-btn .metodo-icon { font-size: 1.6rem; }
     .metodo-btn.selected { border-color: var(--accent); background: var(--accent-lt); color: var(--accent); }
-    /* Resumen success */
-    .success-card {
-      text-align: center; padding: 32px 20px;
-      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-    }
+    .success-card { text-align: center; padding: 32px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
     .success-icon { font-size: 3.5rem; margin-bottom: 12px; }
     .summary-row  { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(45,49,72,0.5); font-size: 0.875rem; }
     .summary-row:last-child { border: none; }
-    /* Cartera semáforo */
-    .cartera-item {
-      padding: 14px 0; border-bottom: 1px solid rgba(45,49,72,0.5); display: flex; align-items: center; gap: 12px;
-    }
+    .cartera-item { padding: 14px 0; border-bottom: 1px solid rgba(45,49,72,0.5); display: flex; align-items: center; gap: 12px; }
     .cartera-item:last-child { border: none; }
     .cartera-info { flex: 1; min-width: 0; }
     .cartera-nombre  { font-weight: 600; font-size: 0.875rem; }
     .cartera-detalle { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
     .cartera-monto   { font-size: 0.85rem; font-weight: 700; color: var(--accent); text-align: right; }
+
+    /* ── Versículo ─── */
+    @keyframes floatIn {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .welcome-content { animation: floatIn 0.55s ease both; }
+
+    /* ── Asesor cards ─── */
+    .asesor-card {
+      width: 100%;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 20px;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.15s, background 0.15s, transform 0.1s;
+      display: flex; align-items: center; gap: 16px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .asesor-card:hover  { border-color: var(--accent); background: var(--surface2); }
+    .asesor-card:active { transform: scale(0.985); }
+    .asesor-avatar {
+      width: 52px; height: 52px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; font-weight: 800; color: #fff;
+      flex-shrink: 0; letter-spacing: -0.02em;
+    }
+    .asesor-nombre { font-size: 1.05rem; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .asesor-sede   { font-size: 0.85rem; color: var(--text-dim); }
+    .asesor-arrow  { margin-left: auto; color: var(--muted); font-size: 1.2rem; flex-shrink: 0; }
   </style>
 </head>
 <body>
 
-<!-- TOP BAR -->
-<div class="top-bar">
-  <div class="logo">⛪ Manantial</div>
-  <div class="user-chip">
-    <div style="font-weight:600;color:var(--text)"><?= userName ?></div>
-    <div><?= userSede ?></div>
+<!-- ═══════════════════════════════════════════════════════════════
+     PANTALLA 1: BIENVENIDA
+════════════════════════════════════════════════════════════════ -->
+<div id="welcome-screen" class="fullscreen"
+  style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;background-image:radial-gradient(ellipse at 50% -5%, rgba(108,99,255,0.22) 0%, transparent 62%)">
+
+  <div class="welcome-content" style="max-width:400px;width:100%">
+
+    <div style="font-size:5rem;line-height:1;margin-bottom:20px;filter:drop-shadow(0 0 28px rgba(108,99,255,0.55))">⛪</div>
+
+    <h1 style="font-size:2.5rem;font-weight:800;color:#fff;margin-bottom:6px;letter-spacing:-0.04em">CRM Manantial</h1>
+    <p style="font-size:0.82rem;font-weight:700;color:var(--accent);letter-spacing:0.16em;text-transform:uppercase;margin-bottom:48px">Sistema de Recaudo</p>
+
+    <!-- Versículo -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:20px;padding:32px 28px;margin-bottom:44px;box-shadow:0 16px 48px rgba(0,0,0,0.4)">
+      <div style="font-size:3rem;color:var(--accent);line-height:0.8;margin-bottom:16px;opacity:0.6;font-family:Georgia,serif">"</div>
+      <p style="font-size:1.08rem;color:var(--text);line-height:1.85;font-style:italic;margin-bottom:20px;font-weight:400">
+        El que quiera ser el primero entre vosotros, será vuestro siervo; así como el Hijo del Hombre no vino para ser servido, sino para servir.
+      </p>
+      <p style="font-size:0.88rem;color:var(--accent);font-weight:700;letter-spacing:0.05em">— Mateo 20:27–28</p>
+    </div>
+
+    <!-- Botón entrar -->
+    <button onclick="mostrarSelectorAsesor()" style="width:100%;padding:20px 24px;background:var(--accent);color:#fff;border:none;border-radius:16px;font-size:1.2rem;font-weight:700;cursor:pointer;box-shadow:0 8px 28px rgba(108,99,255,0.5);letter-spacing:0.02em;transition:all 0.2s;-webkit-tap-highlight-color:transparent"
+      onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 12px 36px rgba(108,99,255,0.6)'"
+      onmouseout="this.style.transform='';this.style.boxShadow='0 8px 28px rgba(108,99,255,0.5)'">
+      Empezar →
+    </button>
+
+    <p style="margin-top:28px;font-size:0.75rem;color:var(--muted)">Manantial de Vida · 2025</p>
   </div>
 </div>
 
-<!-- PÁGINA: NUEVA TRANSACCIÓN (3 pasos) -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PANTALLA 2: SELECCIONAR ASESOR
+════════════════════════════════════════════════════════════════ -->
+<div id="select-screen" class="fullscreen" style="display:none;flex-direction:column;padding:28px 20px">
+  <div style="max-width:480px;margin:0 auto;width:100%">
+
+    <button onclick="mostrarBienvenida()" style="background:none;border:none;color:var(--text-dim);font-size:1rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;margin-bottom:36px;padding:4px 0;-webkit-tap-highlight-color:transparent">
+      ← Atrás
+    </button>
+
+    <div style="margin-bottom:36px">
+      <h2 style="font-size:1.9rem;font-weight:700;color:var(--text);margin-bottom:10px">¿Quién eres?</h2>
+      <p style="font-size:1rem;color:var(--text-dim);line-height:1.5">Selecciona tu nombre para comenzar a registrar</p>
+    </div>
+
+    <div id="lista-asesores-selector" style="display:flex;flex-direction:column;gap:12px">
+      <div class="skeleton" style="height:84px;border-radius:16px"></div>
+      <div class="skeleton" style="height:84px;border-radius:16px"></div>
+      <div class="skeleton" style="height:84px;border-radius:16px"></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     APP PRINCIPAL
+════════════════════════════════════════════════════════════════ -->
+<div id="main-app" class="hidden">
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <div class="logo">⛪ Manantial</div>
+  <select id="sede-recaudo-select" onchange="onSedeRecaudoChange(this.value)"
+    style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text);font-size:.72rem;font-weight:600;padding:4px 10px;cursor:pointer">
+    <option value="Norte">📍 Norte</option>
+    <option value="Suba">📍 Suba</option>
+  </select>
+  <div class="user-chip">
+    <div id="top-user-name" style="font-weight:600;color:var(--text)"></div>
+    <div><a onclick="salir()" style="font-size:0.65rem;color:var(--text-dim);cursor:pointer;text-decoration:underline">Salir</a></div>
+  </div>
+</div>
+
+<!-- PÁGINA: NUEVA TRANSACCIÓN -->
 <div id="page-nueva" class="page active">
 
-  <!-- Indicador de pasos -->
   <div id="step-indicator" class="steps mt-16 mb-8" style="padding:0 4px">
     <div class="step active" id="step-ind-1">
       <div class="step-circle">1</div>
@@ -128,7 +234,6 @@
     </div>
     <div id="resultados-busqueda"></div>
 
-    <!-- Persona seleccionada -->
     <div id="persona-seleccionada" class="hidden">
       <div class="alert alert-success">
         <span>👤</span>
@@ -140,7 +245,6 @@
       </div>
     </div>
 
-    <!-- Formulario nueva persona (inline) -->
     <div id="form-nueva-persona" class="hidden">
       <div style="font-size:.82rem;font-weight:700;color:var(--yellow);margin-bottom:12px">➕ Registrar nueva persona</div>
       <div style="display:flex;flex-direction:column;gap:10px">
@@ -150,11 +254,11 @@
         </div>
         <div class="input-group">
           <label>Cédula *</label>
-          <input id="np-documento" class="input" type="number" placeholder="Número de documento">
+          <input id="np-documento" class="input" type="number" inputmode="numeric" placeholder="Número de documento">
         </div>
         <div class="input-group">
           <label>Celular</label>
-          <input id="np-celular" class="input" type="tel" placeholder="3001234567">
+          <input id="np-celular" class="input" type="tel" inputmode="tel" placeholder="3001234567">
         </div>
         <div class="input-group">
           <label>Correo</label>
@@ -196,7 +300,6 @@
       <div class="skeleton" style="height:56px"></div>
     </div>
 
-    <!-- Sub-paso inscripción -->
     <div id="subpaso-inscripcion" class="hidden">
       <div style="font-size:.8rem;font-weight:700;color:var(--accent);margin-bottom:10px">📋 Datos de inscripción</div>
       <div style="display:flex;flex-direction:column;gap:10px">
@@ -230,11 +333,10 @@
       </div>
     </div>
 
-    <!-- Monto variable -->
     <div id="monto-variable" class="hidden">
       <div class="input-group">
         <label>Monto a pagar (COP) *</label>
-        <input id="monto-input" class="input" type="number" min="0" placeholder="0" style="font-size:1.1rem;font-weight:700">
+        <input id="monto-input" class="input" type="number" inputmode="numeric" min="0" placeholder="0" style="font-size:1.1rem;font-weight:700">
       </div>
     </div>
 
@@ -256,7 +358,6 @@
       <button class="btn btn-ghost" style="font-size:.8rem;padding:4px 8px" onclick="volverPaso2()">← Volver</button>
     </div>
 
-    <!-- Resumen previo -->
     <div class="card card-sm" style="background:var(--surface2)">
       <div class="summary-row">
         <span class="text-muted">Persona</span>
@@ -284,7 +385,6 @@
       </button>
     </div>
 
-    <!-- Sub-paso Datáfono -->
     <div id="subpaso-datafono" class="hidden">
       <div style="font-size:.8rem;font-weight:700;color:var(--accent);margin:12px 0 10px">💳 Datos del datáfono</div>
       <div style="display:flex;flex-direction:column;gap:10px">
@@ -310,7 +410,7 @@
         </div>
         <div class="input-group">
           <label>Valor (COP) *</label>
-          <input id="dt-valor" class="input" type="number" min="0" placeholder="0">
+          <input id="dt-valor" class="input" type="number" inputmode="numeric" min="0" placeholder="0">
         </div>
         <div class="input-group">
           <label>¿Quien paga es el beneficiario del pago? *</label>
@@ -327,17 +427,17 @@
             </div>
             <div class="input-group">
               <label>Número de documento del beneficiario *</label>
-              <input id="dt-doc-benef" class="input" type="number" placeholder="Número de identificación">
+              <input id="dt-doc-benef" class="input" type="number" inputmode="numeric" placeholder="Número de identificación">
             </div>
             <div class="input-group">
               <label>Celular del beneficiario *</label>
-              <input id="dt-celular-benef" class="input" type="number" placeholder="Número de celular">
+              <input id="dt-celular-benef" class="input" type="number" inputmode="tel" placeholder="Número de celular">
             </div>
           </div>
         </div>
         <div class="input-group">
           <label>No. Autorización *</label>
-          <input id="dt-autorizacion" class="input" type="number" placeholder="Número de autorización">
+          <input id="dt-autorizacion" class="input" type="number" inputmode="numeric" placeholder="Número de autorización">
         </div>
         <div class="input-group">
           <label>No. Datáfono *</label>
@@ -372,7 +472,7 @@
 
 <!-- PÁGINA: MI CARTERA -->
 <div id="page-cartera" class="page">
-  <div style="padding:16px">
+  <div>
     <h2>Mi cartera</h2>
     <p style="font-size:.82rem;margin-top:4px;margin-bottom:16px">Estado de legalización de tus personas</p>
     <div id="lista-cartera">
@@ -385,10 +485,12 @@
 
 <!-- PÁGINA: HISTORIAL DE HOY -->
 <div id="page-historial" class="page">
-  <div style="padding:16px">
+  <div>
     <h2>Historial del turno</h2>
-    <p style="font-size:.82rem;margin-top:4px;margin-bottom:16px">Transacciones de hoy</p>
-    <!-- Totales por método -->
+    <div style="display:flex;gap:8px;margin-top:8px;margin-bottom:16px">
+      <button id="hist-tab-yo" class="btn btn-primary" style="flex:1;font-size:.82rem" onclick="setHistorialTab('yo')">Mis pagos</button>
+      <button id="hist-tab-sede" class="btn btn-secondary" style="flex:1;font-size:.82rem" onclick="setHistorialTab('sede')">Sede: <span id="hist-tab-sede-label"></span></button>
+    </div>
     <div id="totales-turno" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
       <div class="kpi-card kpi-accent" style="padding:12px">
         <div class="kpi-label">Efectivo</div>
@@ -424,30 +526,147 @@
   </button>
 </nav>
 
+</div><!-- /main-app -->
+
 <?!= include('utils.js'); ?>
 <script>
+// ─── SESIÓN ───────────────────────────────────────────────────────────────────
+window._sessionToken = '';
+
+async function initApp() {
+  const token = localStorage.getItem('crm_token');
+  if (!token) { mostrarBienvenida(); return; }
+  try {
+    const info = await gsrPublic('getCurrentUserInfo', token);
+    window._sessionToken = token;
+    qs('#welcome-screen').style.display = 'none';
+    qs('#select-screen').style.display  = 'none';
+    mostrarApp(info);
+  } catch (e) {
+    localStorage.removeItem('crm_token');
+    mostrarBienvenida();
+  }
+}
+
+// ─── PANTALLA BIENVENIDA ──────────────────────────────────────────────────────
+function mostrarBienvenida() {
+  qs('#welcome-screen').style.display = 'flex';
+  qs('#select-screen').style.display  = 'none';
+  hide('#main-app');
+}
+
+// ─── PANTALLA SELECTOR ────────────────────────────────────────────────────────
+async function mostrarSelectorAsesor() {
+  qs('#welcome-screen').style.display = 'none';
+  qs('#select-screen').style.display  = 'flex';
+  qs('#select-screen').scrollTop = 0;
+
+  setHtml('#lista-asesores-selector',
+    '<div class="skeleton" style="height:84px;border-radius:16px"></div>'.repeat(3));
+
+  try {
+    const asesores = await gsrPublic('listarAsesoresPublico');
+    renderSelectorAsesores(asesores);
+  } catch (e) {
+    toast.error('Error al cargar asesores: ' + e.message);
+    mostrarBienvenida();
+  }
+}
+
+function renderSelectorAsesores(asesores) {
+  const c = qs('#lista-asesores-selector');
+  if (!asesores.length) {
+    c.innerHTML = '<p class="text-muted text-center mt-24">No hay asesores disponibles.<br>Contacta a tu coordinadora.</p>';
+    return;
+  }
+  c.innerHTML = asesores.map(function(a) {
+    const initials = getInitials(a.nombre);
+    const color    = nameColor(a.nombre);
+    return `<button class="asesor-card" onclick='elegirAsesor(${JSON.stringify(a)})'>
+      <div class="asesor-avatar" style="background:${color}">${escHtml(initials)}</div>
+      <div style="flex:1;min-width:0">
+        <div class="asesor-nombre">${escHtml(a.nombre)}</div>
+        <div class="asesor-sede">📍 ${escHtml(a.sede)}</div>
+      </div>
+      <div class="asesor-arrow">›</div>
+    </button>`;
+  }).join('');
+}
+
+async function elegirAsesor(asesor) {
+  setHtml('#lista-asesores-selector',
+    '<div class="skeleton" style="height:84px;border-radius:16px"></div>'.repeat(3));
+  try {
+    const res = await gsrPublic('seleccionarAsesor', asesor.email);
+    window._sessionToken = res.token;
+    localStorage.setItem('crm_token', res.token);
+    qs('#select-screen').style.display = 'none';
+    mostrarApp(res);
+    toast.success('¡Bienvenido, ' + res.nombre + '!');
+  } catch (e) {
+    toast.error(e.message);
+    mostrarSelectorAsesor();
+  }
+}
+
+function mostrarApp(info) {
+  show('#main-app');
+  setText('#top-user-name', info.nombre);
+  STATE.sedeRecaudo = info.sede;
+  qs('#sede-recaudo-select').value = info.sede;
+  const label = qs('#hist-tab-sede-label');
+  if (label) label.textContent = info.sede;
+}
+
+function salir() {
+  gsrPublic('cerrarSesion', window._sessionToken).catch(function(){});
+  window._sessionToken = '';
+  localStorage.removeItem('crm_token');
+  STATE.persona = STATE.actividad = STATE.metodoPago = null;
+  STATE.monto = 0; STATE.sedeRecaudo = '';
+  hide('#main-app');
+  mostrarBienvenida();
+}
+
+document.addEventListener('DOMContentLoaded', initApp);
+
+// ─── HELPERS DE AVATAR ────────────────────────────────────────────────────────
+function getInitials(nombre) {
+  const parts = String(nombre).trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+function nameColor(nombre) {
+  const palette = ['#6c63ff','#10b981','#f59e0b','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#ef4444'];
+  let h = 0;
+  for (let i = 0; i < nombre.length; i++) h = nombre.charCodeAt(i) + ((h << 5) - h);
+  return palette[Math.abs(h) % palette.length];
+}
+
 // ─── ESTADO GLOBAL ────────────────────────────────────────────────────────────
 const STATE = {
-  persona:    null,   // {id, nombre, documento, correo, sede}
-  actividad:  null,   // {id, nombre, valorBase, valorVariable, requiereInscripcion, ...}
+  persona:    null,
+  actividad:  null,
   monto:      0,
   metodoPago: null,
   modulo:     '',
   horario:    '',
-  dtBeneficiarioMismo: null
+  dtBeneficiarioMismo: null,
+  sedeRecaudo: ''
 };
 let actividadesCache = [];
+let historialTab = 'yo';
 
 // ─── NAVEGACIÓN ───────────────────────────────────────────────────────────────
 function showPage(name, btn) {
-  qsa('.page').forEach(p => p.classList.remove('active'));
-  qs(`#page-${name}`).classList.add('active');
-  qsa('.nav-btn').forEach(b => b.classList.remove('active'));
+  qsa('.page').forEach(function(p) { p.classList.remove('active'); });
+  qs('#page-' + name).classList.add('active');
+  qsa('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
   if (btn) btn.classList.add('active');
 }
 
 // ─── PASO 1: BÚSQUEDA DE PERSONA ─────────────────────────────────────────────
-const debouncedBuscar = debounce(async (q) => {
+const debouncedBuscar = debounce(async function(q) {
   if (q.length < 2) { setHtml('#resultados-busqueda',''); return; }
   try {
     const resultados = await gsr('buscarPersonas', q);
@@ -455,7 +674,7 @@ const debouncedBuscar = debounce(async (q) => {
   } catch(e) { toast.error('Error al buscar: ' + e.message); }
 }, 400);
 
-qs('#busqueda-persona').addEventListener('input', e => debouncedBuscar(e.target.value.trim()));
+qs('#busqueda-persona').addEventListener('input', function(e) { debouncedBuscar(e.target.value.trim()); });
 
 function renderResultados(lista, query) {
   const c = qs('#resultados-busqueda');
@@ -463,11 +682,11 @@ function renderResultados(lista, query) {
     c.innerHTML = `<div class="search-results"><div class="search-item" onclick="showFormNuevaPersona()"><div class="search-item-name">Sin resultados para "${escHtml(query)}"</div><div class="search-item-sub">Tap para registrar nueva persona →</div></div></div>`;
     return;
   }
-  c.innerHTML = `<div class="search-results">${lista.map(p => `
+  c.innerHTML = `<div class="search-results">${lista.map(function(p) { return `
     <div class="search-item" onclick='seleccionarPersona(${JSON.stringify(p)})'>
       <div class="search-item-name">👤 ${escHtml(p.nombre)}</div>
       <div class="search-item-sub">CC ${escHtml(p.documento)} · ${escHtml(p.celular||'')} · ${escHtml(p.sede)}</div>
-    </div>`).join('')}</div>`;
+    </div>`; }).join('')}</div>`;
 }
 
 function seleccionarPersona(p) {
@@ -475,7 +694,7 @@ function seleccionarPersona(p) {
   setHtml('#resultados-busqueda','');
   qs('#busqueda-persona').value = '';
   setHtml('#ps-nombre', escHtml(p.nombre));
-  setHtml('#ps-detalle', `CC ${escHtml(p.documento)} · ${escHtml(p.sede)}${p.correo ? ' · ' + escHtml(p.correo) : ''}`);
+  setHtml('#ps-detalle', 'CC ' + escHtml(p.documento) + ' · ' + escHtml(p.sede) + (p.correo ? ' · ' + escHtml(p.correo) : ''));
   show('#persona-seleccionada');
   hide('#form-nueva-persona');
   qs('#btn-paso2').disabled = false;
@@ -489,10 +708,15 @@ function resetPersona() {
 }
 
 function showFormNuevaPersona() {
+  const busqueda = qs('#busqueda-persona').value.trim();
   hide('#resultados-busqueda');
   show('#form-nueva-persona');
   hide('#persona-seleccionada');
   qs('#busqueda-persona').value = '';
+  if (/^\d+$/.test(busqueda)) {
+    qs('#np-documento').value = busqueda;
+    qs('#np-nombre').focus();
+  }
 }
 
 async function crearPersonaYContinuar() {
@@ -530,15 +754,13 @@ async function cargarActividades() {
   try {
     actividadesCache = await gsr('listarActividades');
     renderActividades(actividadesCache);
-  } catch(e) {
-    toast.error('Error cargando actividades'); console.error(e);
-  }
+  } catch(e) { toast.error('Error cargando actividades'); }
 }
 
 function renderActividades(lista) {
   const c = qs('#lista-actividades');
   if (!lista.length) { c.innerHTML = '<p class="text-muted text-center">Sin actividades configuradas</p>'; return; }
-  c.innerHTML = lista.map(a => `
+  c.innerHTML = lista.map(function(a) { return `
     <div class="actividad-item" onclick='seleccionarActividad(${JSON.stringify(a)}, this)' id="act-${a.id}">
       <div>
         <div class="actividad-nombre">${escHtml(a.nombre)}</div>
@@ -546,14 +768,13 @@ function renderActividades(lista) {
         ${!a.valorVariable ? `<div class="actividad-valor">${fmt.cop(a.valorBase)}</div>` : '<div class="actividad-valor">Monto libre</div>'}
       </div>
       <span class="actividad-check">✓</span>
-    </div>`).join('');
+    </div>`; }).join('');
 }
 
 function seleccionarActividad(act, el) {
   STATE.actividad = act;
-  qsa('.actividad-item').forEach(i => i.classList.remove('selected'));
+  qsa('.actividad-item').forEach(function(i) { i.classList.remove('selected'); });
   el.classList.add('selected');
-
   if (act.valorVariable) {
     show('#monto-variable'); hide('#monto-fijo-display');
     qs('#monto-input').value = '';
@@ -564,7 +785,6 @@ function seleccionarActividad(act, el) {
     setHtml('#monto-fijo-val', fmt.cop(act.valorBase));
     STATE.monto = act.valorBase;
   }
-
   toggle('#subpaso-inscripcion', act.requiereInscripcion);
   qs('#btn-paso3').disabled = false;
 }
@@ -578,30 +798,20 @@ function irPaso3() {
   }
   STATE.modulo  = qs('#insc-modulo').value.trim();
   STATE.horario = qs('#insc-horario').value.trim();
-
-  // Poblar resumen
   setHtml('#res-persona',   escHtml(STATE.persona.nombre));
   setHtml('#res-actividad', escHtml(STATE.actividad.nombre));
   setHtml('#res-monto',     fmt.cop(STATE.monto));
-
   hide('#step2'); show('#step3');
   actualizarStepIndicator(3);
 }
 
-function volverPaso2() {
-  hide('#step3'); show('#step2');
-  actualizarStepIndicator(2);
-}
-
-function irPaso1() {
-  hide('#step2'); show('#step1');
-  actualizarStepIndicator(1);
-}
+function volverPaso2() { hide('#step3'); show('#step2'); actualizarStepIndicator(2); }
+function irPaso1()      { hide('#step2'); show('#step1'); actualizarStepIndicator(1); }
 
 // ─── PASO 3: PAGO ─────────────────────────────────────────────────────────────
 function seleccionarMetodo(metodo, btn) {
   STATE.metodoPago = metodo;
-  qsa('.metodo-btn').forEach(b => b.classList.remove('selected'));
+  qsa('.metodo-btn').forEach(function(b) { b.classList.remove('selected'); });
   btn.classList.add('selected');
   toggle('#subpaso-datafono', metodo === 'Datáfono');
   if (metodo === 'Datáfono') qs('#dt-valor').value = STATE.monto || '';
@@ -610,14 +820,13 @@ function seleccionarMetodo(metodo, btn) {
 
 function seleccionarBeneficiario(valor, btn) {
   STATE.dtBeneficiarioMismo = valor;
-  qsa('.dt-benef-btn').forEach(b => b.classList.remove('selected'));
+  qsa('.dt-benef-btn').forEach(function(b) { b.classList.remove('selected'); });
   btn.classList.add('selected');
   toggle('#subpaso-beneficiario', valor === 'No');
 }
 
 async function registrarTransaccion() {
   if (!STATE.metodoPago) { toast.warn('Selecciona un método de pago'); return; }
-
   const dtData = {};
   if (STATE.metodoPago === 'Datáfono') {
     const franquicia  = qs('#dt-franquicia').value;
@@ -625,26 +834,18 @@ async function registrarTransaccion() {
     const valor       = Number(qs('#dt-valor').value);
     const noAut       = qs('#dt-autorizacion').value.trim();
     const noDatafono  = qs('#dt-no-datafono').value;
-
     if (!franquicia)          { toast.warn('Selecciona la franquicia'); return; }
     if (!tipoTarjeta)         { toast.warn('Selecciona el tipo de tarjeta'); return; }
     if (!valor || valor <= 0) { toast.warn('Ingresa el valor del datáfono'); return; }
     if (!STATE.dtBeneficiarioMismo) { toast.warn('Indica si quien paga es el beneficiario'); return; }
     if (!noAut)               { toast.warn('Ingresa el número de autorización'); return; }
     if (!noDatafono)          { toast.warn('Selecciona el número de datáfono'); return; }
-
     Object.assign(dtData, {
-      dtFranquicia:          franquicia,
-      dtTipoTarjeta:         tipoTarjeta,
-      dtValor:               valor,
-      dtBeneficiarioMismo:   STATE.dtBeneficiarioMismo,
-      dtNombreBeneficiario:  '',
-      dtDocBeneficiario:     '',
-      dtCelularBeneficiario: '',
-      dtNoAutorizacion:      noAut,
-      dtNoDatafono:          noDatafono
+      dtFranquicia: franquicia, dtTipoTarjeta: tipoTarjeta, dtValor: valor,
+      dtBeneficiarioMismo: STATE.dtBeneficiarioMismo,
+      dtNombreBeneficiario: '', dtDocBeneficiario: '', dtCelularBeneficiario: '',
+      dtNoAutorizacion: noAut, dtNoDatafono: noDatafono
     });
-
     if (STATE.dtBeneficiarioMismo === 'No') {
       const nombreBenef  = qs('#dt-nombre-benef').value.trim();
       const docBenef     = qs('#dt-doc-benef').value.trim();
@@ -657,20 +858,14 @@ async function registrarTransaccion() {
       dtData.dtCelularBeneficiario = celularBenef;
     }
   }
-
   const btn = qs('#btn-registrar');
   setLoading(btn, true);
   const payload = {
-    idPersona:       STATE.persona.id,
-    nombrePersona:   STATE.persona.nombre,
-    correoPersona:   STATE.persona.correo || '',
-    idActividad:     STATE.actividad.id,
-    nombreActividad: STATE.actividad.nombre,
-    monto:           STATE.monto,
-    metodoPago:      STATE.metodoPago,
-    sede:            STATE.persona.sede,
-    modulo:          STATE.modulo,
-    horario:         STATE.horario,
+    idPersona: STATE.persona.id, nombrePersona: STATE.persona.nombre,
+    correoPersona: STATE.persona.correo || '',
+    idActividad: STATE.actividad.id, nombreActividad: STATE.actividad.nombre,
+    monto: STATE.monto, metodoPago: STATE.metodoPago,
+    sede: STATE.sedeRecaudo, modulo: STATE.modulo, horario: STATE.horario,
     ...dtData
   };
   try {
@@ -684,16 +879,14 @@ async function registrarTransaccion() {
 function mostrarExito(t, ins) {
   hide('#step3');
   const rows = [
-    ['Persona',    t.nombrePersona],
-    ['Actividad',  t.actividad],
-    ['Monto',      fmt.cop(t.monto)],
-    ['Método',     t.metodoPago],
-    ['Fecha',      t.timestamp],
-    ['Periodo',    t.periodo],
+    ['Persona', t.nombrePersona], ['Actividad', t.actividad],
+    ['Monto', fmt.cop(t.monto)], ['Método', t.metodoPago],
+    ['Fecha', t.timestamp], ['Periodo', t.periodo],
     ...(ins ? [['Inscripción', '✓ Creada']] : [])
   ];
-  setHtml('#success-resumen', rows.map(([k,v]) => `
-    <div class="summary-row"><span class="text-muted">${escHtml(k)}</span><span class="fw-600">${escHtml(v)}</span></div>`).join(''));
+  setHtml('#success-resumen', rows.map(function(r) {
+    return `<div class="summary-row"><span class="text-muted">${escHtml(r[0])}</span><span class="fw-600">${escHtml(r[1])}</span></div>`;
+  }).join(''));
   show('#step-success');
   actualizarStepIndicator(4);
 }
@@ -706,27 +899,27 @@ function nuevaTransaccion() {
   qs('#dt-franquicia').selectedIndex = 0; qs('#dt-tipo-tarjeta').selectedIndex = 0; qs('#dt-no-datafono').selectedIndex = 0;
   qs('#dt-valor').value = ''; qs('#dt-autorizacion').value = '';
   qs('#dt-nombre-benef').value = ''; qs('#dt-doc-benef').value = ''; qs('#dt-celular-benef').value = '';
-  qsa('.dt-benef-btn').forEach(b => b.classList.remove('selected'));
+  qsa('.dt-benef-btn').forEach(function(b) { b.classList.remove('selected'); });
   hide('#step-success'); hide('#step2'); hide('#step3');
   show('#step1');
   hide('#persona-seleccionada'); hide('#form-nueva-persona');
   hide('#subpaso-inscripcion'); hide('#monto-variable'); hide('#monto-fijo-display');
   qs('#btn-paso2').disabled = true; qs('#btn-paso3').disabled = true; qs('#btn-registrar').disabled = true;
-  qsa('.actividad-item').forEach(i => i.classList.remove('selected'));
-  qsa('.metodo-btn').forEach(b => b.classList.remove('selected'));
+  qsa('.actividad-item').forEach(function(i) { i.classList.remove('selected'); });
+  qsa('.metodo-btn').forEach(function(b) { b.classList.remove('selected'); });
   actualizarStepIndicator(1);
 }
 
 // ─── STEP INDICATOR ───────────────────────────────────────────────────────────
 function actualizarStepIndicator(paso) {
   for (let i = 1; i <= 3; i++) {
-    const ind = qs(`#step-ind-${i}`);
+    const ind = qs('#step-ind-' + i);
     if (!ind) continue;
     ind.style.opacity = i <= paso ? '1' : '0.4';
     const circle = ind.querySelector('.step-circle');
-    if (i < paso)  { circle.textContent = '✓'; circle.style.background = 'var(--green)'; circle.style.borderColor = 'var(--green)'; }
-    else if (i === paso) { circle.textContent = i; circle.style.background = 'var(--accent)'; circle.style.borderColor = 'var(--accent)'; }
-    else { circle.textContent = i; circle.style.background = ''; circle.style.borderColor = ''; }
+    if (i < paso)       { circle.textContent = '✓'; circle.style.background = 'var(--green)'; circle.style.borderColor = 'var(--green)'; }
+    else if (i === paso) { circle.textContent = i;   circle.style.background = 'var(--accent)'; circle.style.borderColor = 'var(--accent)'; }
+    else                 { circle.textContent = i;   circle.style.background = ''; circle.style.borderColor = ''; }
   }
 }
 
@@ -742,7 +935,7 @@ async function cargarCartera() {
 function renderCartera(items) {
   const c = qs('#lista-cartera');
   if (!items.length) { c.innerHTML = '<p class="text-muted text-center mt-16">Sin personas en cartera</p>'; return; }
-  c.innerHTML = items.map(i => `
+  c.innerHTML = items.map(function(i) { return `
     <div class="cartera-item">
       ${badgeSemaforo(i.semaforo)}
       <div class="cartera-info">
@@ -750,36 +943,53 @@ function renderCartera(items) {
         <div class="cartera-detalle">${escHtml(i.ultimaActividad)} · ${i.diasDesde}d · Iglesia: ${i.estadoIglesia} | Academia: ${i.estadoAcademia}</div>
       </div>
       <div class="cartera-monto">${fmt.cop(i.ultimaMonto)}</div>
-    </div>`).join('');
+    </div>`; }).join('');
 }
 
 // ─── HISTORIAL ────────────────────────────────────────────────────────────────
+function setHistorialTab(tab) {
+  historialTab = tab;
+  qs('#hist-tab-yo').className   = (tab === 'yo'   ? 'btn btn-primary' : 'btn btn-secondary') + ' btn-full';
+  qs('#hist-tab-sede').className = (tab === 'sede' ? 'btn btn-primary' : 'btn btn-secondary') + ' btn-full';
+  qs('#hist-tab-yo').style.flex = '1'; qs('#hist-tab-sede').style.flex = '1';
+  qs('#hist-tab-yo').style.fontSize = '.82rem'; qs('#hist-tab-sede').style.fontSize = '.82rem';
+  cargarHistorial();
+}
+
+function onSedeRecaudoChange(sede) {
+  STATE.sedeRecaudo = sede;
+  const label = qs('#hist-tab-sede-label');
+  if (label) label.textContent = sede;
+  toast.info('Sede de recaudo: ' + sede);
+}
+
 async function cargarHistorial() {
   setHtml('#historial-lista','<div class="skeleton" style="height:56px;margin-bottom:8px"></div>'.repeat(5));
   try {
-    const res = await gsr('getHistorialTurno');
+    const sede = historialTab === 'sede' ? STATE.sedeRecaudo : null;
+    const res = await gsr('getHistorialTurno', sede);
     setText('#tot-efectivo', fmt.cop(res.totales.efectivo));
     setText('#tot-datafono', fmt.cop(res.totales.datafono));
     setText('#tot-nequi',    fmt.cop(res.totales.nequi));
     setText('#tot-total',    fmt.cop(res.totales.total));
-    renderHistorial(res.transacciones);
+    renderHistorial(res.transacciones, historialTab === 'sede');
   } catch(e) { toast.error('Error cargando historial'); }
 }
 
-function renderHistorial(lista) {
+function renderHistorial(lista, showAsesor) {
   const c = qs('#historial-lista');
   if (!lista.length) { c.innerHTML = '<p class="text-muted text-center mt-16">Sin transacciones hoy</p>'; return; }
-  c.innerHTML = `<div class="card" style="padding:0">` + lista.map(t => `
+  c.innerHTML = `<div class="card" style="padding:0">` + lista.map(function(t) { return `
     <div style="padding:12px 16px;border-bottom:1px solid rgba(45,49,72,.5);display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-weight:600;font-size:.875rem">${escHtml(t.nombrePersona)}</div>
-        <div style="font-size:.75rem;color:var(--text-dim)">${escHtml(t.actividad)} · ${escHtml(t.timestamp)}</div>
+        <div style="font-size:.75rem;color:var(--text-dim)">${escHtml(t.actividad)} · ${escHtml(t.timestamp)}${showAsesor ? ' · ' + escHtml(t.asesorNombre || '') : ''}</div>
       </div>
       <div style="text-align:right">
         <div style="font-weight:700;color:var(--accent)">${fmt.cop(t.monto)}</div>
         <div style="font-size:.72rem">${badgeEstado(t.metodoPago)}</div>
       </div>
-    </div>`).join('') + `</div>`;
+    </div>`; }).join('') + `</div>`;
 }
 </script>
 </body>

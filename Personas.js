@@ -12,7 +12,8 @@
  * @param {string} query
  * @returns {Object[]}
  */
-function buscarPersonas(query) {
+function buscarPersonas(token, query) {
+  authenticate_(token);
   requireRol_('asesor', 'coordinadora');
   if (!query || query.trim().length < 2) return [];
 
@@ -45,7 +46,8 @@ function buscarPersonas(query) {
  * @param {string} id - ID_Persona
  * @returns {{persona: Object, transacciones: Object[]}}
  */
-function obtenerPersona(id) {
+function obtenerPersona(token, id) {
+  authenticate_(token);
   requireRol_('asesor', 'coordinadora');
   const personas = sheetToObjects_('Personas');
   const persona  = personas.find(p => p.ID_Persona === id);
@@ -85,7 +87,8 @@ function obtenerPersona(id) {
  * @param {{nombre:string, documento:string, celular:string, correo:string, sede:string}} datos
  * @returns {{ok:boolean, persona:{id:string, nombre:string}}}
  */
-function crearPersona(datos) {
+function crearPersona(token, datos) {
+  authenticate_(token);
   requireRol_('asesor', 'coordinadora');
   validateRequired_(datos, ['nombre', 'documento', 'sede']);
 
@@ -143,7 +146,8 @@ function crearPersona(datos) {
  * @param {{nombre?:string, celular?:string, correo?:string, sede?:string}} datos
  * @returns {{ok:boolean}}
  */
-function actualizarPersona(id, datos) {
+function actualizarPersona(token, id, datos) {
+  authenticate_(token);
   requireRol_('asesor', 'coordinadora');
   const sheet   = getSheet_('Personas');
   const values  = sheet.getDataRange().getValues();
@@ -170,7 +174,8 @@ function actualizarPersona(id, datos) {
  * @param {{sede?:string, page?:number, pageSize?:number}} filtros
  * @returns {{personas: Object[], total: number}}
  */
-function listarPersonas(filtros = {}) {
+function listarPersonas(token, filtros = {}) {
+  authenticate_(token);
   requireRol_('coordinadora');
   let personas = sheetToObjects_('Personas');
 

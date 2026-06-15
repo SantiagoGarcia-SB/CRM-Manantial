@@ -15,31 +15,38 @@
  * @returns {{recaudoTotal:number, inscripcionesActivas:number, pagosPendientes:number,
  *            sinLegalizar:number, transaccionesHoy:number, periodoActivo:Object|null}}
  */
-function getKPIsDashboard(periodoId, sede) {
+function getKPIsDashboard(token, periodoId, sede) {
+  authenticate_(token);
   requireRol_('coordinadora');
 
   const transacciones  = sheetToObjects_('Transacciones');
   const inscripciones  = sheetToObjects_('Inscripciones');
   const legalizaciones = sheetToObjects_('Legalizaciones');
 
+  // Periodo activo solo para referencia (mostrar en UI), no filtra los datos por defecto
+  const periodoRef = getPeriodoActivo_();
+
+  // Solo filtra por periodo cuando se pasa explícitamente; sin filtro = datos históricos completos
   const periodo = periodoId
     ? (sheetToObjects_('Periodos').find(p => p.ID_Periodo === periodoId) || null)
-    : getPeriodoActivo_();
+    : null;
 
   const ahora     = new Date();
   const inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
 
+  const sedeMap = sede ? buildAsesorSedeMap_() : null;
+
   let transPeriodo = periodo
     ? transacciones.filter(t => t.Periodo === periodo.ID_Periodo)
     : transacciones;
-  if (sede) transPeriodo = transPeriodo.filter(t => t.Sede === sede);
+  if (sede) transPeriodo = transPeriodo.filter(t => sedeMap[t.Asesor_Email] === sede);
 
   const recaudoTotal = transPeriodo.reduce((s, t) => s + (Number(t.Monto) || 0), 0);
 
   let inscPeriodo = periodo
     ? inscripciones.filter(i => i.Periodo === periodo.ID_Periodo)
     : inscripciones;
-  if (sede) inscPeriodo = inscPeriodo.filter(i => i.Sede === sede);
+  if (sede) inscPeriodo = inscPeriodo.filter(i => sedeMap[i.Asesor_Email] === sede);
 
   const pagosPendientes = legalizaciones.filter(l => l.Estado === 'Pendiente').length;
 
@@ -47,10 +54,10 @@ function getKPIsDashboard(periodoId, sede) {
     t.Estado_Legalizacion_Iglesia === 'Pendiente' ||
     t.Estado_Legalizacion_Academia === 'Pendiente'
   );
-  if (sede) sinLegal = sinLegal.filter(t => t.Sede === sede);
+  if (sede) sinLegal = sinLegal.filter(t => sedeMap[t.Asesor_Email] === sede);
 
   let transHoy = transacciones.filter(t => t.Timestamp && new Date(t.Timestamp) >= inicioHoy);
-  if (sede) transHoy = transHoy.filter(t => t.Sede === sede);
+  if (sede) transHoy = transHoy.filter(t => sedeMap[t.Asesor_Email] === sede);
 
   return {
     recaudoTotal,
@@ -58,7 +65,8 @@ function getKPIsDashboard(periodoId, sede) {
     pagosPendientes,
     sinLegalizar:     sinLegal.length,
     transaccionesHoy: transHoy.length,
-    periodoActivo:    periodo ? { id: periodo.ID_Periodo, nombre: periodo.Nombre } : null
+    periodoActivo:    periodoRef ? { id: periodoRef.ID_Periodo, nombre: periodoRef.Nombre } : null,
+    filtroPeriodo:    periodo    ? { id: periodo.ID_Periodo,    nombre: periodo.Nombre }    : null
   };
 }
 
@@ -67,11 +75,15 @@ function getKPIsDashboard(periodoId, sede) {
  * @param {string} periodoId - Opcional
  * @returns {Object[]} [{actividad, cantidad, recaudado}]
  */
-function getRecaudoPorActividad(periodoId, sede) {
+function getRecaudoPorActividad(token, periodoId, sede) {
+  authenticate_(token);
   requireRol_('coordinadora');
   let trans = sheetToObjects_('Transacciones');
   if (periodoId) trans = trans.filter(t => t.Periodo === periodoId);
-  if (sede)      trans = trans.filter(t => t.Sede    === sede);
+  if (sede) {
+    const sedeMap = buildAsesorSedeMap_();
+    trans = trans.filter(t => sedeMap[t.Asesor_Email] === sede);
+  }
 
   const agrupado = {};
   trans.forEach(t => {
@@ -89,11 +101,15 @@ function getRecaudoPorActividad(periodoId, sede) {
  * @param {string} periodoId - Opcional
  * @returns {Object[]} [{sede, recaudado, cantidad}]
  */
-function getDistribucionPorSede(periodoId, sede) {
+function getDistribucionPorSede(token, periodoId, sede) {
+  authenticate_(token);
   requireRol_('coordinadora');
   let trans = sheetToObjects_('Transacciones');
   if (periodoId) trans = trans.filter(t => t.Periodo === periodoId);
-  if (sede)      trans = trans.filter(t => t.Sede    === sede);
+  if (sede) {
+    const sedeMap = buildAsesorSedeMap_();
+    trans = trans.filter(t => sedeMap[t.Asesor_Email] === sede);
+  }
 
   const agrupado = {};
   trans.forEach(t => {
@@ -111,11 +127,15 @@ function getDistribucionPorSede(periodoId, sede) {
  * @param {string} periodoId - Opcional
  * @returns {Object[]} [{metodo, recaudado, cantidad}]
  */
-function getDistribucionPorMetodo(periodoId, sede) {
+function getDistribucionPorMetodo(token, periodoId, sede) {
+  authenticate_(token);
   requireRol_('coordinadora');
   let trans = sheetToObjects_('Transacciones');
   if (periodoId) trans = trans.filter(t => t.Periodo === periodoId);
-  if (sede)      trans = trans.filter(t => t.Sede    === sede);
+  if (sede) {
+    const sedeMap = buildAsesorSedeMap_();
+    trans = trans.filter(t => sedeMap[t.Asesor_Email] === sede);
+  }
 
   const agrupado = {};
   trans.forEach(t => {
@@ -133,11 +153,15 @@ function getDistribucionPorMetodo(periodoId, sede) {
  * @param {number} limite
  * @returns {Object[]}
  */
-function getActividadReciente(limite = 15, periodoId, sede) {
+function getActividadReciente(token, limite = 15, periodoId, sede) {
+  authenticate_(token);
   requireRol_('coordinadora');
   let trans = sheetToObjects_('Transacciones');
   if (periodoId) trans = trans.filter(t => t.Periodo === periodoId);
-  if (sede)      trans = trans.filter(t => t.Sede    === sede);
+  if (sede) {
+    const sedeMap = buildAsesorSedeMap_();
+    trans = trans.filter(t => sedeMap[t.Asesor_Email] === sede);
+  }
   return trans
     .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))
     .slice(0, limite)
@@ -158,11 +182,15 @@ function getActividadReciente(limite = 15, periodoId, sede) {
  * @param {string} periodoId - Opcional
  * @returns {Object[]} [{email, nombre, sede, transacciones, recaudado, ultimaActividad}]
  */
-function getDesempenoAsesores(periodoId, sede) {
+function getDesempenoAsesores(token, periodoId, sede) {
+  authenticate_(token);
   requireRol_('coordinadora');
   let trans = sheetToObjects_('Transacciones');
   if (periodoId) trans = trans.filter(t => t.Periodo === periodoId);
-  if (sede)      trans = trans.filter(t => t.Sede    === sede);
+  if (sede) {
+    const sedeMap = buildAsesorSedeMap_();
+    trans = trans.filter(t => sedeMap[t.Asesor_Email] === sede);
+  }
 
   const porAsesor = {};
   trans.forEach(t => {
@@ -201,10 +229,11 @@ function getDesempenoAsesores(periodoId, sede) {
  * Todas las alertas consolidadas para el panel de Alertas.
  * @returns {{sinLegalizar7Dias:Object[], asesoresSinActividad:Object[], resumenLeg:Object}}
  */
-function getAlertasDashboard() {
+function getAlertasDashboard(token) {
+  authenticate_(token);
   requireRol_('coordinadora');
-  const sinLegalizar7Dias   = getAlertasPendientes(7);
-  const resumenLeg          = getResumenLegalizacion();
+  const sinLegalizar7Dias   = getAlertasPendientes_(7);
+  const resumenLeg          = getResumenLegalizacion_();
 
   // Asesores sin actividad en los últimos 3 días
   const ahora     = new Date();
@@ -245,8 +274,13 @@ function getAlertasDashboard() {
  * @param {string} periodoId
  * @returns {Object}
  */
-function getReportePorPeriodo(periodoId) {
+function getReportePorPeriodo(token, periodoId) {
+  authenticate_(token);
   requireRol_('coordinadora');
+  return getReportePorPeriodo_(periodoId);
+}
+
+function getReportePorPeriodo_(periodoId) {
 
   const periodos = sheetToObjects_('Periodos');
   const periodo  = periodos.find(p => p.ID_Periodo === periodoId);
@@ -277,10 +311,11 @@ function getReportePorPeriodo(periodoId) {
  * @param {string} id2
  * @returns {{periodo1:Object, periodo2:Object, variacion:Object}}
  */
-function getComparacionPeriodos(id1, id2) {
+function getComparacionPeriodos(token, id1, id2) {
+  authenticate_(token);
   requireRol_('coordinadora');
-  const r1 = getReportePorPeriodo(id1);
-  const r2 = getReportePorPeriodo(id2);
+  const r1 = getReportePorPeriodo_(id1);
+  const r2 = getReportePorPeriodo_(id2);
 
   const variacion = {
     recaudo:        calcVar_(r1.totalRecaudado,      r2.totalRecaudado),
@@ -294,4 +329,11 @@ function getComparacionPeriodos(id1, id2) {
 function calcVar_(v1, v2) {
   if (v1 === 0) return v2 > 0 ? 100 : 0;
   return Math.round(((v2 - v1) / v1) * 100);
+}
+
+/** Construye un mapa {asesorEmail: sedeDELAsesor} desde la hoja Asesores. */
+function buildAsesorSedeMap_() {
+  const map = {};
+  sheetToObjects_('Asesores').forEach(a => { map[a.Email] = a.Sede; });
+  return map;
 }
