@@ -25,7 +25,7 @@ function enviarConfirmacion(datos) {
     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 20px; }
     .container { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px;
                  overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-    .header { background: linear-gradient(135deg, #1a1f36 0%, #6c63ff 100%);
+    .header { background: linear-gradient(135deg, #0d1829 0%, #667eea 100%);
               padding: 32px 24px; text-align: center; }
     .header h1 { color: #ffffff; margin: 0; font-size: 22px; letter-spacing: 0.5px; }
     .header p  { color: rgba(255,255,255,0.8); margin: 8px 0 0; font-size: 13px; }
@@ -38,7 +38,7 @@ function enviarConfirmacion(datos) {
     .row:last-child { border-bottom: none; }
     .label { color: #718096; font-size: 13px; }
     .value { color: #1a202c; font-size: 14px; font-weight: 600; }
-    .monto { font-size: 22px; color: #6c63ff; font-weight: 700; }
+    .monto { font-size: 22px; color: #667eea; font-weight: 700; }
     .footer { background: #f7f9fc; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0; }
     .footer p { color: #718096; font-size: 12px; margin: 4px 0; }
     .badge { display: inline-block; background: #c6f6d5; color: #276749;
@@ -48,8 +48,9 @@ function enviarConfirmacion(datos) {
 <body>
   <div class="container">
     <div class="header">
+      <img src="https://www.soymanantial.com/footer/50.svg" alt="Manantial" style="height:30px;margin-bottom:12px">
       <h1>✅ Pago Confirmado</h1>
-      <p>Iglesia Manantial · Punto de Información</p>
+      <p>Punto de Información</p>
     </div>
     <div class="body">
       <p class="greeting">Hola, <strong>${escapeHtml_(datos.nombre)}</strong>. Tu pago ha sido registrado exitosamente.</p>
@@ -90,7 +91,7 @@ function enviarConfirmacion(datos) {
       </p>
     </div>
     <div class="footer">
-      <p>🏛️ <strong>Iglesia Manantial</strong></p>
+      <p><strong>Iglesia Manantial de Vida Eterna</strong></p>
       <p>Sedes Norte y Suba · Bogotá, Colombia</p>
       <p style="margin-top:8px;font-size:11px;">Este es un mensaje automático. No respondas a este correo.</p>
     </div>

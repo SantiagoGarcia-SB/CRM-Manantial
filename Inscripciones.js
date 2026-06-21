@@ -22,7 +22,10 @@ function crearInscripcionDesdeTransaccion_(datos) {
     datos.horario  || '',
     datos.sede,
     datos.asesorEmail,
-    ahora
+    ahora,
+    datos.nombrePersona    || '',
+    datos.documentoPersona || '',
+    datos.celularPersona   || ''
   ]);
 
   return { ok: true, id };
@@ -78,6 +81,9 @@ function listarInscripciones(token, filtros = {}) {
         sede:            i.Sede,
         asesorEmail:     i.Asesor_Email,
         fecha:           i.Fecha ? formatDate_(new Date(i.Fecha)) : '',
+        nombrePersona:   i.Nombre_Persona    || trans.Nombre_Persona    || '',
+        documentoPersona:i.Documento_Persona  || trans.Documento_Persona || '',
+        celularPersona:  i.Celular_Persona    || trans.Celular_Persona   || '',
         monto:           Number(trans.Monto) || 0,
         metodoPago:      trans.Metodo_Pago   || '',
         estadoIglesia:   trans.Estado_Legalizacion_Iglesia  || '',
@@ -93,6 +99,83 @@ function listarInscripciones(token, filtros = {}) {
  * @param {string} periodoId - Opcional: filtrar por periodo
  * @returns {{porActividad:Object[], totalInscripciones:number, totalRecaudado:number}}
  */
+/**
+ * EJECUTAR UNA SOLA VEZ desde el editor de Apps Script.
+ * 1. Recupera inscripciones faltantes con datos de persona.
+ * 2. Corrige estados de legalización en Transacciones (NA → Pendiente).
+ * 3. Crea entradas faltantes en Legalizaciones.
+ * 4. Agrega columnas Nombre_Persona, Documento_Persona, Celular_Persona a Inscripciones si faltan.
+ */
+function recuperarDatosFaltantes() {
+  const transacciones  = sheetToObjects_('Transacciones');
+  const inscripciones  = sheetToObjects_('Inscripciones');
+  const actividades    = sheetToObjects_('Actividades').map(mapActividad_);
+  const legalizaciones = sheetToObjects_('Legalizaciones');
+
+  var actMap = {};
+  actividades.forEach(function(a) { actMap[a.nombre] = a; });
+
+  var insTransIds = {};
+  inscripciones.forEach(function(i) { insTransIds[i.ID_Trans] = true; });
+
+  var legSet = {};
+  legalizaciones.forEach(function(l) { legSet[l.ID_Trans + '|' + l.Tipo] = true; });
+
+  agregarColumnasFaltantes();
+
+  var inscCreadas = 0, transCorregidas = 0, legCreadas = 0;
+
+  transacciones.forEach(function(t) {
+    if ((t.Estado || 'Activa') === 'Anulada') return;
+
+    var act = actMap[t.Actividad];
+    if (!act) return;
+
+    var debeInscribir = act.legalizarInscripcion || (act.modulos && act.modulos.length > 0);
+
+    // 1. Crear inscripción faltante
+    if (debeInscribir && !insTransIds[t.ID_Trans]) {
+      crearInscripcionDesdeTransaccion_({
+        idTrans:          t.ID_Trans,
+        actividad:        t.Actividad,
+        modulo:           '',
+        horario:          '',
+        sede:             t.Sede,
+        asesorEmail:      t.Asesor_Email,
+        nombrePersona:    t.Nombre_Persona    || '',
+        documentoPersona: t.Documento_Persona || '',
+        celularPersona:   t.Celular_Persona   || ''
+      });
+      inscCreadas++;
+    }
+
+    // 2. Corregir estado legalización pago (iglesia)
+    if (act.legalizarPago && t.Estado_Legalizacion_Iglesia === 'NA') {
+      actualizarEstadoLegalizacion_(t.ID_Trans, 'iglesia', 'Pendiente');
+      transCorregidas++;
+      if (!legSet[t.ID_Trans + '|iglesia']) {
+        crearEntradaLegalizacion_(t.ID_Trans, 'iglesia');
+        legCreadas++;
+      }
+    }
+
+    // 3. Corregir estado legalización inscripción (academia)
+    if (act.legalizarInscripcion && t.Estado_Legalizacion_Academia === 'NA') {
+      actualizarEstadoLegalizacion_(t.ID_Trans, 'academia', 'Pendiente');
+      transCorregidas++;
+      if (!legSet[t.ID_Trans + '|academia']) {
+        crearEntradaLegalizacion_(t.ID_Trans, 'academia');
+        legCreadas++;
+      }
+    }
+  });
+
+  Logger.log('Inscripciones creadas: ' + inscCreadas);
+  Logger.log('Transacciones corregidas: ' + transCorregidas);
+  Logger.log('Legalizaciones creadas: ' + legCreadas);
+  return { ok: true, inscCreadas: inscCreadas, transCorregidas: transCorregidas, legCreadas: legCreadas };
+}
+
 function getKPIsInscripciones(token, periodoId) {
   authenticate_(token);
   requireRol_('coordinadora');

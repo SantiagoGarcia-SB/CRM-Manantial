@@ -133,18 +133,27 @@ document.addEventListener('click', e => {
  * @param {Object[]} rows
  * @param {Array<{key:string, label:string, render?:Function}>} cols
  */
-function renderTable(containerId, rows, cols) {
+function renderTable(containerId, rows, cols, onRowClick) {
   const wrap = qs(`#${containerId}`);
   if (!wrap) return;
   if (!rows || rows.length === 0) {
     wrap.innerHTML = '<p class="text-muted text-center mt-24">Sin registros</p>';
     return;
   }
+  const clickable = typeof onRowClick === 'function';
   const thead = `<thead><tr>${cols.map(c => `<th>${escHtml(c.label)}</th>`).join('')}</tr></thead>`;
-  const tbody = `<tbody>${rows.map(r =>
-    `<tr>${cols.map(c => `<td>${c.render ? c.render(r[c.key], r) : escHtml(String(r[c.key] ?? ''))}</td>`).join('')}</tr>`
+  const tbody = `<tbody>${rows.map((r, i) =>
+    `<tr data-row-idx="${i}"${clickable ? ' style="cursor:pointer"' : ''}>${cols.map(c => `<td>${c.render ? c.render(r[c.key], r) : escHtml(String(r[c.key] ?? ''))}</td>`).join('')}</tr>`
   ).join('')}</tbody>`;
   wrap.innerHTML = `<div class="table-wrap"><table>${thead}${tbody}</table></div>`;
+  if (clickable) {
+    wrap._rowData = rows;
+    wrap.querySelector('tbody').addEventListener('click', e => {
+      if (e.target.closest('button,a')) return;
+      const tr = e.target.closest('tr[data-row-idx]');
+      if (tr) onRowClick(wrap._rowData[+tr.dataset.rowIdx]);
+    });
+  }
 }
 
 // ── CSV export ────────────────────────────────────────────────────────────────

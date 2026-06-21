@@ -110,10 +110,10 @@ function solicitarAcceso(email) {
 
   const htmlCuerpo =
     '<div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">' +
-    '<h2 style="color:#1a1f36;margin-bottom:8px">Código de acceso</h2>' +
+    '<h2 style="color:#0d1829;margin-bottom:8px">Código de acceso</h2>' +
     '<p>Hola <strong>' + escapeHtml_(info.nombre) + '</strong>,</p>' +
     '<p>Tu código para ingresar al CRM Punto de Información es:</p>' +
-    '<div style="font-size:38px;letter-spacing:14px;font-weight:700;color:#6c63ff;' +
+    '<div style="font-size:38px;letter-spacing:14px;font-weight:700;color:#667eea;' +
     'background:#f0f0ff;padding:16px 24px;border-radius:10px;text-align:center;margin:20px 0">' +
     code + '</div>' +
     '<p style="color:#718096;font-size:13px">Válido por <strong>10 minutos</strong>. No compartas este código.</p>' +

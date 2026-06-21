@@ -8,6 +8,20 @@
 //   getDesempenoAsesores(sede?)           → Object[]
 //   getAlertasDashboard()                 → Object
 
+function resolverTitularBeneficiario_(t) {
+  var esDiferente = t.Datafono_Titular_Mismo === 'No';
+  if (!esDiferente) {
+    return {
+      titular: t.Nombre_Persona || '', titularDoc: t.Documento_Persona || '', titularCel: t.Celular_Persona || '',
+      benef: '', benefDoc: '', benefCel: ''
+    };
+  }
+  return {
+    titular: t.Datafono_Nombre_Titular || '', titularDoc: t.Datafono_Doc_Titular || '', titularCel: t.Datafono_Celular_Titular || '',
+    benef: t.Nombre_Persona || '', benefDoc: t.Documento_Persona || '', benefCel: t.Celular_Persona || ''
+  };
+}
+
 function getKPIsDashboard(token, _, sede) {
   authenticate_(token);
   requireRol_('coordinadora');
@@ -220,424 +234,283 @@ function buildAsesorSedeMap_() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CIERRE DIARIO DATÁFONO — Trigger automático
+// EMAIL GERENCIAL DE CIERRE — HTML ejecutivo para gerencia
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function buildEmailCierreGerencial_(opts) {
+  var trans = opts.trans;
+  var anuladas = opts.anuladas || [];
+  var inscripciones = opts.inscripciones || [];
+  var fmtM = function(v) { return '$ ' + new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(v || 0); };
+  var pct = function(p, t) { return t ? ((p / t) * 100).toFixed(1) + '%' : '0%'; };
+  var fmtHora = function(d) { return Utilities.formatDate(d, 'America/Bogota', 'h:mm a'); };
+
+  var totalRecaudo = 0;
+  trans.forEach(function(t) { totalRecaudo += Number(t.Monto) || 0; });
+  var ticketProm = trans.length ? Math.round(totalRecaudo / trans.length) : 0;
+
+  var timestamps = [];
+  trans.forEach(function(t) { if (t.Timestamp) timestamps.push(new Date(t.Timestamp)); });
+  timestamps.sort(function(a, b) { return a - b; });
+  var primeraHora = timestamps.length ? fmtHora(timestamps[0]) : '—';
+  var ultimaHora = timestamps.length ? fmtHora(timestamps[timestamps.length - 1]) : '—';
+
+  var porSede = {};
+  trans.forEach(function(t) {
+    var s = t.Sede || 'Sin sede';
+    if (!porSede[s]) porSede[s] = { efectivo: 0, datafono: 0, nequi: 0, total: 0, count: 0 };
+    var m = Number(t.Monto) || 0;
+    porSede[s].total += m; porSede[s].count++;
+    if (t.Metodo_Pago === 'Efectivo') porSede[s].efectivo += m;
+    else if (t.Metodo_Pago === 'Datáfono') porSede[s].datafono += m;
+    else if (t.Metodo_Pago === 'Nequi') porSede[s].nequi += m;
+  });
+  var sedes = Object.keys(porSede).sort();
+
+  var porMetodo = {};
+  ['Efectivo','Datáfono','Nequi'].forEach(function(mp) { porMetodo[mp] = { total: 0, count: 0 }; });
+  trans.forEach(function(t) {
+    var mp = t.Metodo_Pago || 'Otro';
+    if (!porMetodo[mp]) porMetodo[mp] = { total: 0, count: 0 };
+    porMetodo[mp].total += Number(t.Monto) || 0;
+    porMetodo[mp].count++;
+  });
+
+  var porActividad = {};
+  trans.forEach(function(t) {
+    var a = t.Actividad || 'Sin actividad';
+    if (!porActividad[a]) porActividad[a] = { total: 0, count: 0 };
+    porActividad[a].total += Number(t.Monto) || 0;
+    porActividad[a].count++;
+  });
+  var actividadesOrd = Object.keys(porActividad).sort(function(a, b) { return porActividad[b].total - porActividad[a].total; });
+
+  var porAsesor = {};
+  trans.forEach(function(t) {
+    var key = t.Asesor_Email || 'desconocido';
+    if (!porAsesor[key]) porAsesor[key] = { nombre: t.Asesor_Nombre || key, sede: t.Sede || '', total: 0, count: 0 };
+    porAsesor[key].total += Number(t.Monto) || 0;
+    porAsesor[key].count++;
+  });
+  var asesoresOrd = Object.keys(porAsesor).sort(function(a, b) { return porAsesor[b].total - porAsesor[a].total; });
+
+  var pendIglesia = 0, pendAcademia = 0;
+  trans.forEach(function(t) {
+    if (t.Estado_Legalizacion_Iglesia === 'Pendiente') pendIglesia++;
+    if (t.Estado_Legalizacion_Academia === 'Pendiente') pendAcademia++;
+  });
+
+  var totalAnulado = 0;
+  anuladas.forEach(function(t) { totalAnulado += Number(t.Monto) || 0; });
+
+  var inscPorAct = {};
+  inscripciones.forEach(function(i) {
+    var a = i.Actividad || 'Sin actividad';
+    if (!inscPorAct[a]) inscPorAct[a] = 0;
+    inscPorAct[a]++;
+  });
+  var actInscOrd = Object.keys(inscPorAct).sort(function(a, b) { return inscPorAct[b] - inscPorAct[a]; });
+
+  // ── Estilos reutilizables (compactos para email) ──
+  var S = {
+    th:   'padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;color:#64748b;background:#f1f5f9',
+    thR:  'padding:6px 10px;text-align:right;font-size:10px;text-transform:uppercase;color:#64748b;background:#f1f5f9',
+    thC:  'padding:6px 10px;text-align:center;font-size:10px;text-transform:uppercase;color:#64748b;background:#f1f5f9',
+    td:   'padding:5px 10px;border-bottom:1px solid #e2e8f0;font-size:12px',
+    tdR:  'padding:5px 10px;text-align:right;border-bottom:1px solid #e2e8f0;font-size:12px',
+    tdC:  'padding:5px 10px;text-align:center;border-bottom:1px solid #e2e8f0;font-size:12px',
+    tdB:  'padding:5px 10px;font-weight:600;border-bottom:1px solid #e2e8f0;font-size:12px',
+    ftTd: 'padding:6px 10px;font-weight:700;color:#fff;font-size:12px',
+    ftR:  'padding:6px 10px;text-align:right;font-weight:700;color:#fff;font-size:12px',
+    ftC:  'padding:6px 10px;text-align:center;font-weight:700;color:#fff;font-size:12px',
+    sec:  'font-size:13px;color:#0d1829;margin:20px 0 8px;text-transform:uppercase;letter-spacing:0.05em',
+    tbl:  'width:100%;border-collapse:collapse'
+  };
+
+  var h = '';
+
+  // ── Contenedor ──
+  h += '<!DOCTYPE html><html><body style="font-family:\'Segoe UI\',Arial,sans-serif;background:#f8fafc;padding:12px">';
+  h += '<div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">';
+
+  // ── Header ──
+  h += '<div style="background:#0d1829;padding:18px 20px">';
+  h += '<img src="https://www.soymanantial.com/footer/50.svg" alt="Manantial" style="height:26px;margin-bottom:10px">';
+  h += '<h1 style="color:#667eea;margin:0;font-size:16px">' + opts.titulo + '</h1>';
+  h += '<p style="color:#94a3b8;margin:4px 0 0;font-size:11px">' + opts.fecha + ' · Generado: ' + opts.fechaGen + '</p>';
+  h += '</div>';
+
+  h += '<div style="padding:16px 20px">';
+
+  // ══ PANEL EJECUTIVO ══
+  h += '<table style="width:100%;border-collapse:separate;border-spacing:6px 0;margin-bottom:16px"><tr>';
+
+  h += '<td style="background:#f0fdf4;border-radius:6px;padding:10px 6px;text-align:center;width:25%">';
+  h += '<div style="font-size:14px;font-weight:700;color:#16a34a">' + fmtM(totalRecaudo) + '</div>';
+  h += '<div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:2px">Recaudado</div></td>';
+
+  h += '<td style="background:#eff6ff;border-radius:6px;padding:10px 6px;text-align:center;width:25%">';
+  h += '<div style="font-size:14px;font-weight:700;color:#2563eb">' + trans.length + '</div>';
+  h += '<div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:2px">Trans.</div></td>';
+
+  h += '<td style="background:#faf5ff;border-radius:6px;padding:10px 6px;text-align:center;width:25%">';
+  h += '<div style="font-size:14px;font-weight:700;color:#7c3aed">' + fmtM(ticketProm) + '</div>';
+  h += '<div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:2px">Ticket Prom.</div></td>';
+
+  h += '<td style="background:#fefce8;border-radius:6px;padding:10px 6px;text-align:center;width:25%">';
+  h += '<div style="font-size:11px;font-weight:600;color:#ca8a04">' + primeraHora + ' → ' + ultimaHora + '</div>';
+  h += '<div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:2px">Horario</div></td>';
+
+  h += '</tr></table>';
+
+  // ══ RECAUDO POR SEDE ══
+  if (opts.mostrarSedes && sedes.length > 0) {
+    h += '<h2 style="' + S.sec + '">📍 Recaudo por Sede</h2>';
+    h += '<table style="' + S.tbl + '"><thead><tr>';
+    h += '<th style="' + S.th + '">Sede</th><th style="' + S.thC + '">Trans.</th>';
+    h += '<th style="' + S.thR + '">Total</th><th style="' + S.thR + '">%</th>';
+    h += '</tr></thead><tbody>';
+
+    sedes.forEach(function(sede) {
+      var d = porSede[sede];
+      h += '<tr><td style="' + S.tdB + '">' + sede + '</td>';
+      h += '<td style="' + S.tdC + '">' + d.count + '</td>';
+      h += '<td style="' + S.tdR + ';font-weight:700">' + fmtM(d.total) + '</td>';
+      h += '<td style="' + S.tdR + '">' + pct(d.total, totalRecaudo) + '</td></tr>';
+    });
+
+    h += '</tbody><tfoot><tr style="background:#0d1829">';
+    h += '<td style="' + S.ftTd + '">TOTAL</td><td style="' + S.ftC + '">' + trans.length + '</td>';
+    h += '<td style="' + S.ftR + ';color:#f59e0b">' + fmtM(totalRecaudo) + '</td>';
+    h += '<td style="' + S.ftR + '">100%</td>';
+    h += '</tr></tfoot></table>';
+  }
+
+  // ══ DISTRIBUCIÓN POR MÉTODO DE PAGO ══
+  var metodoColores = { 'Efectivo': '#10b981', 'Datáfono': '#667eea', 'Nequi': '#3b82f6' };
+  h += '<h2 style="' + S.sec + '">💰 Distribución por Método de Pago</h2>';
+  h += '<table style="' + S.tbl + '"><thead><tr>';
+  h += '<th style="' + S.th + '">Método</th><th style="' + S.thC + '">Trans.</th>';
+  h += '<th style="' + S.thR + '">Total</th><th style="' + S.thR + '">% del Total</th>';
+  h += '</tr></thead><tbody>';
+
+  Object.keys(porMetodo).forEach(function(mp) {
+    var d = porMetodo[mp];
+    if (d.count === 0) return;
+    h += '<tr><td style="' + S.td + ';font-weight:600;color:' + (metodoColores[mp] || '#64748b') + '">' + mp + '</td>';
+    h += '<td style="' + S.tdC + '">' + d.count + '</td>';
+    h += '<td style="' + S.tdR + '">' + fmtM(d.total) + '</td>';
+    h += '<td style="' + S.tdR + '">' + pct(d.total, totalRecaudo) + '</td></tr>';
+  });
+
+  h += '</tbody><tfoot><tr style="background:#0d1829">';
+  h += '<td style="' + S.ftTd + '">TOTAL</td><td style="' + S.ftC + '">' + trans.length + '</td>';
+  h += '<td style="' + S.ftR + ';color:#f59e0b">' + fmtM(totalRecaudo) + '</td>';
+  h += '<td style="' + S.ftR + '">100%</td>';
+  h += '</tr></tfoot></table>';
+
+  // ══ RECAUDO POR ACTIVIDAD ══
+  h += '<h2 style="' + S.sec + '">📋 Recaudo por Actividad</h2>';
+  h += '<table style="' + S.tbl + '"><thead><tr>';
+  h += '<th style="' + S.th + '">Actividad</th><th style="' + S.thC + '">Trans.</th>';
+  h += '<th style="' + S.thR + '">Total</th><th style="' + S.thR + '">%</th>';
+  h += '</tr></thead><tbody>';
+
+  actividadesOrd.forEach(function(act) {
+    var d = porActividad[act];
+    h += '<tr><td style="' + S.tdB + '">' + act + '</td>';
+    h += '<td style="' + S.tdC + '">' + d.count + '</td>';
+    h += '<td style="' + S.tdR + '">' + fmtM(d.total) + '</td>';
+    h += '<td style="' + S.tdR + '">' + pct(d.total, totalRecaudo) + '</td></tr>';
+  });
+  h += '</tbody></table>';
+
+  // ══ RENDIMIENTO DE ASESORES ══
+  h += '<h2 style="' + S.sec + '">👥 Asesores</h2>';
+  h += '<table style="' + S.tbl + '"><thead><tr>';
+  h += '<th style="' + S.th + '">Asesor</th>';
+  h += '<th style="' + S.thC + '">Trans.</th><th style="' + S.thR + '">Total</th><th style="' + S.thR + '">%</th>';
+  h += '</tr></thead><tbody>';
+
+  asesoresOrd.forEach(function(key) {
+    var d = porAsesor[key];
+    h += '<tr><td style="' + S.tdB + '">' + d.nombre + '</td>';
+    h += '<td style="' + S.tdC + '">' + d.count + '</td>';
+    h += '<td style="' + S.tdR + '">' + fmtM(d.total) + '</td>';
+    h += '<td style="' + S.tdR + '">' + pct(d.total, totalRecaudo) + '</td></tr>';
+  });
+  h += '</tbody></table>';
+
+  // ══ TRANSACCIONES ANULADAS ══
+  if (anuladas.length > 0) {
+    h += '<h2 style="' + S.sec + ';color:#ef4444">❌ Transacciones Anuladas</h2>';
+    h += '<table style="' + S.tbl + '"><thead><tr>';
+    h += '<th style="' + S.th + '">Persona</th><th style="' + S.th + '">Actividad</th>';
+    h += '<th style="' + S.thR + '">Monto</th><th style="' + S.th + '">Asesor</th>';
+    h += '</tr></thead><tbody>';
+
+    anuladas.forEach(function(t) {
+      h += '<tr><td style="' + S.td + '">' + (t.Nombre_Persona || '') + '</td>';
+      h += '<td style="' + S.td + '">' + (t.Actividad || '') + '</td>';
+      h += '<td style="' + S.tdR + ';color:#ef4444">' + fmtM(Number(t.Monto) || 0) + '</td>';
+      h += '<td style="' + S.td + '">' + (t.Asesor_Nombre || '') + '</td></tr>';
+    });
+
+    h += '</tbody><tfoot><tr style="background:#fef2f2">';
+    h += '<td colspan="2" style="padding:10px 14px;font-weight:700;color:#ef4444">' + anuladas.length + ' anulada(s)</td>';
+    h += '<td style="padding:10px 14px;text-align:right;font-weight:700;color:#ef4444">' + fmtM(totalAnulado) + '</td>';
+    h += '<td style="padding:10px 14px"></td>';
+    h += '</tr></tfoot></table>';
+  }
+
+  // ══ INSCRIPCIONES DEL TURNO ══
+  if (actInscOrd.length > 0) {
+    h += '<h2 style="' + S.sec + '">📝 Inscripciones del Turno</h2>';
+    h += '<table style="' + S.tbl + '"><thead><tr>';
+    h += '<th style="' + S.th + '">Actividad</th><th style="' + S.thC + '">Inscripciones</th>';
+    h += '</tr></thead><tbody>';
+
+    actInscOrd.forEach(function(act) {
+      h += '<tr><td style="' + S.tdB + '">' + act + '</td>';
+      h += '<td style="' + S.tdC + '">' + inscPorAct[act] + '</td></tr>';
+    });
+
+    h += '</tbody><tfoot><tr style="background:#f1f5f9">';
+    h += '<td style="padding:10px 14px;font-weight:700">TOTAL</td>';
+    h += '<td style="padding:10px 14px;text-align:center;font-weight:700">' + inscripciones.length + '</td>';
+    h += '</tr></tfoot></table>';
+  }
+
+  // ══ LEGALIZACIONES PENDIENTES ══
+  if (pendIglesia > 0 || pendAcademia > 0) {
+    h += '<div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:16px;margin-top:24px">';
+    h += '<h3 style="margin:0 0 8px;font-size:14px;color:#92400e">⚠️ Legalizaciones Pendientes</h3>';
+    if (pendIglesia > 0)  h += '<p style="margin:4px 0;font-size:13px;color:#78350f">Iglesia: <strong>' + pendIglesia + '</strong> transacción(es)</p>';
+    if (pendAcademia > 0) h += '<p style="margin:4px 0;font-size:13px;color:#78350f">Academia: <strong>' + pendAcademia + '</strong> transacción(es)</p>';
+    h += '</div>';
+  }
+
+  // ══ CTA ══
+  h += '<div style="margin-top:20px;text-align:center">';
+  h += '<p style="font-size:11px;color:#94a3b8;margin:0 0 10px">El detalle transacción por transacción está disponible en el reporte completo.</p>';
+  h += '<a href="' + opts.sheetUrl + '" style="display:inline-block;background:#667eea;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px">Ver reporte completo en Sheets →</a>';
+  h += '</div>';
+
+  h += '</div>';
+
+  h += '<div style="background:#f8fafc;padding:10px 20px;text-align:center;font-size:10px;color:#94a3b8">';
+  h += 'Punto de Información · Manantial de Vida Eterna';
+  h += '</div></div></body></html>';
+
+  return h;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONSTANTES DE HOJAS DE CIERRE
 // ═══════════════════════════════════════════════════════════════════════════════
 const CIERRE_DATAFONO_SHEET_ID = '1GnCSSsVp_bRcBGSbe6D9XpZN4-Z87iB-DNzi0be9dxY';
-
-/**
- * Ejecutar con trigger diario (23:00–23:59 zona America/Bogota).
- * Si hay transacciones de Datáfono del día, crea una pestaña DD-MM-YYYY
- * con resumen consolidado + bloques por sede + subtotales + gran total.
- */
-function cierreDatafonoDiario() {
-  const ahora    = new Date();
-  const tz       = 'America/Bogota';
-  const hoy      = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
-  const finDia   = new Date(hoy);
-  finDia.setHours(23, 59, 59, 999);
-
-  const trans = sheetToObjects_('Transacciones')
-    .filter(t => t.Metodo_Pago === 'Datáfono' && (t.Estado || 'Activa') !== 'Anulada' && t.Timestamp && new Date(t.Timestamp) >= hoy && new Date(t.Timestamp) <= finDia);
-
-  if (!trans.length) {
-    Logger.log('Cierre datáfono: sin transacciones hoy, no se crea pestaña.');
-    return;
-  }
-
-  trans.sort((a, b) => new Date(a.Timestamp) - new Date(b.Timestamp));
-
-  const nombrePestana = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy');
-  const fechaGen      = Utilities.formatDate(ahora, tz, 'dd/MM/yyyy HH:mm');
-  const ss            = SpreadsheetApp.openById(CIERRE_DATAFONO_SHEET_ID);
-
-  let sheet = ss.getSheetByName(nombrePestana);
-  if (sheet) {
-    sheet.clear();
-  } else {
-    sheet = ss.insertSheet(nombrePestana, 0);
-  }
-
-  // Agrupar por sede
-  const porSede = {};
-  trans.forEach(t => {
-    const s = t.Sede || 'Sin sede';
-    if (!porSede[s]) porSede[s] = [];
-    porSede[s].push(t);
-  });
-  const sedes = Object.keys(porSede).sort();
-
-  const headers = [
-    'FECHA DATÁFONO','FRANQUICIA','N° AUTORIZACIÓN','VALOR',
-    'NOMBRE TITULAR','CÉDULA','CELULAR',
-    'BENEFICIARIO DE PAGO','CÉDULA DE BENEFICIARIO','CELULAR DE BENEFICIARIO',
-    'CONCEPTO','DÉBITO/CRÉDITO','N° DATÁFONO'
-  ];
-  const totalCols = headers.length;
-  const fmtCOP = v => new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(v||0);
-
-  function mapRow_(t) {
-    return [
-      t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
-      t.Datafono_Franquicia           || '',
-      t.Datafono_No_Autorizacion      || '',
-      Number(t.Datafono_Valor)        || 0,
-      t.Nombre_Persona                || '',
-      t.Documento_Persona             || '',
-      t.Celular_Persona               || '',
-      t.Datafono_Nombre_Beneficiario  || '',
-      t.Datafono_Doc_Beneficiario     || '',
-      t.Datafono_Celular_Beneficiario || '',
-      t.Actividad                     || '',
-      t.Datafono_Tipo_Tarjeta         || '',
-      t.Datafono_No_Datafono          || ''
-    ];
-  }
-
-  const rows = [];
-  const formats = [];
-  const merges = [];
-  const boldRows = [];
-  const headerRows = [];
-  const sedeHeaderRows = [];
-  const subtotalRows = [];
-
-  // ── TÍTULO ──
-  rows.push(['CIERRE DATÁFONO', ...Array(totalCols - 1).fill('')]);
-  boldRows.push(rows.length);
-  merges.push(rows.length);
-  rows.push([`Generado: ${fechaGen}`, ...Array(totalCols - 1).fill('')]);
-  merges.push(rows.length);
-  rows.push(Array(totalCols).fill(''));
-
-  // ── RESUMEN CONSOLIDADO ──
-  rows.push(['SEDE', 'N° TRANSACCIONES', 'TOTAL DATÁFONO', ...Array(totalCols - 3).fill('')]);
-  headerRows.push(rows.length);
-
-  let granTotal = 0;
-  sedes.forEach(sede => {
-    const items = porSede[sede];
-    const totalSede = items.reduce((s, t) => s + (Number(t.Datafono_Valor) || 0), 0);
-    granTotal += totalSede;
-    rows.push([sede, items.length, totalSede, ...Array(totalCols - 3).fill('')]);
-  });
-
-  rows.push(['GRAN TOTAL', trans.length, granTotal, ...Array(totalCols - 3).fill('')]);
-  boldRows.push(rows.length);
-  subtotalRows.push(rows.length);
-
-  // ── BLOQUES POR SEDE ──
-  sedes.forEach(sede => {
-    const items = porSede[sede];
-    const totalSede = items.reduce((s, t) => s + (Number(t.Datafono_Valor) || 0), 0);
-
-    rows.push(Array(totalCols).fill(''));
-    rows.push(Array(totalCols).fill(''));
-
-    rows.push([`📍 ${sede} — ${items.length} transacción(es)`, ...Array(totalCols - 1).fill('')]);
-    sedeHeaderRows.push(rows.length);
-    merges.push(rows.length);
-
-    rows.push(headers);
-    headerRows.push(rows.length);
-
-    items.forEach(t => rows.push(mapRow_(t)));
-
-    const subtotalLabel = Array(totalCols).fill('');
-    subtotalLabel[0] = `SUBTOTAL ${sede}`;
-    subtotalLabel[3] = totalSede;
-    rows.push(subtotalLabel);
-    boldRows.push(rows.length);
-    subtotalRows.push(rows.length);
-  });
-
-  // ── GRAN TOTAL FINAL ──
-  rows.push(Array(totalCols).fill(''));
-  const gtRow = Array(totalCols).fill('');
-  gtRow[0] = 'GRAN TOTAL DATÁFONO';
-  gtRow[3] = granTotal;
-  rows.push(gtRow);
-  boldRows.push(rows.length);
-  subtotalRows.push(rows.length);
-
-  // ── ESCRIBIR DATOS ──
-  sheet.getRange(1, 1, rows.length, totalCols).setValues(rows);
-
-  // ── FORMATO: Título ──
-  sheet.getRange(1, 1).setFontSize(14).setFontWeight('bold').setFontColor('#6c63ff');
-  sheet.getRange(2, 1).setFontSize(9).setFontColor('#888888');
-
-  // ── FORMATO: Merges (título, fecha, encabezados sede) ──
-  merges.forEach(r => {
-    sheet.getRange(r, 1, 1, totalCols).merge();
-  });
-
-  // ── FORMATO: Headers de tabla (resumen + cada sede) ──
-  headerRows.forEach(r => {
-    const range = sheet.getRange(r, 1, 1, totalCols);
-    range.setBackground('#2d3148').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
-  });
-
-  // ── FORMATO: Encabezados de sede ──
-  sedeHeaderRows.forEach(r => {
-    const range = sheet.getRange(r, 1, 1, totalCols);
-    range.setBackground('#6c63ff').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
-  });
-
-  // ── FORMATO: Filas de subtotal/gran total ──
-  subtotalRows.forEach(r => {
-    const range = sheet.getRange(r, 1, 1, totalCols);
-    range.setFontWeight('bold').setBackground('#f0f0f0').setBorder(true, true, true, true, false, false);
-  });
-
-  // ── FORMATO: Columna VALOR (D) como moneda ──
-  sheet.getRange(1, 4, rows.length, 1).setNumberFormat('$ #,##0');
-
-  // ── FORMATO: Auto-ajustar columnas ──
-  for (let c = 1; c <= totalCols; c++) {
-    sheet.autoResizeColumn(c);
-  }
-
-  Logger.log(`Cierre datáfono ${nombrePestana}: ${trans.length} transacciones en ${sedes.length} sede(s). Gran total: ${granTotal}`);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CIERRE DIARIO GENERAL — Todas las transacciones + correo
-// ═══════════════════════════════════════════════════════════════════════════════
 const CIERRE_GENERAL_SHEET_ID = '17eM2YYQHXoMjV-dttSsGjEutL-llatbUo1rwfdRCuNU';
 const CIERRE_GENERAL_EMAIL    = 'elcamino.norte@manantial.co';
-
-/**
- * Ejecutar con trigger diario (23:00–23:59 zona America/Bogota).
- * Si hay transacciones del día (cualquier método), crea pestaña DD-MM-YYYY
- * con resumen desglosado por sede/método + bloques por sede + envía correo.
- */
-function cierreGeneralDiario() {
-  const ahora  = new Date();
-  const tz     = 'America/Bogota';
-  const hoy    = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
-  const finDia = new Date(hoy);
-  finDia.setHours(23, 59, 59, 999);
-
-  const trans = sheetToObjects_('Transacciones')
-    .filter(t => (t.Estado || 'Activa') !== 'Anulada' && t.Timestamp && new Date(t.Timestamp) >= hoy && new Date(t.Timestamp) <= finDia);
-
-  if (!trans.length) {
-    Logger.log('Cierre general: sin transacciones hoy, no se crea pestaña.');
-    return;
-  }
-
-  trans.sort((a, b) => new Date(a.Timestamp) - new Date(b.Timestamp));
-
-  const nombrePestana = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy');
-  const fechaGen      = Utilities.formatDate(ahora, tz, 'dd/MM/yyyy HH:mm');
-  const ss            = SpreadsheetApp.openById(CIERRE_GENERAL_SHEET_ID);
-
-  let sheet = ss.getSheetByName(nombrePestana);
-  if (sheet) sheet.clear();
-  else sheet = ss.insertSheet(nombrePestana, 0);
-
-  // Agrupar por sede
-  const porSede = {};
-  trans.forEach(t => {
-    const s = t.Sede || 'Sin sede';
-    if (!porSede[s]) porSede[s] = [];
-    porSede[s].push(t);
-  });
-  const sedes = Object.keys(porSede).sort();
-  const metodos = ['Efectivo', 'Datáfono', 'Nequi'];
-
-  const headers = [
-    'FECHA','PERSONA','CÉDULA','CELULAR','ACTIVIDAD','MONTO','MÉTODO DE PAGO','SEDE','ASESOR',
-    'FRANQUICIA','N° AUTORIZACIÓN','VALOR DATÁFONO',
-    'BENEFICIARIO DE PAGO','CÉDULA BENEFICIARIO','CELULAR BENEFICIARIO',
-    'DÉBITO/CRÉDITO','N° DATÁFONO'
-  ];
-  const totalCols = headers.length;
-  const colMonto = 5; // índice 0-based de MONTO
-
-  function mapRow_(t) {
-    return [
-      t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
-      t.Nombre_Persona                || '',
-      t.Documento_Persona             || '',
-      t.Celular_Persona               || '',
-      t.Actividad                     || '',
-      Number(t.Monto)                 || 0,
-      t.Metodo_Pago                   || '',
-      t.Sede                          || '',
-      t.Asesor_Nombre                 || '',
-      t.Datafono_Franquicia           || '',
-      t.Datafono_No_Autorizacion      || '',
-      Number(t.Datafono_Valor)        || 0,
-      t.Datafono_Nombre_Beneficiario  || '',
-      t.Datafono_Doc_Beneficiario     || '',
-      t.Datafono_Celular_Beneficiario || '',
-      t.Datafono_Tipo_Tarjeta         || '',
-      t.Datafono_No_Datafono          || ''
-    ];
-  }
-
-  // Calcular totales para resumen y correo
-  function calcTotalesSede_(items) {
-    const t = { efectivo: 0, datafono: 0, nequi: 0, total: 0, count: items.length };
-    items.forEach(tr => {
-      const m = Number(tr.Monto) || 0;
-      t.total += m;
-      if (tr.Metodo_Pago === 'Efectivo')  t.efectivo += m;
-      if (tr.Metodo_Pago === 'Datáfono')  t.datafono += m;
-      if (tr.Metodo_Pago === 'Nequi')     t.nequi    += m;
-    });
-    return t;
-  }
-
-  const totalesPorSede = {};
-  sedes.forEach(s => { totalesPorSede[s] = calcTotalesSede_(porSede[s]); });
-
-  const rows = [];
-  const merges = [];
-  const headerRows = [];
-  const sedeHeaderRows = [];
-  const subtotalRows = [];
-
-  // ── TÍTULO ──
-  rows.push(['CIERRE DIARIO DE TRANSACCIONES', ...Array(totalCols - 1).fill('')]);
-  merges.push(rows.length);
-  rows.push(['Generado: ' + fechaGen, ...Array(totalCols - 1).fill('')]);
-  merges.push(rows.length);
-  rows.push(Array(totalCols).fill(''));
-
-  // ── RESUMEN CONSOLIDADO POR SEDE Y MÉTODO ──
-  const resHeaders = ['SEDE', 'N° TRANS.', 'EFECTIVO', 'DATÁFONO', 'NEQUI', 'TOTAL', ...Array(totalCols - 6).fill('')];
-  rows.push(resHeaders);
-  headerRows.push(rows.length);
-
-  let gtEfectivo = 0, gtDatafono = 0, gtNequi = 0, gtTotal = 0, gtCount = 0;
-  sedes.forEach(sede => {
-    const t = totalesPorSede[sede];
-    gtEfectivo += t.efectivo; gtDatafono += t.datafono; gtNequi += t.nequi; gtTotal += t.total; gtCount += t.count;
-    rows.push([sede, t.count, t.efectivo, t.datafono, t.nequi, t.total, ...Array(totalCols - 6).fill('')]);
-  });
-
-  rows.push(['GRAN TOTAL', gtCount, gtEfectivo, gtDatafono, gtNequi, gtTotal, ...Array(totalCols - 6).fill('')]);
-  subtotalRows.push(rows.length);
-
-  // ── BLOQUES POR SEDE ──
-  sedes.forEach(sede => {
-    const items = porSede[sede];
-    const t = totalesPorSede[sede];
-
-    rows.push(Array(totalCols).fill(''));
-    rows.push(Array(totalCols).fill(''));
-
-    rows.push(['📍 ' + sede + ' — ' + items.length + ' transacción(es)', ...Array(totalCols - 1).fill('')]);
-    sedeHeaderRows.push(rows.length);
-    merges.push(rows.length);
-
-    rows.push(headers);
-    headerRows.push(rows.length);
-
-    items.forEach(tr => rows.push(mapRow_(tr)));
-
-    const sub = Array(totalCols).fill('');
-    sub[0] = 'SUBTOTAL ' + sede;
-    sub[colMonto] = t.total;
-    rows.push(sub);
-    subtotalRows.push(rows.length);
-  });
-
-  // ── GRAN TOTAL FINAL ──
-  rows.push(Array(totalCols).fill(''));
-  const gtRow = Array(totalCols).fill('');
-  gtRow[0] = 'GRAN TOTAL';
-  gtRow[colMonto] = gtTotal;
-  rows.push(gtRow);
-  subtotalRows.push(rows.length);
-
-  // ── ESCRIBIR ──
-  sheet.getRange(1, 1, rows.length, totalCols).setValues(rows);
-
-  // ── FORMATO ──
-  sheet.getRange(1, 1).setFontSize(14).setFontWeight('bold').setFontColor('#6c63ff');
-  sheet.getRange(2, 1).setFontSize(9).setFontColor('#888888');
-
-  merges.forEach(r => sheet.getRange(r, 1, 1, totalCols).merge());
-
-  headerRows.forEach(r => {
-    sheet.getRange(r, 1, 1, totalCols).setBackground('#2d3148').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
-  });
-
-  sedeHeaderRows.forEach(r => {
-    sheet.getRange(r, 1, 1, totalCols).setBackground('#6c63ff').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
-  });
-
-  subtotalRows.forEach(r => {
-    sheet.getRange(r, 1, 1, totalCols).setFontWeight('bold').setBackground('#f0f0f0').setBorder(true, true, true, true, false, false);
-  });
-
-  // Formato moneda: columnas MONTO(F), EFECTIVO(C), DATÁFONO(D), NEQUI(E), TOTAL(F) en resumen + MONTO en detalle + VALOR DATÁFONO(L)
-  sheet.getRange(1, 3, rows.length, 4).setNumberFormat('$ #,##0');
-  sheet.getRange(1, colMonto + 1, rows.length, 1).setNumberFormat('$ #,##0');
-  sheet.getRange(1, 12, rows.length, 1).setNumberFormat('$ #,##0');
-
-  for (let c = 1; c <= totalCols; c++) sheet.autoResizeColumn(c);
-
-  // ── ENVIAR CORREO ──
-  const sheetUrl = 'https://docs.google.com/spreadsheets/d/' + CIERRE_GENERAL_SHEET_ID + '/edit#gid=' + sheet.getSheetId();
-  const fmtM = v => '$ ' + new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(v || 0);
-
-  let sedesHtml = '';
-  sedes.forEach(sede => {
-    const t = totalesPorSede[sede];
-    sedesHtml += '<tr>'
-      + '<td style="padding:8px 14px;font-weight:600;border-bottom:1px solid #e2e8f0">' + sede + '</td>'
-      + '<td style="padding:8px 14px;text-align:center;border-bottom:1px solid #e2e8f0">' + t.count + '</td>'
-      + '<td style="padding:8px 14px;text-align:right;border-bottom:1px solid #e2e8f0">' + fmtM(t.efectivo) + '</td>'
-      + '<td style="padding:8px 14px;text-align:right;border-bottom:1px solid #e2e8f0">' + fmtM(t.datafono) + '</td>'
-      + '<td style="padding:8px 14px;text-align:right;border-bottom:1px solid #e2e8f0">' + fmtM(t.nequi) + '</td>'
-      + '<td style="padding:8px 14px;text-align:right;font-weight:700;border-bottom:1px solid #e2e8f0">' + fmtM(t.total) + '</td>'
-      + '</tr>';
-  });
-
-  const emailHtml = '<!DOCTYPE html><html><body style="font-family:\'Segoe UI\',Arial,sans-serif;background:#f8fafc;padding:20px">'
-    + '<div style="max-width:650px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">'
-    + '<div style="background:#1a1d2e;padding:24px 30px">'
-    + '<h1 style="color:#6c63ff;margin:0;font-size:20px">⛪ Cierre Diario de Transacciones</h1>'
-    + '<p style="color:#94a3b8;margin:6px 0 0;font-size:13px">' + nombrePestana + ' · Generado: ' + fechaGen + '</p>'
-    + '</div>'
-    + '<div style="padding:24px 30px">'
-    + '<h2 style="font-size:15px;color:#1a1d2e;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.05em">Resumen por sede</h2>'
-    + '<table style="width:100%;border-collapse:collapse;font-size:13px">'
-    + '<thead><tr style="background:#f1f5f9">'
-    + '<th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#64748b">Sede</th>'
-    + '<th style="padding:10px 14px;text-align:center;font-size:11px;text-transform:uppercase;color:#64748b">Trans.</th>'
-    + '<th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#64748b">Efectivo</th>'
-    + '<th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#64748b">Datáfono</th>'
-    + '<th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#64748b">Nequi</th>'
-    + '<th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#64748b">Total</th>'
-    + '</tr></thead><tbody>' + sedesHtml + '</tbody>'
-    + '<tfoot><tr style="background:#1a1d2e">'
-    + '<td style="padding:10px 14px;font-weight:700;color:#fff">GRAN TOTAL</td>'
-    + '<td style="padding:10px 14px;text-align:center;font-weight:700;color:#fff">' + gtCount + '</td>'
-    + '<td style="padding:10px 14px;text-align:right;font-weight:700;color:#10b981">' + fmtM(gtEfectivo) + '</td>'
-    + '<td style="padding:10px 14px;text-align:right;font-weight:700;color:#6c63ff">' + fmtM(gtDatafono) + '</td>'
-    + '<td style="padding:10px 14px;text-align:right;font-weight:700;color:#3b82f6">' + fmtM(gtNequi) + '</td>'
-    + '<td style="padding:10px 14px;text-align:right;font-weight:700;color:#f59e0b;font-size:15px">' + fmtM(gtTotal) + '</td>'
-    + '</tr></tfoot></table>'
-    + '<div style="margin-top:24px;text-align:center">'
-    + '<a href="' + sheetUrl + '" style="display:inline-block;background:#6c63ff;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ver reporte completo →</a>'
-    + '</div></div>'
-    + '<div style="background:#f8fafc;padding:16px 30px;text-align:center;font-size:11px;color:#94a3b8">'
-    + 'CRM Punto de Información · Manantial · Reporte automático'
-    + '</div></div></body></html>';
-
-  MailApp.sendEmail({
-    to:       CIERRE_GENERAL_EMAIL,
-    subject:  'Cierre Diario ' + nombrePestana + ' — ' + fmtM(gtTotal),
-    htmlBody: emailHtml
-  });
-
-  Logger.log('Cierre general ' + nombrePestana + ': ' + trans.length + ' trans, ' + sedes.length + ' sede(s). Total: ' + gtTotal + '. Correo enviado.');
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CIERRE MANUAL POR SEDE — Invocado desde la vista del asesor
@@ -652,14 +525,20 @@ function generarCierreSede(sede) {
   const finDia = new Date(hoy);
   finDia.setHours(23, 59, 59, 999);
 
-  const todasTrans = sheetToObjects_('Transacciones')
-    .filter(t => (t.Estado || 'Activa') !== 'Anulada' && t.Timestamp &&
+  const todasTransDiaSede = sheetToObjects_('Transacciones')
+    .filter(t => t.Timestamp &&
       new Date(t.Timestamp) >= hoy && new Date(t.Timestamp) <= finDia &&
       t.Sede === sede);
+
+  const todasTrans = todasTransDiaSede.filter(t => (t.Estado || 'Activa') !== 'Anulada');
+  const transAnuladasSede = todasTransDiaSede.filter(t => t.Estado === 'Anulada');
 
   if (!todasTrans.length) {
     throw new Error('No hay transacciones hoy para la sede ' + sede);
   }
+
+  const inscripcionesSede = sheetToObjects_('Inscripciones')
+    .filter(i => i.Fecha && new Date(i.Fecha) >= hoy && new Date(i.Fecha) <= finDia && i.Sede === sede);
 
   todasTrans.sort((a, b) => new Date(a.Timestamp) - new Date(b.Timestamp));
 
@@ -693,17 +572,14 @@ function generarCierreSede(sede) {
     const totalColsDf = headersDf.length;
 
     function mapRowDf_(t) {
+      var td = resolverTitularBeneficiario_(t);
       return [
         t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
         t.Datafono_Franquicia           || '',
         t.Datafono_No_Autorizacion      || '',
         Number(t.Datafono_Valor)        || 0,
-        t.Nombre_Persona                || '',
-        t.Documento_Persona             || '',
-        t.Celular_Persona               || '',
-        t.Datafono_Nombre_Beneficiario  || '',
-        t.Datafono_Doc_Beneficiario     || '',
-        t.Datafono_Celular_Beneficiario || '',
+        td.titular, td.titularDoc, td.titularCel,
+        td.benef, td.benefDoc, td.benefCel,
         t.Actividad                     || '',
         t.Datafono_Tipo_Tarjeta         || '',
         t.Asesor_Nombre                 || ''
@@ -771,15 +647,15 @@ function generarCierreSede(sede) {
 
     sheetDf.getRange(1, 1, rowsDf.length, totalColsDf).setValues(rowsDf);
 
-    sheetDf.getRange(1, 1).setFontSize(14).setFontWeight('bold').setFontColor('#6c63ff');
+    sheetDf.getRange(1, 1).setFontSize(14).setFontWeight('bold').setFontColor('#667eea');
     sheetDf.getRange(2, 1).setFontSize(9).setFontColor('#888888');
 
     mergesDf.forEach(r => sheetDf.getRange(r, 1, 1, totalColsDf).merge());
     headerRowsDf.forEach(r => {
-      sheetDf.getRange(r, 1, 1, totalColsDf).setBackground('#2d3148').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+      sheetDf.getRange(r, 1, 1, totalColsDf).setBackground('#2d3640').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
     });
     dfHeaderRows.forEach(r => {
-      sheetDf.getRange(r, 1, 1, totalColsDf).setBackground('#6c63ff').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+      sheetDf.getRange(r, 1, 1, totalColsDf).setBackground('#667eea').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
     });
     subtotalRowsDf.forEach(r => {
       sheetDf.getRange(r, 1, 1, totalColsDf).setFontWeight('bold').setBackground('#f0f0f0').setBorder(true, true, true, true, false, false);
@@ -797,13 +673,14 @@ function generarCierreSede(sede) {
   const headersGen = [
     'FECHA','PERSONA','CÉDULA','CELULAR','ACTIVIDAD','MONTO','MÉTODO DE PAGO','ASESOR',
     'FRANQUICIA','N° AUTORIZACIÓN','VALOR DATÁFONO',
-    'BENEFICIARIO DE PAGO','CÉDULA BENEFICIARIO','CELULAR BENEFICIARIO',
+    'TITULAR TARJETA','CÉDULA TITULAR','CELULAR TITULAR',
     'DÉBITO/CRÉDITO','N° DATÁFONO'
   ];
   const totalColsGen = headersGen.length;
   const colMontoGen = 5;
 
   function mapRowGen_(t) {
+    var td = resolverTitularBeneficiario_(t);
     return [
       t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
       t.Nombre_Persona                || '',
@@ -816,9 +693,7 @@ function generarCierreSede(sede) {
       t.Datafono_Franquicia           || '',
       t.Datafono_No_Autorizacion      || '',
       Number(t.Datafono_Valor)        || 0,
-      t.Datafono_Nombre_Beneficiario  || '',
-      t.Datafono_Doc_Beneficiario     || '',
-      t.Datafono_Celular_Beneficiario || '',
+      td.titular, td.titularDoc, td.titularCel,
       t.Datafono_Tipo_Tarjeta         || '',
       t.Datafono_No_Datafono          || ''
     ];
@@ -836,6 +711,7 @@ function generarCierreSede(sede) {
   const rowsGen = [];
   const mergesGen = [];
   const headerRowsGen = [];
+  const sedeHeaderRowsGen = [];
   const subtotalRowsGen = [];
 
   rowsGen.push(['CIERRE DIARIO — ' + sede, ...Array(totalColsGen - 1).fill('')]);
@@ -857,12 +733,98 @@ function generarCierreSede(sede) {
   rowsGen.push(['Nequi', countNq, totNequi, ...Array(totalColsGen - 3).fill('')]);
   rowsGen.push(['TOTAL', todasTrans.length, totTotal, ...Array(totalColsGen - 3).fill('')]);
   subtotalRowsGen.push(rowsGen.length);
+  const methodEndRow = rowsGen.length;
+
+  // ── RESUMEN POR ACTIVIDAD ──
+  rowsGen.push(Array(totalColsGen).fill(''));
+  rowsGen.push(Array(totalColsGen).fill(''));
+  rowsGen.push(['📋 RESUMEN POR ACTIVIDAD', ...Array(totalColsGen - 1).fill('')]);
+  sedeHeaderRowsGen.push(rowsGen.length);
+  mergesGen.push(rowsGen.length);
+
+  rowsGen.push(['ACTIVIDAD', 'N° TRANS.', 'TOTAL', '%', 'TICKET PROM.', ...Array(totalColsGen - 5).fill('')]);
+  headerRowsGen.push(rowsGen.length);
+  const actStartRowGen = rowsGen.length;
+
+  const porActividadGen = {};
+  todasTrans.forEach(t => {
+    const a = t.Actividad || 'Sin actividad';
+    if (!porActividadGen[a]) porActividadGen[a] = { total: 0, count: 0 };
+    porActividadGen[a].total += Number(t.Monto) || 0;
+    porActividadGen[a].count++;
+  });
+  Object.keys(porActividadGen)
+    .sort((a, b) => porActividadGen[b].total - porActividadGen[a].total)
+    .forEach(act => {
+      const d = porActividadGen[act];
+      rowsGen.push([act, d.count, d.total, totTotal ? ((d.total / totTotal) * 100).toFixed(1) + '%' : '0%', Math.round(d.total / d.count), ...Array(totalColsGen - 5).fill('')]);
+    });
+  rowsGen.push(['TOTAL', todasTrans.length, totTotal, '100%', Math.round(totTotal / (todasTrans.length || 1)), ...Array(totalColsGen - 5).fill('')]);
+  subtotalRowsGen.push(rowsGen.length);
+  const actEndRowGen = rowsGen.length;
+
+  // ── RENDIMIENTO POR ASESOR ──
+  rowsGen.push(Array(totalColsGen).fill(''));
+  rowsGen.push(Array(totalColsGen).fill(''));
+  rowsGen.push(['👥 RENDIMIENTO POR ASESOR', ...Array(totalColsGen - 1).fill('')]);
+  sedeHeaderRowsGen.push(rowsGen.length);
+  mergesGen.push(rowsGen.length);
+
+  rowsGen.push(['ASESOR', 'N° TRANS.', 'TOTAL', '%', 'TICKET PROM.', ...Array(totalColsGen - 5).fill('')]);
+  headerRowsGen.push(rowsGen.length);
+  const asesorStartRowGen = rowsGen.length;
+
+  const porAsesorGen = {};
+  todasTrans.forEach(t => {
+    const key = t.Asesor_Email || 'desconocido';
+    if (!porAsesorGen[key]) porAsesorGen[key] = { nombre: t.Asesor_Nombre || key, total: 0, count: 0 };
+    porAsesorGen[key].total += Number(t.Monto) || 0;
+    porAsesorGen[key].count++;
+  });
+  Object.keys(porAsesorGen)
+    .sort((a, b) => porAsesorGen[b].total - porAsesorGen[a].total)
+    .forEach(key => {
+      const d = porAsesorGen[key];
+      rowsGen.push([d.nombre, d.count, d.total, totTotal ? ((d.total / totTotal) * 100).toFixed(1) + '%' : '0%', Math.round(d.total / d.count), ...Array(totalColsGen - 5).fill('')]);
+    });
+  rowsGen.push(['TOTAL', todasTrans.length, totTotal, '100%', Math.round(totTotal / (todasTrans.length || 1)), ...Array(totalColsGen - 5).fill('')]);
+  subtotalRowsGen.push(rowsGen.length);
+  const asesorEndRowGen = rowsGen.length;
+
+  // ── TRANSACCIONES ANULADAS ──
+  let anuladasStartRowGen = 0, anuladasEndRowGen = 0;
+  if (transAnuladasSede.length) {
+    rowsGen.push(Array(totalColsGen).fill(''));
+    rowsGen.push(Array(totalColsGen).fill(''));
+    rowsGen.push(['❌ TRANSACCIONES ANULADAS (' + transAnuladasSede.length + ')', ...Array(totalColsGen - 1).fill('')]);
+    sedeHeaderRowsGen.push(rowsGen.length);
+    mergesGen.push(rowsGen.length);
+
+    rowsGen.push(['FECHA', 'PERSONA', 'CÉDULA', 'ACTIVIDAD', 'MONTO', 'MÉTODO', 'ASESOR', ...Array(totalColsGen - 7).fill('')]);
+    headerRowsGen.push(rowsGen.length);
+    anuladasStartRowGen = rowsGen.length;
+
+    transAnuladasSede.forEach(t => {
+      rowsGen.push([
+        t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
+        t.Nombre_Persona || '', t.Documento_Persona || '', t.Actividad || '',
+        Number(t.Monto) || 0, t.Metodo_Pago || '', t.Asesor_Nombre || '',
+        ...Array(totalColsGen - 7).fill('')
+      ]);
+    });
+
+    const totalAnuladoGen = transAnuladasSede.reduce((s, t) => s + (Number(t.Monto) || 0), 0);
+    rowsGen.push(['TOTAL ANULADO', '', '', '', totalAnuladoGen, '', '', ...Array(totalColsGen - 7).fill('')]);
+    subtotalRowsGen.push(rowsGen.length);
+    anuladasEndRowGen = rowsGen.length;
+  }
 
   // Tabla de transacciones
   rowsGen.push(Array(totalColsGen).fill(''));
   rowsGen.push(Array(totalColsGen).fill(''));
 
   rowsGen.push(['📍 ' + sede + ' — ' + todasTrans.length + ' transacción(es)', ...Array(totalColsGen - 1).fill('')]);
+  sedeHeaderRowsGen.push(rowsGen.length);
   mergesGen.push(rowsGen.length);
 
   rowsGen.push(headersGen);
@@ -878,60 +840,50 @@ function generarCierreSede(sede) {
 
   sheetGen.getRange(1, 1, rowsGen.length, totalColsGen).setValues(rowsGen);
 
-  sheetGen.getRange(1, 1).setFontSize(14).setFontWeight('bold').setFontColor('#6c63ff');
+  sheetGen.getRange(1, 1).setFontSize(14).setFontWeight('bold').setFontColor('#667eea');
   sheetGen.getRange(2, 1).setFontSize(9).setFontColor('#888888');
 
   mergesGen.forEach(r => sheetGen.getRange(r, 1, 1, totalColsGen).merge());
   headerRowsGen.forEach(r => {
-    sheetGen.getRange(r, 1, 1, totalColsGen).setBackground('#2d3148').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+    sheetGen.getRange(r, 1, 1, totalColsGen).setBackground('#2d3640').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+  });
+  sedeHeaderRowsGen.forEach(r => {
+    sheetGen.getRange(r, 1, 1, totalColsGen).setBackground('#667eea').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
   });
   subtotalRowsGen.forEach(r => {
     sheetGen.getRange(r, 1, 1, totalColsGen).setFontWeight('bold').setBackground('#f0f0f0').setBorder(true, true, true, true, false, false);
   });
 
-  sheetGen.getRange(1, 3, rowsGen.length, 1).setNumberFormat('$ #,##0');
+  // Formato moneda por sección (evita aplicar moneda a CÉDULA/CELULAR en detalle)
+  sheetGen.getRange(4, 3, methodEndRow - 3, 1).setNumberFormat('$ #,##0');
+  sheetGen.getRange(actStartRowGen, 3, actEndRowGen - actStartRowGen + 1, 1).setNumberFormat('$ #,##0');
+  sheetGen.getRange(actStartRowGen, 5, actEndRowGen - actStartRowGen + 1, 1).setNumberFormat('$ #,##0');
+  sheetGen.getRange(asesorStartRowGen, 3, asesorEndRowGen - asesorStartRowGen + 1, 1).setNumberFormat('$ #,##0');
+  sheetGen.getRange(asesorStartRowGen, 5, asesorEndRowGen - asesorStartRowGen + 1, 1).setNumberFormat('$ #,##0');
+  if (transAnuladasSede.length) sheetGen.getRange(anuladasStartRowGen, 5, anuladasEndRowGen - anuladasStartRowGen + 1, 1).setNumberFormat('$ #,##0');
   sheetGen.getRange(1, colMontoGen + 1, rowsGen.length, 1).setNumberFormat('$ #,##0');
   sheetGen.getRange(1, 11, rowsGen.length, 1).setNumberFormat('$ #,##0');
 
   for (var c = 1; c <= totalColsGen; c++) sheetGen.autoResizeColumn(c);
 
-  // ── CORREO ───────────────────────────────────────────────────────────────
+  // ── CORREO GERENCIAL ──────────────────────────────────────────────────
   var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + CIERRE_GENERAL_SHEET_ID + '/edit#gid=' + sheetGen.getSheetId();
   var nombreFecha = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy');
 
-  var emailHtml = '<!DOCTYPE html><html><body style="font-family:\'Segoe UI\',Arial,sans-serif;background:#f8fafc;padding:20px">'
-    + '<div style="max-width:650px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">'
-    + '<div style="background:#1a1d2e;padding:24px 30px">'
-    + '<h1 style="color:#6c63ff;margin:0;font-size:20px">⛪ Cierre Diario — ' + sede + '</h1>'
-    + '<p style="color:#94a3b8;margin:6px 0 0;font-size:13px">' + nombreFecha + ' · Generado: ' + fechaGen + '</p>'
-    + '</div>'
-    + '<div style="padding:24px 30px">'
-    + '<h2 style="font-size:15px;color:#1a1d2e;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.05em">Resumen por método de pago</h2>'
-    + '<table style="width:100%;border-collapse:collapse;font-size:13px">'
-    + '<thead><tr style="background:#f1f5f9">'
-    + '<th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#64748b">Método</th>'
-    + '<th style="padding:10px 14px;text-align:center;font-size:11px;text-transform:uppercase;color:#64748b">Trans.</th>'
-    + '<th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#64748b">Total</th>'
-    + '</tr></thead><tbody>'
-    + '<tr><td style="padding:8px 14px;border-bottom:1px solid #e2e8f0">Efectivo</td><td style="padding:8px 14px;text-align:center;border-bottom:1px solid #e2e8f0">' + countEf + '</td><td style="padding:8px 14px;text-align:right;border-bottom:1px solid #e2e8f0">' + fmtM(totEfectivo) + '</td></tr>'
-    + '<tr><td style="padding:8px 14px;border-bottom:1px solid #e2e8f0">Datáfono</td><td style="padding:8px 14px;text-align:center;border-bottom:1px solid #e2e8f0">' + countDf + '</td><td style="padding:8px 14px;text-align:right;border-bottom:1px solid #e2e8f0">' + fmtM(totDatafono) + '</td></tr>'
-    + '<tr><td style="padding:8px 14px;border-bottom:1px solid #e2e8f0">Nequi</td><td style="padding:8px 14px;text-align:center;border-bottom:1px solid #e2e8f0">' + countNq + '</td><td style="padding:8px 14px;text-align:right;border-bottom:1px solid #e2e8f0">' + fmtM(totNequi) + '</td></tr>'
-    + '</tbody>'
-    + '<tfoot><tr style="background:#1a1d2e">'
-    + '<td style="padding:10px 14px;font-weight:700;color:#fff">TOTAL</td>'
-    + '<td style="padding:10px 14px;text-align:center;font-weight:700;color:#fff">' + todasTrans.length + '</td>'
-    + '<td style="padding:10px 14px;text-align:right;font-weight:700;color:#f59e0b;font-size:15px">' + fmtM(totTotal) + '</td>'
-    + '</tr></tfoot></table>'
-    + '<div style="margin-top:24px;text-align:center">'
-    + '<a href="' + sheetUrl + '" style="display:inline-block;background:#6c63ff;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ver reporte completo →</a>'
-    + '</div></div>'
-    + '<div style="background:#f8fafc;padding:16px 30px;text-align:center;font-size:11px;color:#94a3b8">'
-    + 'CRM Punto de Información · Manantial · Cierre manual'
-    + '</div></div></body></html>';
+  var emailHtml = buildEmailCierreGerencial_({
+    titulo:        'Cierre Diario — ' + sede,
+    fecha:         nombreFecha,
+    fechaGen:      fechaGen,
+    trans:         todasTrans,
+    anuladas:      transAnuladasSede,
+    inscripciones: inscripcionesSede,
+    sheetUrl:      sheetUrl,
+    mostrarSedes:  false
+  });
 
   MailApp.sendEmail({
     to:       CIERRE_GENERAL_EMAIL,
-    subject:  'Cierre ' + sede + ' ' + nombreFecha + ' — ' + fmtM(totTotal),
+    subject:  '📊 Cierre ' + sede + ' ' + nombreFecha + ' — ' + todasTrans.length + ' trans · ' + fmtM(totTotal),
     htmlBody: emailHtml
   });
 

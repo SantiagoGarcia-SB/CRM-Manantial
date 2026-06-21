@@ -1,0 +1,5 @@
+TestAgent.js
+node_modules/**
+.git/**
+.claude/**
+frontend/**

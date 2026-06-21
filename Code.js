@@ -7,11 +7,12 @@ const SHEET_HEADERS = {
                    'Metodo_Pago','Asesor_Email','Asesor_Nombre',
                    'Estado_Legalizacion_Iglesia','Estado_Legalizacion_Academia',
                    'Datafono_Franquicia','Datafono_Tipo_Tarjeta','Datafono_Valor',
-                   'Datafono_Beneficiario_Mismo','Datafono_Nombre_Beneficiario',
-                   'Datafono_Doc_Beneficiario','Datafono_Celular_Beneficiario',
+                   'Datafono_Titular_Mismo','Datafono_Nombre_Titular',
+                   'Datafono_Doc_Titular','Datafono_Celular_Titular',
                    'Datafono_No_Autorizacion','Datafono_No_Datafono','Estado'],
   Inscripciones:  ['ID_Inscripcion','ID_Trans','Actividad','Modulo','Horario','Sede',
-                   'Asesor_Email','Fecha'],
+                   'Asesor_Email','Fecha',
+                   'Nombre_Persona','Documento_Persona','Celular_Persona'],
   Actividades:    ['ID_Actividad','Nombre','Categoria','Valor_Base','Valor_Variable',
                    'Requiere_Inscripcion','Legalizar_Iglesia','Legalizar_Academia','Activa',
                    'Legalizar_Pago','Legalizar_Inscripcion','Horarios','Modulos'],
@@ -26,7 +27,7 @@ const SHEET_HEADERS = {
 function doGet(e) {
   const page = (e && e.parameter && e.parameter.page) === 'coord' ? 'coordinadora' : 'asesor';
   return HtmlService.createTemplateFromFile(page).evaluate()
-    .setTitle('CRM Punto de Información')
+    .setTitle('Manantial · Punto de Información')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0');
 }
@@ -57,7 +58,7 @@ function getSheet_(name, createIfMissing = false) {
     if (headers) {
       const range = sheet.getRange(1, 1, 1, headers.length);
       range.setValues([headers]);
-      range.setBackground('#1a1f36').setFontColor('#ffffff').setFontWeight('bold');
+      range.setBackground('#0d1829').setFontColor('#ffffff').setFontWeight('bold');
       sheet.setFrozenRows(1);
     }
   }
@@ -105,9 +106,9 @@ function buildErrorPage_(mensaje, emailDetectado) {
 
   const css = [
     '*{box-sizing:border-box}',
-    'body{margin:0;font-family:Segoe UI,sans-serif;background:#0f1117;color:#e2e8f0;',
+    'body{margin:0;font-family:Segoe UI,sans-serif;background:#0d1829;color:#e2e8f0;',
     'display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}',
-    '.card{background:#181c27;border:1px solid #2d3148;border-radius:12px;',
+    '.card{background:#1e1e1e;border:1px solid #2d3640;border-radius:12px;',
     'padding:28px 20px;max-width:400px;width:100%;text-align:center}',
     'h2{color:#ef4444;margin:0 0 10px;font-size:1.05rem}',
     'p{color:#94a3b8;font-size:14px;margin:0 0 14px;line-height:1.5}',
@@ -116,12 +117,12 @@ function buildErrorPage_(mensaje, emailDetectado) {
     'padding:7px 12px;font-size:13px;color:#94a3b8;word-break:break-all;',
     'display:inline-block;margin-bottom:16px}',
     '.email-badge strong{color:#c7d2fe}',
-    'hr{border:none;border-top:1px solid #2d3148;margin:16px 0}',
+    'hr{border:none;border-top:1px solid #2d3640;margin:16px 0}',
     '.hint{font-size:12px;color:#64748b;margin-bottom:10px}',
     '.btn-cuenta{display:block;width:100%;padding:12px;margin-bottom:9px;',
     'background:#1e2340;border:1px solid #3b4169;border-radius:8px;',
     'color:#c7d2fe;text-decoration:none;font-size:14px;font-weight:600;transition:background .15s}',
-    '.btn-cuenta:hover{background:#252b4a;border-color:#6c63ff}',
+    '.btn-cuenta:hover{background:#252b4a;border-color:#667eea}',
     '.btn-actual{background:#111827;border-color:#374151;color:#475569;',
     'font-size:13px;font-weight:400;pointer-events:none;cursor:default}',
     '.nota{font-size:11px;color:#475569;margin-top:14px;line-height:1.5}'
@@ -158,7 +159,7 @@ function setupSheets() {
       sheet = ss.insertSheet(name);
       const range = sheet.getRange(1, 1, 1, headers.length);
       range.setValues([headers]);
-      range.setBackground('#1a1f36').setFontColor('#ffffff').setFontWeight('bold');
+      range.setBackground('#0d1829').setFontColor('#ffffff').setFontWeight('bold');
       sheet.setFrozenRows(1);
       Logger.log('Hoja creada: ' + name);
     } else {
@@ -192,7 +193,7 @@ function agregarColumnasFaltantes() {
     const colInicio = actualHeaders.length + 1;
     const range = sheet.getRange(1, colInicio, 1, faltantes.length);
     range.setValues([faltantes]);
-    range.setBackground('#1a1f36').setFontColor('#ffffff').setFontWeight('bold');
+    range.setBackground('#0d1829').setFontColor('#ffffff').setFontWeight('bold');
     Logger.log(name + ': columnas agregadas → ' + faltantes.join(', '));
   });
   return { ok: true };

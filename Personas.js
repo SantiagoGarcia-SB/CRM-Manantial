@@ -97,8 +97,8 @@ function crearPersona(token, datos) {
   const ahora = new Date();
 
   sheet.appendRow([
-    datos.documento.toString().trim(),
     datos.nombre.trim(),
+    datos.documento.toString().trim(),
     (datos.celular || '').toString().trim(),
     (datos.correo  || '').trim().toLowerCase(),
     datos.sede,
@@ -160,9 +160,7 @@ function listarPersonas(token, filtros = {}) {
   if (filtros.busqueda) {
     const q = filtros.busqueda.toLowerCase();
     personas = personas.filter(p =>
-      (p.Nombre    || '').toString().toLowerCase().includes(q) ||
-      (p.Documento || '').toString().toLowerCase().includes(q) ||
-      (p.Correo    || '').toString().toLowerCase().includes(q)
+      (p.Documento || '').toString().toLowerCase().includes(q)
     );
   }
 

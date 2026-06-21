@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CRM Punto de Información – Coordinadora</title>
+  <title>Manantial · Punto de Información</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://www.soymanantial.com/32x32.png?v=2">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://www.soymanantial.com/16x16.png?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -239,8 +241,8 @@
 
 <!-- PANTALLA DE LOGIN COORDINADORA -->
 <div id="login-screen-coord" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--bg)">
-  <div style="font-size:2rem;margin-bottom:8px">⛪</div>
-  <h1 style="font-size:1.2rem;color:var(--accent);margin-bottom:4px">CRM Punto de Información</h1>
+  <img src="https://www.soymanantial.com/footer/50.svg" alt="Manantial" style="width:180px;margin-bottom:12px;filter:drop-shadow(0 0 20px rgba(102,126,234,0.4))">
+  <h1 style="font-size:1.2rem;color:var(--accent);margin-bottom:4px">Punto de Información</h1>
   <p style="font-size:.82rem;color:var(--text-dim);margin-bottom:24px">Panel Coordinadora</p>
 
   <!-- Paso 1: seleccionar coordinadora -->
@@ -271,8 +273,8 @@
 <!-- ═══════════════════════════════ SIDEBAR ════════════════════════════════ -->
 <aside class="sidebar">
   <div class="sidebar-brand">
-    <h1>⛪ Manantial</h1>
-    <p>CRM · Panel coordinadora</p>
+    <img src="https://www.soymanantial.com/footer/50.svg" alt="Manantial" style="width:140px;margin-bottom:4px;filter:drop-shadow(0 0 12px rgba(102,126,234,0.3))">
+    <p>Punto de Información</p>
   </div>
   <div class="sidebar-user">
     <div id="coord-user-name" class="name"></div>
@@ -327,7 +329,7 @@
       <option value="Legalizado">Legalizado</option>
       <option value="NA">N/A</option>
     </select>
-    <input id="gf-busqueda" class="input" placeholder="Buscar persona…" oninput="onGlobalTextChange()">
+    <input id="gf-busqueda" class="input" placeholder="Buscar por documento…" inputmode="numeric" oninput="onGlobalTextChange()">
     <span class="gf-clear" onclick="limpiarFiltrosGlobales()">✕ Limpiar</span>
   </div>
 
@@ -374,11 +376,11 @@
   <div id="sec-alertas" class="section">
     <div class="charts-grid-3 mb-24">
       <div class="chart-card">
-        <div class="chart-title">Legalización Iglesia</div>
+        <div class="chart-title">Leg. Pago</div>
         <div id="prog-iglesia"></div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">Legalización Academia</div>
+        <div class="chart-title">Leg. Inscripción</div>
         <div id="prog-academia"></div>
       </div>
       <div class="chart-card">
@@ -406,6 +408,17 @@
     </div>
     <div id="tabla-transacciones"></div>
     <div id="pag-trans" class="flex gap-8 mt-16"></div>
+  </div>
+
+  <!-- Modal detalle transacción -->
+  <div id="modal-detalle-trans" class="modal-backdrop">
+    <div class="modal" style="max-width:620px">
+      <div class="modal-header">
+        <h3 id="detalle-trans-titulo">Detalle de transacción</h3>
+        <button class="modal-close" onclick="closeModal('modal-detalle-trans')">✕</button>
+      </div>
+      <div class="modal-body" id="detalle-trans-body"></div>
+    </div>
   </div>
 
   <!-- ─────────────────── 4. INSCRIPCIONES ─────────────────────────── -->
@@ -440,8 +453,8 @@
   <!-- ─────────────────── 6. LEGALIZACIÓN ──────────────────────────── -->
   <div id="sec-legalizacion" class="section">
     <div class="tabs mb-16">
-      <button class="tab active" onclick="tabLegal('iglesia', this)">🏛️ Cola Iglesia</button>
-      <button class="tab"        onclick="tabLegal('academia', this)">🎓 Cola Academia</button>
+      <button class="tab active" onclick="tabLegal('iglesia', this)">💰 Leg. Pago</button>
+      <button class="tab"        onclick="tabLegal('academia', this)">📋 Leg. Inscripción</button>
     </div>
     <div style="display:flex;gap:10px;margin-bottom:16px">
       <button class="btn btn-success" onclick="marcarSeleccionados()">✅ Legalizar seleccionados</button>
@@ -784,7 +797,7 @@ function limpiarFiltrosGlobales() {
   (SECTION_LOADERS[CURRENT_SECTION] || (() => {}))();
 }
 
-const CHART_COLORS = ['#6c63ff','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#8b5cf6','#06b6d4'];
+const CHART_COLORS = ['#667eea','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#8b5cf6','#06b6d4'];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // NAVEGACIÓN SPA
@@ -950,7 +963,7 @@ async function cargarAlertas() {
     renderTable('tabla-alertas-leg', a.sinLegalizar7Dias, [
       { key:'nombrePersona', label:'Persona' },
       { key:'actividad',     label:'Actividad' },
-      { key:'tipo',          label:'Cola',    render: v => badgeEstado(v === 'iglesia' ? 'Iglesia' : 'Academia') },
+      { key:'tipo',          label:'Cola',    render: v => badgeEstado(v === 'iglesia' ? 'Leg. pago' : 'Leg. insc.') },
       { key:'diasPendiente', label:'Días',    render: v => `<span class="badge badge-red">${v}d</span>` },
       { key:'monto',         label:'Monto',   render: v => fmt.cop(v) },
       { key:'asesorNombre',  label:'Asesor' }
@@ -1021,7 +1034,7 @@ async function exportarDatafono() {
       'concepto','debitoCredito','noDatafono'
     ];
     const totalCols = headers.length;
-    const thStyle = 'style="background:#2d3148;color:#fff;font-weight:bold;padding:6px 10px;font-size:11px;border:1px solid #555"';
+    const thStyle = 'style="background:#2d3640;color:#fff;font-weight:bold;padding:6px 10px;font-size:11px;border:1px solid #555"';
     const tdStyle = 'style="padding:5px 10px;font-size:11px;border:1px solid #ccc"';
     const fmtCOP = v => new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(v||0);
 
@@ -1036,13 +1049,13 @@ async function exportarDatafono() {
 
     // ── RESUMEN CONSOLIDADO ──
     let body = '';
-    body += `<tr><td colspan="${totalCols}" style="font-size:16px;font-weight:bold;padding:12px 10px;background:#1a1d2e;color:#6c63ff;border:none">CIERRE DATÁFONO</td></tr>`;
+    body += `<tr><td colspan="${totalCols}" style="font-size:16px;font-weight:bold;padding:12px 10px;background:#0d1829;color:#667eea;border:none">CIERRE DATÁFONO</td></tr>`;
     body += `<tr><td colspan="${totalCols}" style="font-size:11px;color:#888;padding:2px 10px;border:none">Generado: ${fechaGen}</td></tr>`;
     body += `<tr><td colspan="${totalCols}" style="border:none">&nbsp;</td></tr>`;
     body += `<tr>
-      <td style="background:#6c63ff;color:#fff;font-weight:bold;padding:6px 10px;border:1px solid #555">SEDE</td>
-      <td style="background:#6c63ff;color:#fff;font-weight:bold;padding:6px 10px;border:1px solid #555">N° TRANSACCIONES</td>
-      <td style="background:#6c63ff;color:#fff;font-weight:bold;padding:6px 10px;border:1px solid #555">TOTAL DATÁFONO</td>
+      <td style="background:#667eea;color:#fff;font-weight:bold;padding:6px 10px;border:1px solid #555">SEDE</td>
+      <td style="background:#667eea;color:#fff;font-weight:bold;padding:6px 10px;border:1px solid #555">N° TRANSACCIONES</td>
+      <td style="background:#667eea;color:#fff;font-weight:bold;padding:6px 10px;border:1px solid #555">TOTAL DATÁFONO</td>
       <td colspan="${totalCols-3}" style="border:none"></td></tr>`;
     let granTotal = 0;
     sedes.forEach(sede => {
@@ -1056,9 +1069,9 @@ async function exportarDatafono() {
         <td colspan="${totalCols-3}" style="border:none"></td></tr>`;
     });
     body += `<tr>
-      <td style="font-weight:bold;background:#2d3148;color:#fff;padding:6px 10px;border:1px solid #555">GRAN TOTAL</td>
-      <td style="font-weight:bold;background:#2d3148;color:#fff;text-align:center;padding:6px 10px;border:1px solid #555">${rows.length}</td>
-      <td style="font-weight:bold;background:#2d3148;color:#fff;text-align:right;padding:6px 10px;border:1px solid #555">${fmtCOP(granTotal)}</td>
+      <td style="font-weight:bold;background:#2d3640;color:#fff;padding:6px 10px;border:1px solid #555">GRAN TOTAL</td>
+      <td style="font-weight:bold;background:#2d3640;color:#fff;text-align:center;padding:6px 10px;border:1px solid #555">${rows.length}</td>
+      <td style="font-weight:bold;background:#2d3640;color:#fff;text-align:right;padding:6px 10px;border:1px solid #555">${fmtCOP(granTotal)}</td>
       <td colspan="${totalCols-3}" style="border:none"></td></tr>`;
 
     // ── BLOQUES POR SEDE ──
@@ -1067,7 +1080,7 @@ async function exportarDatafono() {
       const totalSede = trans.reduce((s,r) => s + (Number(r.valor)||0), 0);
       body += `<tr><td colspan="${totalCols}" style="border:none">&nbsp;</td></tr>`;
       body += `<tr><td colspan="${totalCols}" style="border:none">&nbsp;</td></tr>`;
-      body += `<tr><td colspan="${totalCols}" style="font-size:14px;font-weight:bold;padding:10px;background:#6c63ff;color:#fff;border:1px solid #555">📍 ${escHtml(sede)} — ${trans.length} transacción(es)</td></tr>`;
+      body += `<tr><td colspan="${totalCols}" style="font-size:14px;font-weight:bold;padding:10px;background:#667eea;color:#fff;border:1px solid #555">📍 ${escHtml(sede)} — ${trans.length} transacción(es)</td></tr>`;
       body += `<tr>${headers.map(h => `<th ${thStyle}>${escHtml(h)}</th>`).join('')}</tr>`;
       trans.forEach(r => {
         body += '<tr>' + keys.map(k => {
@@ -1086,9 +1099,9 @@ async function exportarDatafono() {
     // ── GRAN TOTAL FINAL ──
     body += `<tr><td colspan="${totalCols}" style="border:none">&nbsp;</td></tr>`;
     body += `<tr>
-      ${`<td colspan="${keys.indexOf('valor')}" style="text-align:right;font-weight:bold;background:#2d3148;color:#fff;padding:8px 10px;font-size:12px;border:1px solid #555">GRAN TOTAL DATÁFONO</td>`}
-      <td style="text-align:right;font-weight:bold;background:#2d3148;color:#fff;padding:8px 10px;font-size:12px;border:1px solid #555">${fmtCOP(granTotal)}</td>
-      <td colspan="${totalCols - keys.indexOf('valor') - 1}" style="background:#2d3148;border:1px solid #555"></td>
+      ${`<td colspan="${keys.indexOf('valor')}" style="text-align:right;font-weight:bold;background:#2d3640;color:#fff;padding:8px 10px;font-size:12px;border:1px solid #555">GRAN TOTAL DATÁFONO</td>`}
+      <td style="text-align:right;font-weight:bold;background:#2d3640;color:#fff;padding:8px 10px;font-size:12px;border:1px solid #555">${fmtCOP(granTotal)}</td>
+      <td colspan="${totalCols - keys.indexOf('valor') - 1}" style="background:#2d3640;border:1px solid #555"></td>
     </tr>`;
 
     const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -1132,14 +1145,14 @@ async function filtrarTransacciones(page = 1) {
       { key:'metodoPago',    label:'Método',   render: v => badgeEstado(v) },
       { key:'sede',          label:'Sede' },
       { key:'asesorNombre',  label:'Asesor' },
-      { key:'estadoIglesia', label:'Iglesia',  render: v => badgeEstado(v) },
-      { key:'estadoAcademia',label:'Academia', render: v => badgeEstado(v) },
+      { key:'estadoIglesia', label:'Leg. pago',  render: v => badgeEstado(v) },
+      { key:'estadoAcademia',label:'Leg. insc.', render: v => badgeEstado(v) },
       { key:'estado',        label:'Estado',   render: (v, r) => {
         var estado = v || 'Activa';
         if (estado === 'Anulada') return badgeEstado('Anulada');
         return `${badgeEstado('Activa')} <button class="btn btn-ghost" style="font-size:.65rem;padding:1px 6px;color:var(--red);margin-left:4px" onclick="anularTransaccionCoord('${escHtml(r.id)}')">Anular</button>`;
       }}
-    ]);
+    ], abrirDetalleTransaccion);
     renderPaginacion('pag-trans', res, filtrarTransacciones);
   } catch(e) { toast.error('Error: ' + e.message); }
 }
@@ -1151,6 +1164,48 @@ async function anularTransaccionCoord(idTrans) {
     toast.success('Transacción anulada ✓');
     filtrarTransacciones(TRANS_PAGE);
   } catch(e) { toast.error(e.message); }
+}
+
+function abrirDetalleTransaccion(t) {
+  setText('#detalle-trans-titulo', 'Transacción ' + (t.id || ''));
+  const esDatafono = t.metodoPago === 'Datáfono';
+
+  let html = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:.85rem">
+      <div><div class="text-muted">ID</div><div class="fw-600">${escHtml(t.id)}</div></div>
+      <div><div class="text-muted">Fecha</div><div class="fw-600">${escHtml(t.timestamp)}</div></div>
+      <div><div class="text-muted">Persona</div><div class="fw-600">${escHtml(t.nombrePersona)}</div></div>
+      <div><div class="text-muted">Actividad</div><div class="fw-600">${escHtml(t.actividad)}</div></div>
+      <div><div class="text-muted">Monto</div><div class="fw-600">${fmt.cop(t.monto)}</div></div>
+      <div><div class="text-muted">Método de pago</div><div class="fw-600">${badgeEstado(t.metodoPago)}</div></div>
+      <div><div class="text-muted">Sede</div><div class="fw-600">${escHtml(t.sede)}</div></div>
+      <div><div class="text-muted">Estado</div><div class="fw-600">${badgeEstado(t.estado || 'Activa')}</div></div>
+      <div><div class="text-muted">Asesor</div><div class="fw-600">${escHtml(t.asesorNombre)}</div></div>
+      <div><div class="text-muted">Email asesor</div><div class="fw-600 truncate">${escHtml(t.asesorEmail)}</div></div>
+      <div><div class="text-muted">Leg. pago</div><div class="fw-600">${badgeEstado(t.estadoIglesia)}</div></div>
+      <div><div class="text-muted">Leg. inscripción</div><div class="fw-600">${badgeEstado(t.estadoAcademia)}</div></div>
+    </div>`;
+
+  if (esDatafono) {
+    html += `
+    <div style="margin-top:8px;padding-top:12px;border-top:1px solid var(--border)">
+      <h4 style="margin:0 0 10px;font-size:.9rem;color:var(--accent)">Información de Datáfono</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:.85rem">
+        <div><div class="text-muted">Franquicia</div><div class="fw-600">${escHtml(t.dtFranquicia || '–')}</div></div>
+        <div><div class="text-muted">Tipo tarjeta</div><div class="fw-600">${escHtml(t.dtTipoTarjeta || '–')}</div></div>
+        <div><div class="text-muted">Valor datáfono</div><div class="fw-600">${t.dtValor ? fmt.cop(t.dtValor) : '–'}</div></div>
+        <div><div class="text-muted">N° Autorización</div><div class="fw-600">${escHtml(t.dtNoAutorizacion || '–')}</div></div>
+        <div><div class="text-muted">N° Datáfono</div><div class="fw-600">${escHtml(t.dtNoDatafono || '–')}</div></div>
+        <div><div class="text-muted">¿Titular es la misma persona?</div><div class="fw-600">${escHtml(t.dtTitularMismo || '–')}</div></div>
+        <div><div class="text-muted">Titular tarjeta</div><div class="fw-600">${escHtml(t.dtNombreTitular || '–')}</div></div>
+        <div><div class="text-muted">Doc. titular</div><div class="fw-600">${escHtml(t.dtDocTitular || '–')}</div></div>
+        <div><div class="text-muted">Celular titular</div><div class="fw-600">${escHtml(t.dtCelularTitular || '–')}</div></div>
+      </div>
+    </div>`;
+  }
+
+  setHtml('#detalle-trans-body', html);
+  openModal('modal-detalle-trans');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1180,15 +1235,18 @@ async function filtrarInscripciones(page = 1) {
         <div class="kpi-value" style="font-size:1.3rem">${fmt.cop(kpis.totalRecaudado)}</div>
       </div>`);
     renderTable('tabla-inscripciones', res.inscripciones, [
-      { key:'fecha',         label:'Fecha' },
-      { key:'actividad',     label:'Actividad' },
-      { key:'modulo',        label:'Módulo' },
-      { key:'horario',       label:'Horario' },
-      { key:'sede',          label:'Sede' },
-      { key:'monto',         label:'Monto',    render: v => fmt.cop(v) },
-      { key:'metodoPago',    label:'Método',   render: v => badgeEstado(v) },
-      { key:'estadoIglesia', label:'Iglesia',  render: v => badgeEstado(v) },
-      { key:'estadoAcademia',label:'Academia', render: v => badgeEstado(v) }
+      { key:'fecha',           label:'Fecha' },
+      { key:'nombrePersona',   label:'Persona' },
+      { key:'documentoPersona',label:'Cédula' },
+      { key:'celularPersona',  label:'Celular' },
+      { key:'actividad',       label:'Actividad' },
+      { key:'modulo',          label:'Módulo' },
+      { key:'horario',         label:'Horario' },
+      { key:'sede',            label:'Sede' },
+      { key:'monto',           label:'Monto',    render: v => fmt.cop(v) },
+      { key:'metodoPago',      label:'Método',   render: v => badgeEstado(v) },
+      { key:'estadoIglesia',   label:'Leg. pago',  render: v => badgeEstado(v) },
+      { key:'estadoAcademia',  label:'Leg. insc.', render: v => badgeEstado(v) }
     ]);
   } catch(e) { toast.error('Error: ' + e.message); }
 }
@@ -1232,8 +1290,8 @@ async function abrirFicha(id) {
       { key:'actividad', label:'Actividad' },
       { key:'monto',     label:'Monto',  render: (v, r) => `<span style="${r.estado==='Anulada'?'text-decoration:line-through;opacity:.5':''}">${fmt.cop(v)}</span>` },
       { key:'metodoPago',label:'Método', render: v => badgeEstado(v) },
-      { key:'estadoIglesia',  label:'Iglesia', render: v => badgeEstado(v) },
-      { key:'estadoAcademia', label:'Academia',render: v => badgeEstado(v) },
+      { key:'estadoIglesia',  label:'Leg. pago', render: v => badgeEstado(v) },
+      { key:'estadoAcademia', label:'Leg. insc.',render: v => badgeEstado(v) },
       { key:'estado',         label:'Estado',  render: v => badgeEstado(v || 'Activa') }
     ]);
   } catch(e) { toast.error('Error: ' + e.message); }
@@ -1348,7 +1406,7 @@ async function cargarActividades() {
       { key:'valorBase',           label:'Valor', render: (v,r) => r.valorVariable ? '<span class="badge">Variable</span>' : fmt.cop(v) },
       { key:'horarios',            label:'Horarios',  render: v => (v&&v.length) ? `${v.length} horario${v.length>1?'s':''}` : '–' },
       { key:'modulos',             label:'Módulos',   render: v => (v&&v.length) ? `${v.length} módulo${v.length>1?'s':''}` : '–' },
-      { key:'requiereInscripcion', label:'Inscripción', render: v => v ? '✓' : '–' },
+      { key:'legalizarInscripcion', label:'Inscripción', render: v => v ? '✓' : '–' },
       { key:'legalizarPago',       label:'Leg. pago',  render: v => v ? '✓' : '–' },
       { key:'legalizarInscripcion',label:'Leg. insc.', render: v => v ? '✓' : '–' },
       { key:'activa',              label:'Activa', render: v => v ? '<span class="badge badge-green">Sí</span>' : '<span class="badge badge-red">No</span>' },
@@ -1747,8 +1805,8 @@ function buildBarChart(id, labels, data, dataLabel) {
       responsive: true,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2d3148' } },
-        y: { ticks: { color: '#94a3b8', callback: v => '$' + Intl.NumberFormat('es-CO').format(v) }, grid: { color: '#2d3148' } }
+        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2d3640' } },
+        y: { ticks: { color: '#94a3b8', callback: v => '$' + Intl.NumberFormat('es-CO').format(v) }, grid: { color: '#2d3640' } }
       }
     }
   });
@@ -1762,7 +1820,7 @@ function buildDonutChart(id, labels, data) {
     type: 'doughnut',
     data: {
       labels,
-      datasets: [{ data, backgroundColor: CHART_COLORS, borderColor: '#181c27', borderWidth: 2 }]
+      datasets: [{ data, backgroundColor: CHART_COLORS, borderColor: '#1e1e1e', borderWidth: 2 }]
     },
     options: {
       responsive: true,
@@ -1791,8 +1849,8 @@ function buildGroupedBarChart(id, labels, datasets) {
       responsive: true,
       plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
       scales: {
-        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2d3148' } },
-        y: { ticks: { color: '#94a3b8', callback: v => '$' + Intl.NumberFormat('es-CO').format(v) }, grid: { color: '#2d3148' } }
+        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2d3640' } },
+        y: { ticks: { color: '#94a3b8', callback: v => '$' + Intl.NumberFormat('es-CO').format(v) }, grid: { color: '#2d3640' } }
       }
     }
   });

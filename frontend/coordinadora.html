@@ -120,8 +120,8 @@
 <!-- ═══════════════════════════════ SIDEBAR ════════════════════════════════ -->
 <aside class="sidebar">
   <div class="sidebar-brand">
-    <h1>⛪ Manantial</h1>
-    <p>CRM · Panel coordinadora</p>
+    <img src="https://www.soymanantial.com/footer/50.svg" alt="Manantial" style="width:130px;margin-bottom:4px;filter:drop-shadow(0 0 12px rgba(102,126,234,0.3))">
+    <p>Punto de Información</p>
   </div>
   <div class="sidebar-user">
     <div class="name"><?= userName ?></div>
@@ -451,7 +451,7 @@ let ACTIV_EDITANDO   = null;
 let ASESOR_EDITANDO  = null;
 let PERIODOS_CACHE   = [];
 
-const CHART_COLORS = ['#6c63ff','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#8b5cf6','#06b6d4'];
+const CHART_COLORS = ['#667eea','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#8b5cf6','#06b6d4'];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // NAVEGACIÓN SPA
@@ -874,11 +874,11 @@ async function cargarComparacion() {
     p2.porActividad.forEach(a => { acts2[a.actividad] = a.recaudado; });
     const allActs = [...new Set([...p1.porActividad.map(a=>a.actividad), ...p2.porActividad.map(a=>a.actividad)])].slice(0,10);
     buildGroupedBarChart('chart-comp-act', allActs,
-      [{ label: p1.periodo.nombre, data: allActs.map(a=>acts1[a]||0), color: '#6c63ff' },
+      [{ label: p1.periodo.nombre, data: allActs.map(a=>acts1[a]||0), color: '#667eea' },
        { label: p2.periodo.nombre, data: allActs.map(a=>acts2[a]||0), color: '#10b981' }]);
 
     buildGroupedBarChart('chart-comp-sede', p1.porSede.map(s=>s.sede),
-      [{ label: p1.periodo.nombre, data: p1.porSede.map(s=>s.recaudado), color: '#6c63ff' },
+      [{ label: p1.periodo.nombre, data: p1.porSede.map(s=>s.recaudado), color: '#667eea' },
        { label: p2.periodo.nombre, data: p2.porSede.map(s=>{ const f=p2.porSede.find(x=>x.sede===s.sede); return f?f.recaudado:0; }), color: '#10b981' }]);
 
   } catch(e) { toast.error('Error comparando periodos: ' + e.message); }
@@ -1053,8 +1053,8 @@ function buildBarChart(id, labels, data, dataLabel) {
       responsive: true,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2d3148' } },
-        y: { ticks: { color: '#94a3b8', callback: v => '$' + Intl.NumberFormat('es-CO').format(v) }, grid: { color: '#2d3148' } }
+        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2d3640' } },
+        y: { ticks: { color: '#94a3b8', callback: v => '$' + Intl.NumberFormat('es-CO').format(v) }, grid: { color: '#2d3640' } }
       }
     }
   });
@@ -1068,7 +1068,7 @@ function buildDonutChart(id, labels, data) {
     type: 'doughnut',
     data: {
       labels,
-      datasets: [{ data, backgroundColor: CHART_COLORS, borderColor: '#181c27', borderWidth: 2 }]
+      datasets: [{ data, backgroundColor: CHART_COLORS, borderColor: '#1e1e1e', borderWidth: 2 }]
     },
     options: {
       responsive: true,
@@ -1097,8 +1097,8 @@ function buildGroupedBarChart(id, labels, datasets) {
       responsive: true,
       plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
       scales: {
-        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2d3148' } },
-        y: { ticks: { color: '#94a3b8', callback: v => '$' + Intl.NumberFormat('es-CO').format(v) }, grid: { color: '#2d3148' } }
+        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2d3640' } },
+        y: { ticks: { color: '#94a3b8', callback: v => '$' + Intl.NumberFormat('es-CO').format(v) }, grid: { color: '#2d3640' } }
       }
     }
   });

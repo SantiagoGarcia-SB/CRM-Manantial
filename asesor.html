@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>CRM Punto de Información – Asesor</title>
+  <title>Manantial · Punto de Información</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://www.soymanantial.com/32x32.png?v=2">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://www.soymanantial.com/16x16.png?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap">
   <?!= include('styles.css'); ?>
@@ -175,14 +177,14 @@
      PANTALLA 1: BIENVENIDA
 ════════════════════════════════════════════════════════════════ -->
 <div id="welcome-screen" class="fullscreen"
-  style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;background-image:radial-gradient(ellipse at 50% -5%, rgba(108,99,255,0.22) 0%, transparent 62%)">
+  style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;background-image:radial-gradient(ellipse at 50% -5%, rgba(102,126,234,0.22) 0%, transparent 62%)">
 
   <div class="welcome-content" style="max-width:400px;width:100%">
 
-    <div style="font-size:5rem;line-height:1;margin-bottom:20px;filter:drop-shadow(0 0 28px rgba(108,99,255,0.55))">⛪</div>
+    <img src="https://www.soymanantial.com/footer/50.svg" alt="Manantial" style="width:220px;margin-bottom:20px;filter:drop-shadow(0 0 28px rgba(102,126,234,0.55))">
 
-    <h1 style="font-size:2.5rem;font-weight:800;color:#fff;margin-bottom:6px;letter-spacing:-0.04em">CRM Punto de Información</h1>
-    <p style="font-size:0.82rem;font-weight:700;color:var(--accent);letter-spacing:0.16em;text-transform:uppercase;margin-bottom:48px">Sistema de Recaudo</p>
+    <h1 style="font-size:1.6rem;font-weight:800;color:#fff;margin-bottom:6px;letter-spacing:-0.04em">Punto de Información</h1>
+    <p style="font-size:0.82rem;font-weight:700;color:var(--accent);letter-spacing:0.16em;text-transform:uppercase;margin-bottom:48px">Sedes Norte y Suba</p>
 
     <!-- Versículo -->
     <div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:20px;padding:32px 28px;margin-bottom:44px;box-shadow:0 16px 48px rgba(0,0,0,0.4)">
@@ -194,9 +196,9 @@
     </div>
 
     <!-- Botón entrar -->
-    <button onclick="mostrarSelectorAsesor()" style="width:100%;padding:20px 24px;background:var(--accent);color:#fff;border:none;border-radius:16px;font-size:1.2rem;font-weight:700;cursor:pointer;box-shadow:0 8px 28px rgba(108,99,255,0.5);letter-spacing:0.02em;transition:all 0.2s;-webkit-tap-highlight-color:transparent"
-      onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 12px 36px rgba(108,99,255,0.6)'"
-      onmouseout="this.style.transform='';this.style.boxShadow='0 8px 28px rgba(108,99,255,0.5)'">
+    <button onclick="mostrarSelectorAsesor()" style="width:100%;padding:20px 24px;background:var(--accent);color:#fff;border:none;border-radius:16px;font-size:1.2rem;font-weight:700;cursor:pointer;box-shadow:0 8px 28px rgba(102,126,234,0.5);letter-spacing:0.02em;transition:all 0.2s;-webkit-tap-highlight-color:transparent"
+      onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 12px 36px rgba(102,126,234,0.6)'"
+      onmouseout="this.style.transform='';this.style.boxShadow='0 8px 28px rgba(102,126,234,0.5)'">
       Empezar →
     </button>
 
@@ -269,7 +271,7 @@
 
 <!-- TOP BAR -->
 <div class="top-bar">
-  <div class="logo">⛪ Manantial</div>
+  <div class="logo"><img src="https://www.soymanantial.com/footer/50.svg" alt="Manantial" style="height:22px;vertical-align:middle"></div>
   <select id="sede-recaudo-select" onchange="onSedeRecaudoChange(this.value)"
     style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text);font-size:.72rem;font-weight:600;padding:4px 10px;cursor:pointer">
     <option value="Norte">📍 Norte</option>
@@ -489,25 +491,25 @@
           <input id="dt-valor" class="input" type="text" inputmode="numeric" placeholder="$ 0" oninput="formatearMonto(this)">
         </div>
         <div class="input-group">
-          <label>¿Quien paga es el beneficiario del pago? *</label>
+          <label>¿El titular de la tarjeta es la misma persona? *</label>
           <div style="display:flex;gap:8px;margin-top:4px">
-            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarBeneficiario('Si', this)" style="flex:1">Sí</button>
-            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarBeneficiario('No', this)" style="flex:1">No</button>
+            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarTitularDiferente('Si', this)" style="flex:1">Sí</button>
+            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarTitularDiferente('No', this)" style="flex:1">No</button>
           </div>
         </div>
-        <div id="subpaso-beneficiario" class="hidden">
+        <div id="subpaso-titular" class="hidden">
           <div style="display:flex;flex-direction:column;gap:10px">
             <div class="input-group">
-              <label>Nombre del beneficiario *</label>
-              <input id="dt-nombre-benef" class="input" placeholder="Nombres y apellidos">
+              <label>Nombre del titular de la tarjeta *</label>
+              <input id="dt-nombre-titular" class="input" placeholder="Nombres y apellidos">
             </div>
             <div class="input-group">
-              <label>Número de documento del beneficiario *</label>
-              <input id="dt-doc-benef" class="input" type="number" inputmode="numeric" placeholder="Número de identificación">
+              <label>Número de documento del titular *</label>
+              <input id="dt-doc-titular" class="input" type="number" inputmode="numeric" placeholder="Número de identificación">
             </div>
             <div class="input-group">
-              <label>Celular del beneficiario *</label>
-              <input id="dt-celular-benef" class="input" type="number" inputmode="tel" placeholder="Número de celular">
+              <label>Celular del titular *</label>
+              <input id="dt-celular-titular" class="input" type="number" inputmode="tel" placeholder="Número de celular">
             </div>
           </div>
         </div>
@@ -660,6 +662,17 @@
       <button class="btn btn-secondary btn-full" onclick="cerrarModalCierre()" style="flex:1">Cancelar</button>
       <button id="btn-confirmar-cierre" class="btn btn-primary btn-full" onclick="ejecutarCierre()" style="flex:1;background:var(--green);border-color:var(--green)">Generar</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL: DETALLE TRANSACCIÓN -->
+<div id="modal-detalle-trans" class="modal-backdrop">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header">
+      <h3 id="detalle-trans-titulo">Detalle de transacción</h3>
+      <button class="modal-close" onclick="closeModal('modal-detalle-trans')">✕</button>
+    </div>
+    <div class="modal-body" id="detalle-trans-body"></div>
   </div>
 </div>
 
@@ -852,7 +865,7 @@ function getInitials(nombre) {
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 }
 function nameColor(nombre) {
-  const palette = ['#6c63ff','#10b981','#f59e0b','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#ef4444'];
+  const palette = ['#667eea','#10b981','#f59e0b','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#ef4444'];
   let h = 0;
   for (let i = 0; i < nombre.length; i++) h = nombre.charCodeAt(i) + ((h << 5) - h);
   return palette[Math.abs(h) % palette.length];
@@ -866,7 +879,7 @@ const STATE = {
   metodoPago: null,
   modulo:     '',
   horario:    '',
-  dtBeneficiarioMismo: null,
+  dtTitularMismo: null,
   sedeRecaudo: ''
 };
 let actividadesCache = [];
@@ -1024,7 +1037,7 @@ function seleccionarActividad(act, el) {
     setHtml('#monto-fijo-val', fmt.cop(act.valorBase));
     STATE.monto = act.valorBase;
   }
-  toggle('#subpaso-inscripcion', hasModulos || act.requiereInscripcion);
+  toggle('#subpaso-inscripcion', hasModulos || act.legalizarInscripcion);
   if (hasModulos) {
     var sel = qs('#insc-modulo');
     sel.innerHTML = '<option value="">— Selecciona un módulo —</option>' +
@@ -1128,11 +1141,11 @@ function seleccionarMetodo(metodo, btn) {
   qs('#btn-registrar').disabled = false;
 }
 
-function seleccionarBeneficiario(valor, btn) {
-  STATE.dtBeneficiarioMismo = valor;
+function seleccionarTitularDiferente(valor, btn) {
+  STATE.dtTitularMismo = valor;
   qsa('.dt-benef-btn').forEach(function(b) { b.classList.remove('selected'); });
   btn.classList.add('selected');
-  toggle('#subpaso-beneficiario', valor === 'No');
+  toggle('#subpaso-titular', valor === 'No');
 }
 
 async function registrarTransaccion() {
@@ -1147,25 +1160,25 @@ async function registrarTransaccion() {
     if (!franquicia)          { toast.warn('Selecciona la franquicia'); return; }
     if (!tipoTarjeta)         { toast.warn('Selecciona el tipo de tarjeta'); return; }
     if (!valor || valor <= 0) { toast.warn('Ingresa el valor del datáfono'); return; }
-    if (!STATE.dtBeneficiarioMismo) { toast.warn('Indica si quien paga es el beneficiario'); return; }
+    if (!STATE.dtTitularMismo) { toast.warn('Indica si el titular de la tarjeta es la misma persona'); return; }
     if (!noAut)               { toast.warn('Ingresa el número de autorización'); return; }
     if (!noDatafono)          { toast.warn('Selecciona el número de datáfono'); return; }
     Object.assign(dtData, {
       dtFranquicia: franquicia, dtTipoTarjeta: tipoTarjeta, dtValor: valor,
-      dtBeneficiarioMismo: STATE.dtBeneficiarioMismo,
-      dtNombreBeneficiario: '', dtDocBeneficiario: '', dtCelularBeneficiario: '',
+      dtTitularMismo: STATE.dtTitularMismo,
+      dtNombreTitular: '', dtDocTitular: '', dtCelularTitular: '',
       dtNoAutorizacion: noAut, dtNoDatafono: noDatafono
     });
-    if (STATE.dtBeneficiarioMismo === 'No') {
-      const nombreBenef  = qs('#dt-nombre-benef').value.trim();
-      const docBenef     = qs('#dt-doc-benef').value.trim();
-      const celularBenef = qs('#dt-celular-benef').value.trim();
-      if (!nombreBenef)  { toast.warn('Ingresa el nombre del beneficiario'); return; }
-      if (!docBenef)     { toast.warn('Ingresa el documento del beneficiario'); return; }
-      if (!celularBenef) { toast.warn('Ingresa el celular del beneficiario'); return; }
-      dtData.dtNombreBeneficiario  = nombreBenef;
-      dtData.dtDocBeneficiario     = docBenef;
-      dtData.dtCelularBeneficiario = celularBenef;
+    if (STATE.dtTitularMismo === 'No') {
+      const nombreTit  = qs('#dt-nombre-titular').value.trim();
+      const docTit     = qs('#dt-doc-titular').value.trim();
+      const celularTit = qs('#dt-celular-titular').value.trim();
+      if (!nombreTit)  { toast.warn('Ingresa el nombre del titular de la tarjeta'); return; }
+      if (!docTit)     { toast.warn('Ingresa el documento del titular'); return; }
+      if (!celularTit) { toast.warn('Ingresa el celular del titular'); return; }
+      dtData.dtNombreTitular  = nombreTit;
+      dtData.dtDocTitular     = docTit;
+      dtData.dtCelularTitular = celularTit;
     }
   }
   const btn = qs('#btn-registrar');
@@ -1205,14 +1218,38 @@ function mostrarExito(t, ins) {
 
 function nuevaTransaccion() {
   STATE.persona = STATE.actividad = STATE.metodoPago = null;
-  STATE.monto = 0; STATE.modulo = ''; STATE.horario = ''; STATE.dtBeneficiarioMismo = null;
+  STATE.monto = 0; STATE.modulo = ''; STATE.horario = ''; STATE.dtTitularMismo = null;
+
+  // Limpiar paso 1: búsqueda y persona
+  qs('#busqueda-persona').value = '';
+  setHtml('#resultados-busqueda', '');
+  setHtml('#ps-nombre', '');
+  setHtml('#ps-detalle', '');
+  qs('#np-nombre').value = '';
+  qs('#np-documento').value = '';
+  qs('#np-celular').value = '';
+  qs('#np-correo').value = '';
+  qs('#np-sede').selectedIndex = 0;
+
+  // Limpiar paso 2: inscripción y monto
   qs('#insc-modulo').innerHTML = '<option value="">— Selecciona un módulo —</option>';
   qs('#insc-horario').innerHTML = '<option value="">— Primero selecciona un módulo —</option>';
-  hide('#subpaso-datafono'); hide('#subpaso-beneficiario');
+  qs('#monto-input').value = '';
+
+  // Limpiar paso 3: datáfono
+  hide('#subpaso-datafono'); hide('#subpaso-titular');
   qs('#dt-franquicia').selectedIndex = 0; qs('#dt-tipo-tarjeta').selectedIndex = 0; qs('#dt-no-datafono').selectedIndex = 0;
   qs('#dt-valor').value = ''; qs('#dt-autorizacion').value = '';
-  qs('#dt-nombre-benef').value = ''; qs('#dt-doc-benef').value = ''; qs('#dt-celular-benef').value = '';
+  qs('#dt-nombre-titular').value = ''; qs('#dt-doc-titular').value = ''; qs('#dt-celular-titular').value = '';
   qsa('.dt-benef-btn').forEach(function(b) { b.classList.remove('selected'); });
+
+  // Limpiar resumen paso 3
+  setHtml('#res-persona', ''); setHtml('#res-actividad', ''); setHtml('#res-monto', '');
+  setHtml('#res-modulo', ''); setHtml('#res-horario', '');
+  hide('#res-modulo-row'); hide('#res-horario-row');
+  setHtml('#success-resumen', '');
+
+  // Resetear visibilidad y volver al paso 1
   hide('#step-success'); hide('#step2'); hide('#step3');
   show('#step1');
   hide('#persona-seleccionada'); hide('#form-nueva-persona');
@@ -1344,9 +1381,9 @@ function renderCierreTabla(lista, container, metodo) {
     (showMetodo ? '<th>Método</th>' : '') +
     '<th>Asesor</th></tr></thead><tbody>';
 
-  lista.forEach(function(t) {
+  lista.forEach(function(t, i) {
     var hora = t.timestamp ? t.timestamp.split(' ').slice(1).join(' ') : '';
-    html += '<tr>' +
+    html += '<tr data-row-idx="' + i + '" style="cursor:pointer">' +
       '<td>' + escHtml(hora) + '</td>' +
       '<td>' + escHtml(t.nombrePersona) + '</td>' +
       '<td>' + escHtml(t.actividad) + '</td>' +
@@ -1364,6 +1401,12 @@ function renderCierreTabla(lista, container, metodo) {
     '<td></td></tr></tfoot></table></div>';
 
   container.innerHTML = html;
+  container._rowData = lista;
+  container.querySelector('tbody').addEventListener('click', function(e) {
+    if (e.target.closest('button,a')) return;
+    var tr = e.target.closest('tr[data-row-idx]');
+    if (tr) abrirDetalleTransaccion(container._rowData[+tr.dataset.rowIdx]);
+  });
 }
 
 function renderCierreDatafono(lista, container) {
@@ -1376,6 +1419,7 @@ function renderCierreDatafono(lista, container) {
 
   var nums = Object.keys(porDatafono).sort();
   var html = '';
+  var allItems = [];
 
   nums.forEach(function(num) {
     var items = porDatafono[num];
@@ -1386,8 +1430,10 @@ function renderCierreDatafono(lista, container) {
       '<th>Hora</th><th>Nombre</th><th>Actividad</th><th>Monto</th><th>Asesor</th><th>Nº Aut.</th></tr></thead><tbody>';
 
     items.forEach(function(t) {
+      var idx = allItems.length;
+      allItems.push(t);
       var hora = t.timestamp ? t.timestamp.split(' ').slice(1).join(' ') : '';
-      html += '<tr>' +
+      html += '<tr data-row-idx="' + idx + '" style="cursor:pointer">' +
         '<td>' + escHtml(hora) + '</td>' +
         '<td>' + escHtml(t.nombrePersona) + '</td>' +
         '<td>' + escHtml(t.actividad) + '</td>' +
@@ -1403,6 +1449,54 @@ function renderCierreDatafono(lista, container) {
   });
 
   container.innerHTML = html;
+  container._rowData = allItems;
+  container.addEventListener('click', function handler(e) {
+    if (e.target.closest('button,a')) return;
+    var tr = e.target.closest('tr[data-row-idx]');
+    if (tr) abrirDetalleTransaccion(container._rowData[+tr.dataset.rowIdx]);
+  });
+}
+
+function abrirDetalleTransaccion(t) {
+  setText('#detalle-trans-titulo', 'Transacción ' + (t.id || ''));
+  var esDatafono = t.metodoPago === 'Datáfono';
+
+  var html =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:.85rem">' +
+      '<div><div class="text-muted">ID</div><div class="fw-600">' + escHtml(t.id) + '</div></div>' +
+      '<div><div class="text-muted">Fecha</div><div class="fw-600">' + escHtml(t.timestamp) + '</div></div>' +
+      '<div><div class="text-muted">Persona</div><div class="fw-600">' + escHtml(t.nombrePersona) + '</div></div>' +
+      '<div><div class="text-muted">Actividad</div><div class="fw-600">' + escHtml(t.actividad) + '</div></div>' +
+      '<div><div class="text-muted">Monto</div><div class="fw-600">' + fmt.cop(t.monto) + '</div></div>' +
+      '<div><div class="text-muted">Método de pago</div><div class="fw-600">' + badgeEstado(t.metodoPago) + '</div></div>' +
+      '<div><div class="text-muted">Sede</div><div class="fw-600">' + escHtml(t.sede) + '</div></div>' +
+      '<div><div class="text-muted">Estado</div><div class="fw-600">' + badgeEstado(t.estado || 'Activa') + '</div></div>' +
+      '<div><div class="text-muted">Asesor</div><div class="fw-600">' + escHtml(t.asesorNombre) + '</div></div>' +
+      '<div><div class="text-muted">Email asesor</div><div class="fw-600 truncate">' + escHtml(t.asesorEmail) + '</div></div>' +
+      '<div><div class="text-muted">Legalización Iglesia</div><div class="fw-600">' + badgeEstado(t.estadoIglesia) + '</div></div>' +
+      '<div><div class="text-muted">Legalización Academia</div><div class="fw-600">' + badgeEstado(t.estadoAcademia) + '</div></div>' +
+    '</div>';
+
+  if (esDatafono) {
+    html +=
+      '<div style="margin-top:8px;padding-top:12px;border-top:1px solid var(--border)">' +
+        '<h4 style="margin:0 0 10px;font-size:.9rem;color:var(--accent)">Información de Datáfono</h4>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:.85rem">' +
+          '<div><div class="text-muted">Franquicia</div><div class="fw-600">' + escHtml(t.dtFranquicia || '–') + '</div></div>' +
+          '<div><div class="text-muted">Tipo tarjeta</div><div class="fw-600">' + escHtml(t.dtTipoTarjeta || '–') + '</div></div>' +
+          '<div><div class="text-muted">Valor datáfono</div><div class="fw-600">' + (t.dtValor ? fmt.cop(t.dtValor) : '–') + '</div></div>' +
+          '<div><div class="text-muted">N° Autorización</div><div class="fw-600">' + escHtml(t.dtNoAutorizacion || '–') + '</div></div>' +
+          '<div><div class="text-muted">N° Datáfono</div><div class="fw-600">' + escHtml(t.dtNoDatafono || '–') + '</div></div>' +
+          '<div><div class="text-muted">¿Titular es la misma persona?</div><div class="fw-600">' + escHtml(t.dtTitularMismo || '–') + '</div></div>' +
+          '<div><div class="text-muted">Titular tarjeta</div><div class="fw-600">' + escHtml(t.dtNombreTitular || '–') + '</div></div>' +
+          '<div><div class="text-muted">Doc. titular</div><div class="fw-600">' + escHtml(t.dtDocTitular || '–') + '</div></div>' +
+          '<div><div class="text-muted">Celular titular</div><div class="fw-600">' + escHtml(t.dtCelularTitular || '–') + '</div></div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  setHtml('#detalle-trans-body', html);
+  openModal('modal-detalle-trans');
 }
 
 function generarCierre() {

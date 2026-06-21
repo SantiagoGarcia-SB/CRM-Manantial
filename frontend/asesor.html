@@ -88,7 +88,7 @@
 
 <!-- TOP BAR -->
 <div class="top-bar">
-  <div class="logo">⛪ Manantial</div>
+  <div class="logo"><img src="https://www.soymanantial.com/footer/50.svg" alt="Manantial" style="height:22px;vertical-align:middle"></div>
   <div class="user-chip">
     <div style="font-weight:600;color:var(--text)"><?= userName ?></div>
     <div><?= userSede ?></div>
@@ -313,25 +313,25 @@
           <input id="dt-valor" class="input" type="number" min="0" placeholder="0">
         </div>
         <div class="input-group">
-          <label>¿Quien paga es el beneficiario del pago? *</label>
+          <label>¿El titular de la tarjeta es la misma persona? *</label>
           <div style="display:flex;gap:8px;margin-top:4px">
-            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarBeneficiario('Si', this)" style="flex:1">Sí</button>
-            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarBeneficiario('No', this)" style="flex:1">No</button>
+            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarTitularDiferente('Si', this)" style="flex:1">Sí</button>
+            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarTitularDiferente('No', this)" style="flex:1">No</button>
           </div>
         </div>
-        <div id="subpaso-beneficiario" class="hidden">
+        <div id="subpaso-titular" class="hidden">
           <div style="display:flex;flex-direction:column;gap:10px">
             <div class="input-group">
-              <label>Nombre del beneficiario *</label>
-              <input id="dt-nombre-benef" class="input" placeholder="Nombres y apellidos">
+              <label>Nombre del titular de la tarjeta *</label>
+              <input id="dt-nombre-titular" class="input" placeholder="Nombres y apellidos">
             </div>
             <div class="input-group">
-              <label>Número de documento del beneficiario *</label>
-              <input id="dt-doc-benef" class="input" type="number" placeholder="Número de identificación">
+              <label>Número de documento del titular *</label>
+              <input id="dt-doc-titular" class="input" type="number" placeholder="Número de identificación">
             </div>
             <div class="input-group">
-              <label>Celular del beneficiario *</label>
-              <input id="dt-celular-benef" class="input" type="number" placeholder="Número de celular">
+              <label>Celular del titular *</label>
+              <input id="dt-celular-titular" class="input" type="number" placeholder="Número de celular">
             </div>
           </div>
         </div>
@@ -434,7 +434,7 @@ const STATE = {
   metodoPago: null,
   modulo:     '',
   horario:    '',
-  dtBeneficiarioMismo: null
+  dtTitularMismo: null
 };
 let actividadesCache = [];
 
@@ -565,7 +565,7 @@ function seleccionarActividad(act, el) {
     STATE.monto = act.valorBase;
   }
 
-  toggle('#subpaso-inscripcion', act.requiereInscripcion);
+  toggle('#subpaso-inscripcion', (act.modulos && act.modulos.length > 0) || act.legalizarInscripcion);
   qs('#btn-paso3').disabled = false;
 }
 
@@ -608,11 +608,11 @@ function seleccionarMetodo(metodo, btn) {
   qs('#btn-registrar').disabled = false;
 }
 
-function seleccionarBeneficiario(valor, btn) {
-  STATE.dtBeneficiarioMismo = valor;
+function seleccionarTitularDiferente(valor, btn) {
+  STATE.dtTitularMismo = valor;
   qsa('.dt-benef-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
-  toggle('#subpaso-beneficiario', valor === 'No');
+  toggle('#subpaso-titular', valor === 'No');
 }
 
 async function registrarTransaccion() {
@@ -629,7 +629,7 @@ async function registrarTransaccion() {
     if (!franquicia)          { toast.warn('Selecciona la franquicia'); return; }
     if (!tipoTarjeta)         { toast.warn('Selecciona el tipo de tarjeta'); return; }
     if (!valor || valor <= 0) { toast.warn('Ingresa el valor del datáfono'); return; }
-    if (!STATE.dtBeneficiarioMismo) { toast.warn('Indica si quien paga es el beneficiario'); return; }
+    if (!STATE.dtTitularMismo) { toast.warn('Indica si el titular de la tarjeta es la misma persona'); return; }
     if (!noAut)               { toast.warn('Ingresa el número de autorización'); return; }
     if (!noDatafono)          { toast.warn('Selecciona el número de datáfono'); return; }
 
@@ -637,24 +637,24 @@ async function registrarTransaccion() {
       dtFranquicia:          franquicia,
       dtTipoTarjeta:         tipoTarjeta,
       dtValor:               valor,
-      dtBeneficiarioMismo:   STATE.dtBeneficiarioMismo,
-      dtNombreBeneficiario:  '',
-      dtDocBeneficiario:     '',
-      dtCelularBeneficiario: '',
+      dtTitularMismo:   STATE.dtTitularMismo,
+      dtNombreTitular:  '',
+      dtDocTitular:     '',
+      dtCelularTitular: '',
       dtNoAutorizacion:      noAut,
       dtNoDatafono:          noDatafono
     });
 
-    if (STATE.dtBeneficiarioMismo === 'No') {
-      const nombreBenef  = qs('#dt-nombre-benef').value.trim();
-      const docBenef     = qs('#dt-doc-benef').value.trim();
-      const celularBenef = qs('#dt-celular-benef').value.trim();
-      if (!nombreBenef)  { toast.warn('Ingresa el nombre del beneficiario'); return; }
-      if (!docBenef)     { toast.warn('Ingresa el documento del beneficiario'); return; }
-      if (!celularBenef) { toast.warn('Ingresa el celular del beneficiario'); return; }
-      dtData.dtNombreBeneficiario  = nombreBenef;
-      dtData.dtDocBeneficiario     = docBenef;
-      dtData.dtCelularBeneficiario = celularBenef;
+    if (STATE.dtTitularMismo === 'No') {
+      const nombreTit  = qs('#dt-nombre-titular').value.trim();
+      const docTit     = qs('#dt-doc-titular').value.trim();
+      const celularTit = qs('#dt-celular-titular').value.trim();
+      if (!nombreTit)  { toast.warn('Ingresa el nombre del titular de la tarjeta'); return; }
+      if (!docTit)     { toast.warn('Ingresa el documento del titular'); return; }
+      if (!celularTit) { toast.warn('Ingresa el celular del titular'); return; }
+      dtData.dtNombreTitular  = nombreTit;
+      dtData.dtDocTitular     = docTit;
+      dtData.dtCelularTitular = celularTit;
     }
   }
 
@@ -700,13 +700,31 @@ function mostrarExito(t, ins) {
 
 function nuevaTransaccion() {
   STATE.persona = STATE.actividad = STATE.metodoPago = null;
-  STATE.monto = 0; STATE.modulo = ''; STATE.horario = ''; STATE.dtBeneficiarioMismo = null;
+  STATE.monto = 0; STATE.modulo = ''; STATE.horario = ''; STATE.dtTitularMismo = null;
+
+  // Limpiar paso 1: búsqueda y persona
+  qs('#busqueda-persona').value = '';
+  setHtml('#resultados-busqueda', '');
+  setHtml('#ps-nombre', '');
+  setHtml('#ps-detalle', '');
+  qs('#np-nombre').value = '';
+  qs('#np-documento').value = '';
+  qs('#np-celular').value = '';
+  qs('#np-correo').value = '';
+  qs('#np-sede').selectedIndex = 0;
+
+  // Limpiar paso 2: inscripción y monto
   qs('#insc-modulo').selectedIndex = 0; qs('#insc-horario').selectedIndex = 0;
-  hide('#subpaso-datafono'); hide('#subpaso-beneficiario');
+  qs('#monto-input').value = '';
+
+  // Limpiar paso 3: datáfono
+  hide('#subpaso-datafono'); hide('#subpaso-titular');
   qs('#dt-franquicia').selectedIndex = 0; qs('#dt-tipo-tarjeta').selectedIndex = 0; qs('#dt-no-datafono').selectedIndex = 0;
   qs('#dt-valor').value = ''; qs('#dt-autorizacion').value = '';
-  qs('#dt-nombre-benef').value = ''; qs('#dt-doc-benef').value = ''; qs('#dt-celular-benef').value = '';
+  qs('#dt-nombre-titular').value = ''; qs('#dt-doc-titular').value = ''; qs('#dt-celular-titular').value = '';
   qsa('.dt-benef-btn').forEach(b => b.classList.remove('selected'));
+
+  // Resetear visibilidad y volver al paso 1
   hide('#step-success'); hide('#step2'); hide('#step3');
   show('#step1');
   hide('#persona-seleccionada'); hide('#form-nueva-persona');

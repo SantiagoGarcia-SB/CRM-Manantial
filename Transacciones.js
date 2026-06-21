@@ -25,10 +25,10 @@
  *   dtFranquicia?:            string,
  *   dtTipoTarjeta?:           string,
  *   dtValor?:                 number,
- *   dtBeneficiarioMismo?:     'Si'|'No',
- *   dtNombreBeneficiario?:    string,
- *   dtDocBeneficiario?:       string,
- *   dtCelularBeneficiario?:   string,
+ *   dtTitularMismo?:     'Si'|'No',
+ *   dtNombreTitular?:    string,   // Datos del titular de la tarjeta (cuando es diferente a la persona)
+ *   dtDocTitular?:       string,
+ *   dtCelularTitular?:   string,
  *   dtNoAutorizacion?:        string,
  *   dtNoDatafono?:            string
  * }
@@ -41,17 +41,30 @@ function crearTransaccion(token, payload) {
   if (!['Efectivo','Datáfono','Nequi'].includes(payload.metodoPago)) {
     throw new Error('Método de pago inválido: ' + payload.metodoPago);
   }
-  if (Number(payload.monto) < 0) throw new Error('El monto no puede ser negativo.');
+  if (Number(payload.monto) < 1) throw new Error('El monto debe ser mayor a 0.');
 
   // Obtener actividad para leer sus flags
   const actividad = obtenerActividad_(payload.idActividad);
+  if (!actividad.activa) throw new Error('La actividad "' + actividad.nombre + '" está inactiva y no permite transacciones.');
+
+  var debeInscribir = actividad.legalizarInscripcion || (actividad.modulos && actividad.modulos.length > 0);
+
+  // Validar módulo y horario si la actividad requiere inscripción y tiene opciones definidas
+  if (debeInscribir) {
+    if (actividad.modulos && actividad.modulos.length > 0 && !payload.modulo) {
+      throw new Error('Debe seleccionar un módulo para la actividad "' + actividad.nombre + '".');
+    }
+    if (actividad.horarios && actividad.horarios.length > 0 && !payload.horario) {
+      throw new Error('Debe seleccionar un horario para la actividad "' + actividad.nombre + '".');
+    }
+  }
 
   const ahora  = new Date();
   const idTrans = generateId_('TRN');
 
   // Determinar estados de legalización
-  const estadoIglesia  = actividad.legalizarIglesia  ? 'Pendiente' : 'NA';
-  const estadoAcademia = actividad.legalizarAcademia ? 'Pendiente' : 'NA';
+  const estadoIglesia  = actividad.legalizarPago         ? 'Pendiente' : 'NA';
+  const estadoAcademia = actividad.legalizarInscripcion  ? 'Pendiente' : 'NA';
 
   // Insertar en Transacciones
   const sheet = getSheet_('Transacciones', true);
@@ -72,10 +85,10 @@ function crearTransaccion(token, payload) {
     payload.dtFranquicia             || '',
     payload.dtTipoTarjeta            || '',
     payload.dtValor                  || '',
-    payload.dtBeneficiarioMismo      || '',
-    payload.dtNombreBeneficiario     || '',
-    payload.dtDocBeneficiario        || '',
-    payload.dtCelularBeneficiario    || '',
+    payload.dtTitularMismo      || '',
+    payload.dtNombreTitular     || '',
+    payload.dtDocTitular        || '',
+    payload.dtCelularTitular    || '',
     payload.dtNoAutorizacion         || '',
     payload.dtNoDatafono             || '',
     'Activa'
@@ -97,25 +110,45 @@ function crearTransaccion(token, payload) {
 
   // ── Generar filas de Legalizaciones según flags ──────────────────────────
   const legalizaciones = [];
-  if (actividad.legalizarIglesia) {
+  if (actividad.legalizarPago) {
     const idLegal = crearEntradaLegalizacion_(idTrans, 'iglesia');
     legalizaciones.push({ tipo: 'iglesia', id: idLegal });
   }
-  if (actividad.legalizarAcademia) {
+  if (actividad.legalizarInscripcion) {
     const idLegal = crearEntradaLegalizacion_(idTrans, 'academia');
     legalizaciones.push({ tipo: 'academia', id: idLegal });
   }
 
   // ── Generar inscripción si aplica ────────────────────────────────────────
   let inscripcion = null;
-  if (actividad.requiereInscripcion) {
+  if (debeInscribir) {
+    // Validar que no exista inscripción duplicada (misma persona + actividad + módulo + horario)
+    const inscExistentes = sheetToObjects_('Inscripciones');
+    const transExistentes = sheetToObjects_('Transacciones');
+    const yaInscrito = inscExistentes.some(function(ins) {
+      if (ins.Actividad !== payload.nombreActividad) return false;
+      if (payload.modulo && ins.Modulo !== payload.modulo) return false;
+      if (payload.horario && ins.Horario !== payload.horario) return false;
+      // Verificar que la transacción asociada es de la misma persona y no está anulada
+      var transAsociada = transExistentes.find(function(t) { return t.ID_Trans === ins.ID_Trans; });
+      if (!transAsociada) return false;
+      if ((transAsociada.Estado || 'Activa') === 'Anulada') return false;
+      return transAsociada.Nombre_Persona === payload.nombrePersona;
+    });
+    if (yaInscrito) {
+      throw new Error('La persona "' + payload.nombrePersona + '" ya tiene una inscripción activa en ' + payload.nombreActividad + (payload.modulo ? ' - ' + payload.modulo : '') + (payload.horario ? ' (' + payload.horario + ')' : '') + '.');
+    }
+
     inscripcion = crearInscripcionDesdeTransaccion_({
       idTrans,
-      actividad:    payload.nombreActividad,
-      modulo:       payload.modulo  || '',
-      horario:      payload.horario || '',
-      sede:         payload.sede,
-      asesorEmail:  asesorInfo.email
+      actividad:      payload.nombreActividad,
+      modulo:         payload.modulo  || '',
+      horario:        payload.horario || '',
+      sede:           payload.sede,
+      asesorEmail:    asesorInfo.email,
+      nombrePersona:  payload.nombrePersona,
+      documentoPersona: payload.documentoPersona || '',
+      celularPersona: payload.celularPersona || ''
     });
   }
 
@@ -407,22 +440,25 @@ function exportarTransaccionesDatafono(token, filtros = {}) {
 
   trans.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
 
-  return trans.map(t => ({
-    sede:                   t.Sede                          || '',
-    fechaDatafono:          t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
-    franquicia:             t.Datafono_Franquicia           || '',
-    noAutorizacion:         t.Datafono_No_Autorizacion      || '',
-    valor:                  Number(t.Datafono_Valor)        || 0,
-    nombreTitular:          t.Nombre_Persona                || '',
-    cedula:                 t.Documento_Persona             || '',
-    celular:                t.Celular_Persona               || '',
-    beneficiarioPago:       t.Datafono_Nombre_Beneficiario  || '',
-    cedulaBeneficiario:     t.Datafono_Doc_Beneficiario     || '',
-    celularBeneficiario:    t.Datafono_Celular_Beneficiario || '',
-    concepto:               t.Actividad                     || '',
-    debitoCredito:          t.Datafono_Tipo_Tarjeta         || '',
-    noDatafono:             t.Datafono_No_Datafono          || ''
-  }));
+  return trans.map(t => {
+    const esDiferente = t.Datafono_Titular_Mismo === 'No';
+    return {
+      sede:                   t.Sede                          || '',
+      fechaDatafono:          t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
+      franquicia:             t.Datafono_Franquicia           || '',
+      noAutorizacion:         t.Datafono_No_Autorizacion      || '',
+      valor:                  Number(t.Datafono_Valor)        || 0,
+      nombreTitular:          esDiferente ? t.Datafono_Nombre_Titular  || '' : t.Nombre_Persona    || '',
+      cedula:                 esDiferente ? t.Datafono_Doc_Titular     || '' : t.Documento_Persona || '',
+      celular:                esDiferente ? t.Datafono_Celular_Titular || '' : t.Celular_Persona   || '',
+      beneficiarioPago:       esDiferente ? t.Nombre_Persona               || '' : '',
+      cedulaBeneficiario:     esDiferente ? t.Documento_Persona            || '' : '',
+      celularBeneficiario:    esDiferente ? t.Celular_Persona              || '' : '',
+      concepto:               t.Actividad                     || '',
+      debitoCredito:          t.Datafono_Tipo_Tarjeta         || '',
+      noDatafono:             t.Datafono_No_Datafono          || ''
+    };
+  });
 }
 
 // ─── HELPERS INTERNOS ─────────────────────────────────────────────────────────
@@ -444,10 +480,10 @@ function mapTransaccion_(t) {
     dtFranquicia:            t.Datafono_Franquicia           || '',
     dtTipoTarjeta:           t.Datafono_Tipo_Tarjeta         || '',
     dtValor:                 Number(t.Datafono_Valor)        || 0,
-    dtBeneficiarioMismo:     t.Datafono_Beneficiario_Mismo   || '',
-    dtNombreBeneficiario:    t.Datafono_Nombre_Beneficiario  || '',
-    dtDocBeneficiario:       t.Datafono_Doc_Beneficiario     || '',
-    dtCelularBeneficiario:   t.Datafono_Celular_Beneficiario || '',
+    dtTitularMismo:     t.Datafono_Titular_Mismo   || '',
+    dtNombreTitular:    t.Datafono_Nombre_Titular  || '',
+    dtDocTitular:       t.Datafono_Doc_Titular     || '',
+    dtCelularTitular:   t.Datafono_Celular_Titular || '',
     dtNoAutorizacion:        t.Datafono_No_Autorizacion      || '',
     dtNoDatafono:            t.Datafono_No_Datafono          || ''
   };
