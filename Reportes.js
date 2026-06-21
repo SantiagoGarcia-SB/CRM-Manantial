@@ -639,25 +639,302 @@ function cierreGeneralDiario() {
   Logger.log('Cierre general ' + nombrePestana + ': ' + trans.length + ' trans, ' + sedes.length + ' sede(s). Total: ' + gtTotal + '. Correo enviado.');
 }
 
-/**
- * Instala los triggers diarios para ambos cierres.
- * Ejecutar UNA vez manualmente desde el editor de Apps Script.
- */
-function instalarTriggersCierre() {
-  const funciones = ['cierreDatafonoDiario', 'cierreGeneralDiario'];
+// ═══════════════════════════════════════════════════════════════════════════════
+// CIERRE MANUAL POR SEDE — Invocado desde la vista del asesor
+// ═══════════════════════════════════════════════════════════════════════════════
 
-  funciones.forEach(fn => {
-    ScriptApp.getProjectTriggers()
-      .filter(t => t.getHandlerFunction() === fn)
-      .forEach(t => ScriptApp.deleteTrigger(t));
+function generarCierreSede(sede) {
+  if (!sede) throw new Error('Sede es requerida');
 
-    ScriptApp.newTrigger(fn)
-      .timeBased()
-      .atHour(23)
-      .everyDays(1)
-      .inTimezone('America/Bogota')
-      .create();
+  const ahora  = new Date();
+  const tz     = 'America/Bogota';
+  const hoy    = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  const finDia = new Date(hoy);
+  finDia.setHours(23, 59, 59, 999);
 
-    Logger.log('Trigger instalado: ' + fn + ' a las 23:00 cada día (America/Bogota)');
+  const todasTrans = sheetToObjects_('Transacciones')
+    .filter(t => (t.Estado || 'Activa') !== 'Anulada' && t.Timestamp &&
+      new Date(t.Timestamp) >= hoy && new Date(t.Timestamp) <= finDia &&
+      t.Sede === sede);
+
+  if (!todasTrans.length) {
+    throw new Error('No hay transacciones hoy para la sede ' + sede);
+  }
+
+  todasTrans.sort((a, b) => new Date(a.Timestamp) - new Date(b.Timestamp));
+
+  const nombrePestana = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy') + ' - ' + sede;
+  const fechaGen      = Utilities.formatDate(ahora, tz, 'dd/MM/yyyy HH:mm');
+  const fmtM = v => '$ ' + new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(v || 0);
+
+  // ── HOJA 1: CIERRE DATÁFONO ──────────────────────────────────────────────
+  const transDatafono = todasTrans.filter(t => t.Metodo_Pago === 'Datáfono');
+
+  if (transDatafono.length) {
+    const ssDf = SpreadsheetApp.openById(CIERRE_DATAFONO_SHEET_ID);
+    let sheetDf = ssDf.getSheetByName(nombrePestana);
+    if (sheetDf) sheetDf.clear();
+    else sheetDf = ssDf.insertSheet(nombrePestana, 0);
+
+    const porDatafono = {};
+    transDatafono.forEach(t => {
+      const num = t.Datafono_No_Datafono || 'Sin asignar';
+      if (!porDatafono[num]) porDatafono[num] = [];
+      porDatafono[num].push(t);
+    });
+    const datafonos = Object.keys(porDatafono).sort();
+
+    const headersDf = [
+      'FECHA DATÁFONO','FRANQUICIA','N° AUTORIZACIÓN','VALOR',
+      'NOMBRE TITULAR','CÉDULA','CELULAR',
+      'BENEFICIARIO DE PAGO','CÉDULA DE BENEFICIARIO','CELULAR DE BENEFICIARIO',
+      'CONCEPTO','DÉBITO/CRÉDITO','ASESOR'
+    ];
+    const totalColsDf = headersDf.length;
+
+    function mapRowDf_(t) {
+      return [
+        t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
+        t.Datafono_Franquicia           || '',
+        t.Datafono_No_Autorizacion      || '',
+        Number(t.Datafono_Valor)        || 0,
+        t.Nombre_Persona                || '',
+        t.Documento_Persona             || '',
+        t.Celular_Persona               || '',
+        t.Datafono_Nombre_Beneficiario  || '',
+        t.Datafono_Doc_Beneficiario     || '',
+        t.Datafono_Celular_Beneficiario || '',
+        t.Actividad                     || '',
+        t.Datafono_Tipo_Tarjeta         || '',
+        t.Asesor_Nombre                 || ''
+      ];
+    }
+
+    const rowsDf = [];
+    const mergesDf = [];
+    const headerRowsDf = [];
+    const dfHeaderRows = [];
+    const subtotalRowsDf = [];
+
+    rowsDf.push(['CIERRE DATÁFONO — ' + sede, ...Array(totalColsDf - 1).fill('')]);
+    mergesDf.push(rowsDf.length);
+    rowsDf.push(['Generado: ' + fechaGen, ...Array(totalColsDf - 1).fill('')]);
+    mergesDf.push(rowsDf.length);
+    rowsDf.push(Array(totalColsDf).fill(''));
+
+    // Resumen por datáfono
+    rowsDf.push(['DATÁFONO', 'N° TRANSACCIONES', 'TOTAL', ...Array(totalColsDf - 3).fill('')]);
+    headerRowsDf.push(rowsDf.length);
+
+    let totalGeneralDf = 0;
+    datafonos.forEach(num => {
+      const items = porDatafono[num];
+      const totalDf = items.reduce((s, t) => s + (Number(t.Datafono_Valor) || 0), 0);
+      totalGeneralDf += totalDf;
+      rowsDf.push(['Datáfono #' + num, items.length, totalDf, ...Array(totalColsDf - 3).fill('')]);
+    });
+
+    rowsDf.push(['TOTAL DATÁFONO', transDatafono.length, totalGeneralDf, ...Array(totalColsDf - 3).fill('')]);
+    subtotalRowsDf.push(rowsDf.length);
+
+    // Bloques por datáfono
+    datafonos.forEach(num => {
+      const items = porDatafono[num];
+      const totalDf = items.reduce((s, t) => s + (Number(t.Datafono_Valor) || 0), 0);
+
+      rowsDf.push(Array(totalColsDf).fill(''));
+      rowsDf.push(Array(totalColsDf).fill(''));
+
+      rowsDf.push(['💳 Datáfono #' + num + ' — ' + items.length + ' transacción(es)', ...Array(totalColsDf - 1).fill('')]);
+      dfHeaderRows.push(rowsDf.length);
+      mergesDf.push(rowsDf.length);
+
+      rowsDf.push(headersDf);
+      headerRowsDf.push(rowsDf.length);
+
+      items.forEach(t => rowsDf.push(mapRowDf_(t)));
+
+      const subDf = Array(totalColsDf).fill('');
+      subDf[0] = 'SUBTOTAL Datáfono #' + num;
+      subDf[3] = totalDf;
+      rowsDf.push(subDf);
+      subtotalRowsDf.push(rowsDf.length);
+    });
+
+    // Gran total
+    rowsDf.push(Array(totalColsDf).fill(''));
+    const gtRowDf = Array(totalColsDf).fill('');
+    gtRowDf[0] = 'GRAN TOTAL DATÁFONO — ' + sede;
+    gtRowDf[3] = totalGeneralDf;
+    rowsDf.push(gtRowDf);
+    subtotalRowsDf.push(rowsDf.length);
+
+    sheetDf.getRange(1, 1, rowsDf.length, totalColsDf).setValues(rowsDf);
+
+    sheetDf.getRange(1, 1).setFontSize(14).setFontWeight('bold').setFontColor('#6c63ff');
+    sheetDf.getRange(2, 1).setFontSize(9).setFontColor('#888888');
+
+    mergesDf.forEach(r => sheetDf.getRange(r, 1, 1, totalColsDf).merge());
+    headerRowsDf.forEach(r => {
+      sheetDf.getRange(r, 1, 1, totalColsDf).setBackground('#2d3148').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+    });
+    dfHeaderRows.forEach(r => {
+      sheetDf.getRange(r, 1, 1, totalColsDf).setBackground('#6c63ff').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+    });
+    subtotalRowsDf.forEach(r => {
+      sheetDf.getRange(r, 1, 1, totalColsDf).setFontWeight('bold').setBackground('#f0f0f0').setBorder(true, true, true, true, false, false);
+    });
+    sheetDf.getRange(1, 4, rowsDf.length, 1).setNumberFormat('$ #,##0');
+    for (let c = 1; c <= totalColsDf; c++) sheetDf.autoResizeColumn(c);
+  }
+
+  // ── HOJA 2: CIERRE GENERAL ───────────────────────────────────────────────
+  const ssGen = SpreadsheetApp.openById(CIERRE_GENERAL_SHEET_ID);
+  let sheetGen = ssGen.getSheetByName(nombrePestana);
+  if (sheetGen) sheetGen.clear();
+  else sheetGen = ssGen.insertSheet(nombrePestana, 0);
+
+  const headersGen = [
+    'FECHA','PERSONA','CÉDULA','CELULAR','ACTIVIDAD','MONTO','MÉTODO DE PAGO','ASESOR',
+    'FRANQUICIA','N° AUTORIZACIÓN','VALOR DATÁFONO',
+    'BENEFICIARIO DE PAGO','CÉDULA BENEFICIARIO','CELULAR BENEFICIARIO',
+    'DÉBITO/CRÉDITO','N° DATÁFONO'
+  ];
+  const totalColsGen = headersGen.length;
+  const colMontoGen = 5;
+
+  function mapRowGen_(t) {
+    return [
+      t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
+      t.Nombre_Persona                || '',
+      t.Documento_Persona             || '',
+      t.Celular_Persona               || '',
+      t.Actividad                     || '',
+      Number(t.Monto)                 || 0,
+      t.Metodo_Pago                   || '',
+      t.Asesor_Nombre                 || '',
+      t.Datafono_Franquicia           || '',
+      t.Datafono_No_Autorizacion      || '',
+      Number(t.Datafono_Valor)        || 0,
+      t.Datafono_Nombre_Beneficiario  || '',
+      t.Datafono_Doc_Beneficiario     || '',
+      t.Datafono_Celular_Beneficiario || '',
+      t.Datafono_Tipo_Tarjeta         || '',
+      t.Datafono_No_Datafono          || ''
+    ];
+  }
+
+  var totEfectivo = 0, totDatafono = 0, totNequi = 0, totTotal = 0;
+  todasTrans.forEach(tr => {
+    var m = Number(tr.Monto) || 0;
+    totTotal += m;
+    if (tr.Metodo_Pago === 'Efectivo')  totEfectivo += m;
+    if (tr.Metodo_Pago === 'Datáfono')  totDatafono += m;
+    if (tr.Metodo_Pago === 'Nequi')     totNequi    += m;
   });
+
+  const rowsGen = [];
+  const mergesGen = [];
+  const headerRowsGen = [];
+  const subtotalRowsGen = [];
+
+  rowsGen.push(['CIERRE DIARIO — ' + sede, ...Array(totalColsGen - 1).fill('')]);
+  mergesGen.push(rowsGen.length);
+  rowsGen.push(['Generado: ' + fechaGen, ...Array(totalColsGen - 1).fill('')]);
+  mergesGen.push(rowsGen.length);
+  rowsGen.push(Array(totalColsGen).fill(''));
+
+  // Resumen por método
+  rowsGen.push(['MÉTODO', 'N° TRANS.', 'TOTAL', ...Array(totalColsGen - 3).fill('')]);
+  headerRowsGen.push(rowsGen.length);
+
+  var countEf = todasTrans.filter(t => t.Metodo_Pago === 'Efectivo').length;
+  var countDf = todasTrans.filter(t => t.Metodo_Pago === 'Datáfono').length;
+  var countNq = todasTrans.filter(t => t.Metodo_Pago === 'Nequi').length;
+
+  rowsGen.push(['Efectivo', countEf, totEfectivo, ...Array(totalColsGen - 3).fill('')]);
+  rowsGen.push(['Datáfono', countDf, totDatafono, ...Array(totalColsGen - 3).fill('')]);
+  rowsGen.push(['Nequi', countNq, totNequi, ...Array(totalColsGen - 3).fill('')]);
+  rowsGen.push(['TOTAL', todasTrans.length, totTotal, ...Array(totalColsGen - 3).fill('')]);
+  subtotalRowsGen.push(rowsGen.length);
+
+  // Tabla de transacciones
+  rowsGen.push(Array(totalColsGen).fill(''));
+  rowsGen.push(Array(totalColsGen).fill(''));
+
+  rowsGen.push(['📍 ' + sede + ' — ' + todasTrans.length + ' transacción(es)', ...Array(totalColsGen - 1).fill('')]);
+  mergesGen.push(rowsGen.length);
+
+  rowsGen.push(headersGen);
+  headerRowsGen.push(rowsGen.length);
+
+  todasTrans.forEach(tr => rowsGen.push(mapRowGen_(tr)));
+
+  var subGen = Array(totalColsGen).fill('');
+  subGen[0] = 'TOTAL ' + sede;
+  subGen[colMontoGen] = totTotal;
+  rowsGen.push(subGen);
+  subtotalRowsGen.push(rowsGen.length);
+
+  sheetGen.getRange(1, 1, rowsGen.length, totalColsGen).setValues(rowsGen);
+
+  sheetGen.getRange(1, 1).setFontSize(14).setFontWeight('bold').setFontColor('#6c63ff');
+  sheetGen.getRange(2, 1).setFontSize(9).setFontColor('#888888');
+
+  mergesGen.forEach(r => sheetGen.getRange(r, 1, 1, totalColsGen).merge());
+  headerRowsGen.forEach(r => {
+    sheetGen.getRange(r, 1, 1, totalColsGen).setBackground('#2d3148').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+  });
+  subtotalRowsGen.forEach(r => {
+    sheetGen.getRange(r, 1, 1, totalColsGen).setFontWeight('bold').setBackground('#f0f0f0').setBorder(true, true, true, true, false, false);
+  });
+
+  sheetGen.getRange(1, 3, rowsGen.length, 1).setNumberFormat('$ #,##0');
+  sheetGen.getRange(1, colMontoGen + 1, rowsGen.length, 1).setNumberFormat('$ #,##0');
+  sheetGen.getRange(1, 11, rowsGen.length, 1).setNumberFormat('$ #,##0');
+
+  for (var c = 1; c <= totalColsGen; c++) sheetGen.autoResizeColumn(c);
+
+  // ── CORREO ───────────────────────────────────────────────────────────────
+  var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + CIERRE_GENERAL_SHEET_ID + '/edit#gid=' + sheetGen.getSheetId();
+  var nombreFecha = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy');
+
+  var emailHtml = '<!DOCTYPE html><html><body style="font-family:\'Segoe UI\',Arial,sans-serif;background:#f8fafc;padding:20px">'
+    + '<div style="max-width:650px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">'
+    + '<div style="background:#1a1d2e;padding:24px 30px">'
+    + '<h1 style="color:#6c63ff;margin:0;font-size:20px">⛪ Cierre Diario — ' + sede + '</h1>'
+    + '<p style="color:#94a3b8;margin:6px 0 0;font-size:13px">' + nombreFecha + ' · Generado: ' + fechaGen + '</p>'
+    + '</div>'
+    + '<div style="padding:24px 30px">'
+    + '<h2 style="font-size:15px;color:#1a1d2e;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.05em">Resumen por método de pago</h2>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:13px">'
+    + '<thead><tr style="background:#f1f5f9">'
+    + '<th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#64748b">Método</th>'
+    + '<th style="padding:10px 14px;text-align:center;font-size:11px;text-transform:uppercase;color:#64748b">Trans.</th>'
+    + '<th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#64748b">Total</th>'
+    + '</tr></thead><tbody>'
+    + '<tr><td style="padding:8px 14px;border-bottom:1px solid #e2e8f0">Efectivo</td><td style="padding:8px 14px;text-align:center;border-bottom:1px solid #e2e8f0">' + countEf + '</td><td style="padding:8px 14px;text-align:right;border-bottom:1px solid #e2e8f0">' + fmtM(totEfectivo) + '</td></tr>'
+    + '<tr><td style="padding:8px 14px;border-bottom:1px solid #e2e8f0">Datáfono</td><td style="padding:8px 14px;text-align:center;border-bottom:1px solid #e2e8f0">' + countDf + '</td><td style="padding:8px 14px;text-align:right;border-bottom:1px solid #e2e8f0">' + fmtM(totDatafono) + '</td></tr>'
+    + '<tr><td style="padding:8px 14px;border-bottom:1px solid #e2e8f0">Nequi</td><td style="padding:8px 14px;text-align:center;border-bottom:1px solid #e2e8f0">' + countNq + '</td><td style="padding:8px 14px;text-align:right;border-bottom:1px solid #e2e8f0">' + fmtM(totNequi) + '</td></tr>'
+    + '</tbody>'
+    + '<tfoot><tr style="background:#1a1d2e">'
+    + '<td style="padding:10px 14px;font-weight:700;color:#fff">TOTAL</td>'
+    + '<td style="padding:10px 14px;text-align:center;font-weight:700;color:#fff">' + todasTrans.length + '</td>'
+    + '<td style="padding:10px 14px;text-align:right;font-weight:700;color:#f59e0b;font-size:15px">' + fmtM(totTotal) + '</td>'
+    + '</tr></tfoot></table>'
+    + '<div style="margin-top:24px;text-align:center">'
+    + '<a href="' + sheetUrl + '" style="display:inline-block;background:#6c63ff;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ver reporte completo →</a>'
+    + '</div></div>'
+    + '<div style="background:#f8fafc;padding:16px 30px;text-align:center;font-size:11px;color:#94a3b8">'
+    + 'CRM Punto de Información · Manantial · Cierre manual'
+    + '</div></div></body></html>';
+
+  MailApp.sendEmail({
+    to:       CIERRE_GENERAL_EMAIL,
+    subject:  'Cierre ' + sede + ' ' + nombreFecha + ' — ' + fmtM(totTotal),
+    htmlBody: emailHtml
+  });
+
+  Logger.log('Cierre sede ' + sede + ' ' + nombreFecha + ': ' + todasTrans.length + ' trans. Total: ' + totTotal);
+  return { ok: true, mensaje: 'Cierre generado para ' + sede };
 }

@@ -273,7 +273,17 @@ function getHistorialTurno(token, sede) {
     return acc;
   }, { efectivo: 0, datafono: 0, nequi: 0, total: 0 });
 
-  return { transacciones: trans, totales };
+  const asesores = [];
+  const seen = {};
+  trans.forEach(function(t) {
+    if (t.estado !== 'Anulada' && t.asesorNombre && !seen[t.asesorNombre]) {
+      seen[t.asesorNombre] = true;
+      asesores.push(t.asesorNombre);
+    }
+  });
+  asesores.sort();
+
+  return { transacciones: trans, totales, asesores };
 }
 
 /**

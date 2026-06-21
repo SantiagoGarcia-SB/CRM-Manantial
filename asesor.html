@@ -100,6 +100,42 @@
     .cartera-detalle { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
     .cartera-monto   { font-size: 0.85rem; font-weight: 700; color: var(--accent); text-align: right; }
 
+    /* ── Cierre ─── */
+    .cierre-method-btns {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 4px;
+    }
+    .cierre-method-btn {
+      padding: 10px 4px; border-radius: 10px; border: 2px solid var(--border);
+      background: var(--surface2); color: var(--text); cursor: pointer;
+      text-align: center; transition: all 0.15s; -webkit-tap-highlight-color: transparent;
+    }
+    .cierre-method-btn.active { border-color: var(--accent); background: var(--accent-lt); }
+    .cierre-method-label { font-size: 0.68rem; font-weight: 600; margin-bottom: 2px; }
+    .cierre-method-monto { font-size: 0.82rem; font-weight: 700; color: var(--accent); }
+    .cierre-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 12px; }
+    .cierre-table {
+      width: 100%; border-collapse: collapse; font-size: 0.75rem;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    }
+    .cierre-table th {
+      background: var(--surface2); color: var(--text-dim); font-weight: 600;
+      padding: 8px 10px; text-align: left; font-size: 0.68rem; text-transform: uppercase;
+      letter-spacing: 0.04em; white-space: nowrap;
+    }
+    .cierre-table td {
+      padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .cierre-table .monto-col { text-align: right; font-weight: 700; color: var(--accent); }
+    .cierre-subtotal-row td {
+      font-weight: 700; background: var(--surface2); border-top: 2px solid var(--border);
+    }
+    .cierre-df-header {
+      background: var(--accent); color: #fff; padding: 10px 14px; border-radius: 8px 8px 0 0;
+      font-weight: 700; font-size: 0.85rem; margin-top: 16px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .cierre-df-header:first-child { margin-top: 0; }
+
     /* ── Versículo ─── */
     @keyframes floatIn {
       from { opacity: 0; transform: translateY(18px); }
@@ -562,33 +598,68 @@
   </div>
 </div>
 
-<!-- PÁGINA: HISTORIAL DE HOY -->
-<div id="page-historial" class="page">
+<!-- PÁGINA: CIERRE -->
+<div id="page-cierre" class="page">
   <div>
-    <h2>Historial del turno</h2>
-    <div style="display:flex;gap:8px;margin-top:8px;margin-bottom:16px">
-      <button id="hist-tab-yo" class="btn btn-primary" style="flex:1;font-size:.82rem" onclick="setHistorialTab('yo')">Mis pagos</button>
-      <button id="hist-tab-sede" class="btn btn-secondary" style="flex:1;font-size:.82rem" onclick="setHistorialTab('sede')">Sede: <span id="hist-tab-sede-label"></span></button>
+    <h2>Cierre del turno</h2>
+    <p style="font-size:.82rem;margin-top:4px;margin-bottom:16px">Transacciones de hoy · Sede: <strong id="cierre-sede-label"></strong></p>
+
+    <!-- Filtro asesor -->
+    <div class="input-group" style="margin-bottom:12px">
+      <select id="cierre-asesor-filtro" class="input" onchange="filtrarCierreAsesor()" style="font-size:.82rem">
+        <option value="">Todos los asesores</option>
+      </select>
     </div>
-    <div id="totales-turno" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
-      <div class="kpi-card kpi-accent" style="padding:12px">
-        <div class="kpi-label">Efectivo</div>
-        <div id="tot-efectivo" class="kpi-value" style="font-size:1.1rem">–</div>
-      </div>
-      <div class="kpi-card kpi-green" style="padding:12px">
-        <div class="kpi-label">Datáfono</div>
-        <div id="tot-datafono" class="kpi-value" style="font-size:1.1rem">–</div>
-      </div>
-      <div class="kpi-card" style="padding:12px">
-        <div class="kpi-label">Nequi</div>
-        <div id="tot-nequi" class="kpi-value" style="font-size:1.1rem">–</div>
-      </div>
+
+    <!-- Botones método de pago -->
+    <div class="cierre-method-btns">
+      <button class="cierre-method-btn active" onclick="filtrarCierreMetodo('todos', this)">
+        <div class="cierre-method-label">Todos</div>
+        <div class="cierre-method-monto" id="cierre-tot-todos">–</div>
+      </button>
+      <button class="cierre-method-btn" onclick="filtrarCierreMetodo('Efectivo', this)">
+        <div class="cierre-method-label">💵 Efectivo</div>
+        <div class="cierre-method-monto" id="cierre-tot-efectivo">–</div>
+      </button>
+      <button class="cierre-method-btn" onclick="filtrarCierreMetodo('Datáfono', this)">
+        <div class="cierre-method-label">💳 Datáfono</div>
+        <div class="cierre-method-monto" id="cierre-tot-datafono">–</div>
+      </button>
+      <button class="cierre-method-btn" onclick="filtrarCierreMetodo('Nequi', this)">
+        <div class="cierre-method-label">📱 Nequi</div>
+        <div class="cierre-method-monto" id="cierre-tot-nequi">–</div>
+      </button>
     </div>
-    <div class="card" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+
+    <!-- Total -->
+    <div class="card" style="margin:12px 0;display:flex;justify-content:space-between;align-items:center">
       <span class="text-muted" style="font-size:.82rem">Total recaudado hoy</span>
-      <span id="tot-total" style="font-size:1.3rem;font-weight:700;color:var(--accent)">–</span>
+      <span id="cierre-gran-total" style="font-size:1.3rem;font-weight:700;color:var(--accent)">–</span>
     </div>
-    <div id="historial-lista"></div>
+
+    <!-- Tabla dinámica -->
+    <div id="cierre-tabla-container"></div>
+
+    <!-- Botón generar cierre -->
+    <button id="btn-generar-cierre" class="btn btn-primary btn-full btn-lg" onclick="generarCierre()" style="margin-top:20px;background:var(--green);border-color:var(--green);font-size:1rem;padding:16px">
+      📄 Generar cierre
+    </button>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRMAR CIERRE -->
+<div id="modal-confirmar-cierre" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.6);align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px 24px;max-width:380px;width:100%;text-align:center">
+    <div style="font-size:3rem;margin-bottom:12px">📄</div>
+    <h3 style="margin:0 0 8px;font-size:1.1rem">Generar cierre</h3>
+    <p style="font-size:.88rem;color:var(--text-dim);margin:0 0 24px;line-height:1.5">
+      ¿Generar cierre para la sede <strong id="modal-cierre-sede" style="color:var(--text)"></strong>?
+      <br><span style="font-size:.78rem">Se creará el reporte y se enviará por correo.</span>
+    </p>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-secondary btn-full" onclick="cerrarModalCierre()" style="flex:1">Cancelar</button>
+      <button id="btn-confirmar-cierre" class="btn btn-primary btn-full" onclick="ejecutarCierre()" style="flex:1;background:var(--green);border-color:var(--green)">Generar</button>
+    </div>
   </div>
 </div>
 
@@ -600,8 +671,8 @@
   <button class="nav-btn" onclick="showPage('cartera', this); cargarCartera()">
     <span class="nav-icon">🗂️</span> Cartera
   </button>
-  <button class="nav-btn" onclick="showPage('historial', this); cargarHistorial()">
-    <span class="nav-icon">📋</span> Historial
+  <button class="nav-btn" onclick="showPage('cierre', this); cargarCierre()">
+    <span class="nav-icon">📊</span> Cierre
   </button>
 </nav>
 
@@ -693,8 +764,6 @@ function mostrarApp(info) {
   setText('#top-user-name', info.nombre);
   STATE.sedeRecaudo = info.sede;
   qs('#sede-recaudo-select').value = info.sede;
-  const label = qs('#hist-tab-sede-label');
-  if (label) label.textContent = info.sede;
   precargarDatos();
 }
 
@@ -802,7 +871,9 @@ const STATE = {
 };
 let actividadesCache = [];
 let catFiltroActual  = '';
-let historialTab = 'yo';
+let cierreData = { transacciones: [], totales: {}, asesores: [] };
+let cierreMetodoFiltro = 'todos';
+let cierreAsesorFiltro = '';
 
 // ─── NAVEGACIÓN ───────────────────────────────────────────────────────────────
 function showPage(name, btn) {
@@ -1192,56 +1263,166 @@ function renderCartera(items) {
     </div>`; }).join('');
 }
 
-// ─── HISTORIAL ────────────────────────────────────────────────────────────────
-function setHistorialTab(tab) {
-  historialTab = tab;
-  qs('#hist-tab-yo').className   = (tab === 'yo'   ? 'btn btn-primary' : 'btn btn-secondary') + ' btn-full';
-  qs('#hist-tab-sede').className = (tab === 'sede' ? 'btn btn-primary' : 'btn btn-secondary') + ' btn-full';
-  qs('#hist-tab-yo').style.flex = '1'; qs('#hist-tab-sede').style.flex = '1';
-  qs('#hist-tab-yo').style.fontSize = '.82rem'; qs('#hist-tab-sede').style.fontSize = '.82rem';
-  cargarHistorial();
-}
-
+// ─── CIERRE ──────────────────────────────────────────────────────────────────
 function onSedeRecaudoChange(sede) {
   STATE.sedeRecaudo = sede;
-  const label = qs('#hist-tab-sede-label');
-  if (label) label.textContent = sede;
   toast.info('Sede de recaudo: ' + sede);
 }
 
-async function cargarHistorial() {
-  setHtml('#historial-lista','<div class="skeleton" style="height:56px;margin-bottom:8px"></div>'.repeat(5));
+async function cargarCierre() {
+  setText('#cierre-sede-label', STATE.sedeRecaudo);
+  setHtml('#cierre-tabla-container', '<div class="skeleton" style="height:56px;margin-bottom:8px"></div>'.repeat(5));
   try {
-    const sede = historialTab === 'sede' ? STATE.sedeRecaudo : null;
-    const res = await gsr('getHistorialTurno', sede);
-    setText('#tot-efectivo', fmt.cop(res.totales.efectivo));
-    setText('#tot-datafono', fmt.cop(res.totales.datafono));
-    setText('#tot-nequi',    fmt.cop(res.totales.nequi));
-    setText('#tot-total',    fmt.cop(res.totales.total));
-    renderHistorial(res.transacciones, historialTab === 'sede');
-  } catch(e) { toast.error('Error cargando historial'); }
+    var res = await gsr('getHistorialTurno', STATE.sedeRecaudo);
+    cierreData = res;
+    var sel = qs('#cierre-asesor-filtro');
+    sel.innerHTML = '<option value="">Todos los asesores</option>' +
+      (res.asesores || []).map(function(a) {
+        return '<option value="' + escHtml(a) + '">' + escHtml(a) + '</option>';
+      }).join('');
+    cierreAsesorFiltro = '';
+    renderCierre();
+  } catch(e) { toast.error('Error cargando cierre'); }
 }
 
-function renderHistorial(lista, showAsesor) {
-  const c = qs('#historial-lista');
-  if (!lista.length) { c.innerHTML = '<p class="text-muted text-center mt-16">Sin transacciones hoy</p>'; return; }
-  c.innerHTML = `<div class="card" style="padding:0">` + lista.map(function(t) {
-    var esAnulada = t.estado === 'Anulada';
-    var anularBtn = !esAnulada && !showAsesor
-      ? `<button class="btn btn-ghost" style="font-size:.7rem;padding:2px 8px;color:var(--red);margin-top:4px" onclick="anularTransaccionUI('${escHtml(t.id)}')">Anular</button>`
-      : '';
-    return `
-    <div style="padding:12px 16px;border-bottom:1px solid rgba(45,49,72,.5);display:flex;justify-content:space-between;align-items:center${esAnulada ? ';opacity:.5' : ''}">
-      <div>
-        <div style="font-weight:600;font-size:.875rem">${escHtml(t.nombrePersona)}${esAnulada ? ' ' + badgeEstado('Anulada') : ''}</div>
-        <div style="font-size:.75rem;color:var(--text-dim)">${escHtml(t.actividad)} · ${escHtml(t.timestamp)}${showAsesor ? ' · ' + escHtml(t.asesorNombre || '') : ''}${t.dtNoAutorizacion ? ' · Aut: ' + escHtml(t.dtNoAutorizacion) : ''}</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-weight:700;color:var(--accent)${esAnulada ? ';text-decoration:line-through' : ''}">${fmt.cop(t.monto)}</div>
-        <div style="font-size:.72rem">${badgeEstado(t.metodoPago)}</div>
-        ${anularBtn}
-      </div>
-    </div>`; }).join('') + `</div>`;
+function filtrarCierreMetodo(metodo, btn) {
+  cierreMetodoFiltro = metodo;
+  qsa('.cierre-method-btn').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  renderCierre();
+}
+
+function filtrarCierreAsesor() {
+  cierreAsesorFiltro = qs('#cierre-asesor-filtro').value;
+  renderCierre();
+}
+
+function renderCierre() {
+  var trans = (cierreData.transacciones || []).filter(function(t) { return t.estado !== 'Anulada'; });
+
+  if (cierreAsesorFiltro) {
+    trans = trans.filter(function(t) { return t.asesorNombre === cierreAsesorFiltro; });
+  }
+
+  var totEfectivo = 0, totDatafono = 0, totNequi = 0, totTotal = 0;
+  trans.forEach(function(t) {
+    totTotal += t.monto;
+    if (t.metodoPago === 'Efectivo')  totEfectivo += t.monto;
+    if (t.metodoPago === 'Datáfono')  totDatafono += t.monto;
+    if (t.metodoPago === 'Nequi')     totNequi    += t.monto;
+  });
+
+  setText('#cierre-tot-todos',    fmt.cop(totTotal));
+  setText('#cierre-tot-efectivo', fmt.cop(totEfectivo));
+  setText('#cierre-tot-datafono', fmt.cop(totDatafono));
+  setText('#cierre-tot-nequi',    fmt.cop(totNequi));
+  setText('#cierre-gran-total',   fmt.cop(totTotal));
+
+  var filtradas = trans;
+  if (cierreMetodoFiltro !== 'todos') {
+    filtradas = trans.filter(function(t) { return t.metodoPago === cierreMetodoFiltro; });
+  }
+
+  var c = qs('#cierre-tabla-container');
+
+  if (!filtradas.length) {
+    c.innerHTML = '<p class="text-muted text-center mt-16">Sin transacciones</p>';
+    return;
+  }
+
+  if (cierreMetodoFiltro === 'Datáfono') {
+    renderCierreDatafono(filtradas, c);
+  } else {
+    renderCierreTabla(filtradas, c, cierreMetodoFiltro);
+  }
+}
+
+function renderCierreTabla(lista, container, metodo) {
+  var showMetodo = (metodo === 'todos');
+  var html = '<div class="cierre-table-wrap"><table class="cierre-table"><thead><tr>' +
+    '<th>Hora</th><th>Nombre</th><th>Actividad</th><th>Monto</th>' +
+    (showMetodo ? '<th>Método</th>' : '') +
+    '<th>Asesor</th></tr></thead><tbody>';
+
+  lista.forEach(function(t) {
+    var hora = t.timestamp ? t.timestamp.split(' ').slice(1).join(' ') : '';
+    html += '<tr>' +
+      '<td>' + escHtml(hora) + '</td>' +
+      '<td>' + escHtml(t.nombrePersona) + '</td>' +
+      '<td>' + escHtml(t.actividad) + '</td>' +
+      '<td class="monto-col">' + fmt.cop(t.monto) + '</td>' +
+      (showMetodo ? '<td>' + badgeEstado(t.metodoPago) + '</td>' : '') +
+      '<td>' + escHtml(t.asesorNombre || '') + '</td></tr>';
+  });
+
+  var total = lista.reduce(function(s, t) { return s + t.monto; }, 0);
+  var colSpan = showMetodo ? 3 : 2;
+  html += '</tbody><tfoot><tr class="cierre-subtotal-row">' +
+    '<td colspan="' + colSpan + '" style="text-align:right">Total:</td>' +
+    '<td class="monto-col">' + fmt.cop(total) + '</td>' +
+    (showMetodo ? '<td></td>' : '') +
+    '<td></td></tr></tfoot></table></div>';
+
+  container.innerHTML = html;
+}
+
+function renderCierreDatafono(lista, container) {
+  var porDatafono = {};
+  lista.forEach(function(t) {
+    var num = t.dtNoDatafono || 'Sin asignar';
+    if (!porDatafono[num]) porDatafono[num] = [];
+    porDatafono[num].push(t);
+  });
+
+  var nums = Object.keys(porDatafono).sort();
+  var html = '';
+
+  nums.forEach(function(num) {
+    var items = porDatafono[num];
+    var total = items.reduce(function(s, t) { return s + t.monto; }, 0);
+
+    html += '<div class="cierre-df-header"><span>💳 Datáfono #' + escHtml(num) + '</span><span>' + fmt.cop(total) + '</span></div>';
+    html += '<div class="cierre-table-wrap" style="margin-bottom:16px"><table class="cierre-table" style="border-radius:0 0 10px 10px"><thead><tr>' +
+      '<th>Hora</th><th>Nombre</th><th>Actividad</th><th>Monto</th><th>Asesor</th><th>Nº Aut.</th></tr></thead><tbody>';
+
+    items.forEach(function(t) {
+      var hora = t.timestamp ? t.timestamp.split(' ').slice(1).join(' ') : '';
+      html += '<tr>' +
+        '<td>' + escHtml(hora) + '</td>' +
+        '<td>' + escHtml(t.nombrePersona) + '</td>' +
+        '<td>' + escHtml(t.actividad) + '</td>' +
+        '<td class="monto-col">' + fmt.cop(t.monto) + '</td>' +
+        '<td>' + escHtml(t.asesorNombre || '') + '</td>' +
+        '<td>' + escHtml(t.dtNoAutorizacion || '') + '</td></tr>';
+    });
+
+    html += '</tbody><tfoot><tr class="cierre-subtotal-row">' +
+      '<td colspan="3" style="text-align:right">Subtotal Datáfono #' + escHtml(num) + ':</td>' +
+      '<td class="monto-col">' + fmt.cop(total) + '</td>' +
+      '<td></td><td></td></tr></tfoot></table></div>';
+  });
+
+  container.innerHTML = html;
+}
+
+function generarCierre() {
+  setText('#modal-cierre-sede', STATE.sedeRecaudo);
+  qs('#modal-confirmar-cierre').style.display = 'flex';
+}
+
+function cerrarModalCierre() {
+  qs('#modal-confirmar-cierre').style.display = 'none';
+}
+
+async function ejecutarCierre() {
+  var btn = qs('#btn-confirmar-cierre');
+  setLoading(btn, true);
+  try {
+    var res = await gsrPublic('generarCierreSede', STATE.sedeRecaudo);
+    cerrarModalCierre();
+    toast.success(res.mensaje || 'Cierre generado ✓');
+  } catch(e) { toast.error('Error: ' + e.message); cerrarModalCierre(); }
+  finally { setLoading(btn, false); }
 }
 
 async function anularTransaccionUI(idTrans) {
@@ -1249,7 +1430,7 @@ async function anularTransaccionUI(idTrans) {
   try {
     await gsr('anularTransaccion', idTrans);
     toast.success('Transacción anulada ✓');
-    cargarHistorial();
+    cargarCierre();
   } catch(e) { toast.error(e.message); }
 }
 
