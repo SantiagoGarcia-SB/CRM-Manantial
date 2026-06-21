@@ -1,16 +1,26 @@
 // ─── PERSONAS.GS ──────────────────────────────────────────────────────────────
 // Contrato público:
-//   buscarPersonas(query)        → Object[]  (búsqueda por cédula/nombre/correo)
-//   obtenerPersona(id)           → Object    (ficha completa + historial)
-//   crearPersona(datos)          → {ok, persona}
-//   actualizarPersona(id, datos) → {ok}
-//   listarPersonas(filtros)      → Object[]  (coordinadora)
+//   buscarPersonas(query)              → Object[]  (búsqueda por cédula/nombre/correo)
+//   obtenerPersona(documento)          → Object    (ficha completa + historial)
+//   crearPersona(datos)                → {ok, persona}
+//   actualizarPersona(documento, datos)→ {ok}
+//   listarPersonas(filtros)            → Object[]  (coordinadora)
+
+function mapPersona_(p) {
+  return {
+    id:            String(p.Documento || ''),
+    nombre:        p.Nombre,
+    documento:     String(p.Documento || ''),
+    celular:       p.Celular,
+    correo:        p.Correo,
+    sede:          p.Sede,
+    fechaRegistro: p.Fecha_Registro ? formatDate_(new Date(p.Fecha_Registro)) : ''
+  };
+}
 
 /**
  * Busca personas por cédula, nombre o correo (búsqueda parcial, case-insensitive).
  * Retorna máximo 20 resultados.
- * @param {string} query
- * @returns {Object[]}
  */
 function buscarPersonas(token, query) {
   authenticate_(token);
@@ -30,31 +40,22 @@ function buscarPersonas(token, query) {
              correo.includes(q) || celular.includes(q);
     })
     .slice(0, 20)
-    .map(p => ({
-      id:             p.ID_Persona,
-      nombre:         p.Nombre,
-      documento:      p.Documento,
-      celular:        p.Celular,
-      correo:         p.Correo,
-      sede:           p.Sede,
-      fechaRegistro:  p.Fecha_Registro ? formatDate_(new Date(p.Fecha_Registro)) : ''
-    }));
+    .map(mapPersona_);
 }
 
 /**
  * Obtiene la ficha completa de una persona + su historial de transacciones.
- * @param {string} id - ID_Persona
- * @returns {{persona: Object, transacciones: Object[]}}
+ * @param {string} documento
  */
-function obtenerPersona(token, id) {
+function obtenerPersona(token, documento) {
   authenticate_(token);
   requireRol_('asesor', 'coordinadora');
   const personas = sheetToObjects_('Personas');
-  const persona  = personas.find(p => p.ID_Persona === id);
-  if (!persona) throw new Error('Persona no encontrada: ' + id);
+  const persona  = personas.find(p => String(p.Documento) === String(documento));
+  if (!persona) throw new Error('Persona no encontrada: ' + documento);
 
   const transacciones = sheetToObjects_('Transacciones')
-    .filter(t => t.ID_Persona === id)
+    .filter(t => t.Nombre_Persona === persona.Nombre)
     .map(t => ({
       id:                    t.ID_Trans,
       timestamp:             t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
@@ -64,62 +65,40 @@ function obtenerPersona(token, id) {
       asesorNombre:          t.Asesor_Nombre,
       estadoIglesia:         t.Estado_Legalizacion_Iglesia,
       estadoAcademia:        t.Estado_Legalizacion_Academia,
-      periodo:               t.Periodo
+      estado:                t.Estado || 'Activa',
     }))
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-  return {
-    persona: {
-      id:            persona.ID_Persona,
-      nombre:        persona.Nombre,
-      documento:     persona.Documento,
-      celular:       persona.Celular,
-      correo:        persona.Correo,
-      sede:          persona.Sede,
-      fechaRegistro: persona.Fecha_Registro ? formatDate_(new Date(persona.Fecha_Registro)) : ''
-    },
-    transacciones
-  };
+  return { persona: mapPersona_(persona), transacciones };
 }
 
 /**
  * Crea una nueva persona. Verifica duplicado por documento.
- * @param {{nombre:string, documento:string, celular:string, correo:string, sede:string}} datos
- * @returns {{ok:boolean, persona:{id:string, nombre:string}}}
  */
 function crearPersona(token, datos) {
   authenticate_(token);
   requireRol_('asesor', 'coordinadora');
   validateRequired_(datos, ['nombre', 'documento', 'sede']);
+  datos.nombre = datos.nombre.trim().toLowerCase().replace(/(?:^|\s)\S/g, function(c) { return c.toUpperCase(); });
 
   const personas = sheetToObjects_('Personas');
   const duplicado = personas.find(p =>
     p.Documento && p.Documento.toString() === datos.documento.toString()
   );
   if (duplicado) {
-    // Si ya existe, retornar la persona existente (no duplicar)
     return {
       ok: true,
       yaExistia: true,
-      persona: {
-        id:       duplicado.ID_Persona,
-        nombre:   duplicado.Nombre,
-        documento:duplicado.Documento,
-        correo:   duplicado.Correo,
-        celular:  duplicado.Celular,
-        sede:     duplicado.Sede
-      }
+      persona: mapPersona_(duplicado)
     };
   }
 
-  const sheet   = getSheet_('Personas', true);
-  const id      = generateId_('PER');
-  const ahora   = new Date();
+  const sheet = getSheet_('Personas', true);
+  const ahora = new Date();
 
   sheet.appendRow([
-    id,
-    datos.nombre.trim(),
     datos.documento.toString().trim(),
+    datos.nombre.trim(),
     (datos.celular || '').toString().trim(),
     (datos.correo  || '').trim().toLowerCase(),
     datos.sede,
@@ -130,9 +109,9 @@ function crearPersona(token, datos) {
     ok: true,
     yaExistia: false,
     persona: {
-      id,
+      id:        datos.documento.toString().trim(),
       nombre:    datos.nombre.trim(),
-      documento: datos.documento,
+      documento: datos.documento.toString().trim(),
       correo:    datos.correo   || '',
       celular:   datos.celular  || '',
       sede:      datos.sede
@@ -142,20 +121,18 @@ function crearPersona(token, datos) {
 
 /**
  * Actualiza datos de una persona existente.
- * @param {string} id
- * @param {{nombre?:string, celular?:string, correo?:string, sede?:string}} datos
- * @returns {{ok:boolean}}
+ * @param {string} documento
  */
-function actualizarPersona(token, id, datos) {
+function actualizarPersona(token, documento, datos) {
   authenticate_(token);
   requireRol_('asesor', 'coordinadora');
   const sheet   = getSheet_('Personas');
   const values  = sheet.getDataRange().getValues();
   const headers = values[0];
-  const idIdx   = headers.indexOf('ID_Persona');
+  const docIdx  = headers.indexOf('Documento');
 
   for (let i = 1; i < values.length; i++) {
-    if (values[i][idIdx] === id) {
+    if (String(values[i][docIdx]) === String(documento)) {
       const campos = { Nombre: datos.nombre, Celular: datos.celular, Correo: datos.correo, Sede: datos.sede };
       Object.entries(campos).forEach(([campo, valor]) => {
         if (valor !== undefined && valor !== null) {
@@ -166,13 +143,11 @@ function actualizarPersona(token, id, datos) {
       return { ok: true };
     }
   }
-  throw new Error('Persona no encontrada: ' + id);
+  throw new Error('Persona no encontrada: ' + documento);
 }
 
 /**
  * Lista todas las personas con paginación simple (coordinadora).
- * @param {{sede?:string, page?:number, pageSize?:number}} filtros
- * @returns {{personas: Object[], total: number}}
  */
 function listarPersonas(token, filtros = {}) {
   authenticate_(token);
@@ -197,15 +172,7 @@ function listarPersonas(token, filtros = {}) {
   const start    = (page - 1) * pageSize;
 
   return {
-    personas: personas.slice(start, start + pageSize).map(p => ({
-      id:            p.ID_Persona,
-      nombre:        p.Nombre,
-      documento:     p.Documento,
-      celular:       p.Celular,
-      correo:        p.Correo,
-      sede:          p.Sede,
-      fechaRegistro: p.Fecha_Registro ? formatDate_(new Date(p.Fecha_Registro)) : ''
-    })),
+    personas: personas.slice(start, start + pageSize).map(mapPersona_),
     total,
     page,
     pageSize

@@ -99,7 +99,9 @@ function badgeEstado(estado) {
     'NA':          '<span class="badge badge-muted">N/A</span>',
     'Efectivo':    '<span class="badge badge-green">Efectivo</span>',
     'Datáfono':    '<span class="badge badge-blue">Datáfono</span>',
-    'Nequi':       '<span class="badge badge-blue">Nequi</span>'
+    'Nequi':       '<span class="badge badge-blue">Nequi</span>',
+    'Anulada':     '<span class="badge badge-red">Anulada</span>',
+    'Activa':      '<span class="badge badge-green">Activa</span>'
   };
   return map[estado] || `<span class="badge badge-muted">${escHtml(estado)}</span>`;
 }

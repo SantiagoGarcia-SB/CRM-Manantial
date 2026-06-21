@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CRM Manantial – Coordinadora</title>
+  <title>CRM Punto de Información – Coordinadora</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -109,6 +109,14 @@
     /* ── MODAL FORMS ── */
     .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     @media (max-width: 520px) { .form-grid-2 { grid-template-columns: 1fr; } }
+
+    /* ── ACTIVIDADES MODAL ── */
+    .act-section-label { font-size:.78rem; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; margin-top:4px; }
+    .act-check-row { display:flex; align-items:center; gap:8px; font-size:.85rem; cursor:pointer; padding:6px 0; border-bottom:1px solid rgba(45,49,72,.2); }
+    .act-check-row:last-child { border:none; }
+    .ma-modulo-card { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:12px; }
+    .ma-modulo-horarios { padding-left:10px; border-left:2px solid var(--border); margin-top:10px; }
+    .ma-horario-row { display:flex; gap:6px; align-items:flex-end; margin-bottom:8px; flex-wrap:wrap; }
 
     /* ── COMPARACION ── */
     .comp-bar-wrap { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
@@ -232,26 +240,28 @@
 <!-- PANTALLA DE LOGIN COORDINADORA -->
 <div id="login-screen-coord" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--bg)">
   <div style="font-size:2rem;margin-bottom:8px">⛪</div>
-  <h1 style="font-size:1.2rem;color:var(--accent);margin-bottom:4px">CRM Manantial</h1>
+  <h1 style="font-size:1.2rem;color:var(--accent);margin-bottom:4px">CRM Punto de Información</h1>
   <p style="font-size:.82rem;color:var(--text-dim);margin-bottom:24px">Panel Coordinadora</p>
-  <div id="login-step-email" class="card" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px">
+
+  <!-- Paso 1: seleccionar coordinadora -->
+  <div id="login-paso-1" class="card" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px">
     <div class="input-group">
-      <label>Correo electrónico</label>
-      <input id="login-email" class="input" type="email" inputmode="email" placeholder="tu@correo.com"
-        onkeydown="if(event.key==='Enter') loginSolicitarCodigo()">
+      <label>¿Quién eres?</label>
+      <select id="login-coord-select" class="input">
+        <option value="">Cargando…</option>
+      </select>
     </div>
-    <button id="btn-solicitar" class="btn btn-primary btn-full" onclick="loginSolicitarCodigo()">Enviar código →</button>
+    <button id="btn-siguiente-coord" class="btn btn-primary btn-full" onclick="loginSiguiente()">Siguiente →</button>
   </div>
-  <div id="login-step-codigo" class="card hidden" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px">
-    <p style="font-size:.85rem;text-align:center;margin:0">Código enviado a<br><strong id="login-email-display" style="color:var(--accent)"></strong></p>
-    <div class="input-group">
-      <label>Código de 6 dígitos</label>
-      <input id="login-codigo" class="input" type="number" inputmode="numeric" placeholder="000000"
-        style="font-size:1.3rem;letter-spacing:6px;text-align:center"
-        onkeydown="if(event.key==='Enter') loginVerificarCodigo()">
-    </div>
-    <button id="btn-verificar" class="btn btn-primary btn-full" onclick="loginVerificarCodigo()">Ingresar →</button>
-    <button class="btn btn-ghost btn-full" onclick="loginVolver()" style="font-size:.82rem">← Cambiar correo</button>
+
+  <!-- Paso 2: PIN de 3 dígitos -->
+  <div id="login-paso-2" class="card hidden" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px">
+    <p style="font-size:.85rem;text-align:center;margin:0">Hola, <strong id="login-coord-nombre" style="color:var(--accent)"></strong><br>Ingresa tu PIN</p>
+    <input id="login-pin" class="input" type="password" inputmode="numeric" maxlength="3" placeholder="• • •"
+      style="font-size:2rem;letter-spacing:12px;text-align:center;padding:12px"
+      onkeydown="if(event.key==='Enter') loginVerificarPin()">
+    <button id="btn-ingresar-coord" class="btn btn-primary btn-full" onclick="loginVerificarPin()">Ingresar →</button>
+    <button class="btn btn-ghost btn-full" onclick="loginVolverPaso1()" style="font-size:.82rem">← Cambiar</button>
   </div>
 </div>
 
@@ -392,6 +402,7 @@
       <input id="f-activ" class="input" placeholder="Actividad…">
       <button class="btn btn-primary"   onclick="filtrarTransacciones()">Filtrar</button>
       <button class="btn btn-secondary" onclick="limpiarFiltrosTrans()">Limpiar actividad</button>
+      <button class="btn btn-secondary" onclick="exportarDatafono()" style="margin-left:auto">⬇ Excel Datáfono</button>
     </div>
     <div id="tabla-transacciones"></div>
     <div id="pag-trans" class="flex gap-8 mt-16"></div>
@@ -466,45 +477,102 @@
 
   <!-- ─────────────────── 8. ACTIVIDADES ───────────────────────────── -->
   <div id="sec-actividades" class="section">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:16px">
+      <button class="btn btn-secondary" onclick="abrirModalCategorias()">⚙ Categorías</button>
       <button class="btn btn-primary" onclick="abrirModalActividad()">➕ Nueva actividad</button>
     </div>
     <div id="tabla-actividades"></div>
     <div id="modal-actividad" class="modal-backdrop">
-      <div class="modal">
+      <div class="modal" style="max-width:620px">
         <div class="modal-header">
           <h3 id="modal-act-titulo">Nueva actividad</h3>
           <button class="modal-close">✕</button>
         </div>
         <div class="modal-body">
           <div class="form-grid-2">
-            <div class="input-group"><label>Nombre *</label><input id="ma-nombre" class="input" placeholder="Ej: Escuela Dominical"></div>
-            <div class="input-group"><label>Categoría *</label><input id="ma-cat" class="input" placeholder="Ej: Academia"></div>
-          </div>
-          <div class="form-grid-2">
-            <div class="input-group"><label>Valor base (COP)</label><input id="ma-valor" class="input" type="number" min="0" placeholder="0"></div>
-            <div style="display:flex;flex-direction:column;gap:10px;padding-top:22px">
-              <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
-                <input type="checkbox" id="ma-variable" style="width:16px;height:16px;accent-color:var(--accent)"> Monto variable
-              </label>
-              <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
-                <input type="checkbox" id="ma-inscripcion" style="width:16px;height:16px;accent-color:var(--accent)"> Requiere inscripción
-              </label>
+            <div class="input-group">
+              <label>Nombre *</label>
+              <input id="ma-nombre" class="input" placeholder="Ej: Conéctate jóvenes">
+            </div>
+            <div class="input-group">
+              <label>Categoría *</label>
+              <select id="ma-cat" class="input" onchange="onActCatChange()">
+                <option value="">Selecciona…</option>
+                <option value="__otra__">Otra…</option>
+              </select>
+              <input id="ma-cat-otra" class="input hidden" placeholder="Especifica la categoría" style="margin-top:6px">
             </div>
           </div>
-          <div style="display:flex;flex-direction:column;gap:8px">
-            <div style="font-size:.8rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em">Requiere legalización</div>
-            <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
-              <input type="checkbox" id="ma-iglesia" style="width:16px;height:16px;accent-color:var(--accent)"> Plataforma Iglesia
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
-              <input type="checkbox" id="ma-academia" style="width:16px;height:16px;accent-color:var(--accent)"> Academia El Camino
-            </label>
+          <div id="ma-valor-section">
+            <div class="input-group">
+              <label>Tipo de valor</label>
+              <div style="display:flex;gap:20px;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
+                  <input type="radio" name="ma-tipovalor" value="fijo" checked onchange="onActTipoValorChange()"> Fijo
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
+                  <input type="radio" name="ma-tipovalor" value="variable" onchange="onActTipoValorChange()"> Variable
+                </label>
+              </div>
+            </div>
+            <div id="ma-valor-wrap" class="input-group">
+              <label>Valor base (COP)</label>
+              <input id="ma-valor" class="input" type="number" min="0" placeholder="0">
+            </div>
+          </div>
+          <div style="margin-top:8px">
+            <div class="act-section-label">Configuración</div>
+            <div class="act-check-row" style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px">
+              <span>Legalizar pago</span>
+              <div style="display:flex;gap:12px">
+                <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer">
+                  <input type="radio" name="ma-legal-pago" value="si" style="accent-color:var(--accent)"> Sí
+                </label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer">
+                  <input type="radio" name="ma-legal-pago" value="no" checked style="accent-color:var(--accent)"> No
+                </label>
+              </div>
+            </div>
+            <div class="act-check-row" style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px">
+              <span>Legalizar inscripción</span>
+              <div style="display:flex;gap:12px">
+                <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer">
+                  <input type="radio" name="ma-legal-inscripcion" value="si" style="accent-color:var(--accent)"> Sí
+                </label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer">
+                  <input type="radio" name="ma-legal-inscripcion" value="no" checked style="accent-color:var(--accent)"> No
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Módulos y horarios (solo Academia El Camino) -->
+          <div id="act-modulos-section" class="hidden" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
+            <div class="act-section-label">Módulos y horarios *</div>
+            <div id="ma-modulos-list"></div>
+            <button class="btn btn-secondary" style="margin-top:4px" onclick="actAddModulo()">+ Agregar módulo</button>
           </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="closeModal('modal-actividad')">Cancelar</button>
           <button id="btn-guardar-act" class="btn btn-primary" onclick="guardarActividad()">Guardar</button>
+        </div>
+      </div>
+    </div>
+    <!-- Modal gestión de categorías -->
+    <div id="modal-categorias" class="modal-backdrop">
+      <div class="modal" style="max-width:420px">
+        <div class="modal-header">
+          <h3>Gestionar categorías</h3>
+          <button class="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="display:flex;gap:8px;margin-bottom:16px">
+            <input id="nueva-cat-input" class="input" placeholder="Nueva categoría…" style="flex:1"
+              onkeydown="if(event.key==='Enter') crearCatUI()">
+            <button class="btn btn-primary" onclick="crearCatUI()">Agregar</button>
+          </div>
+          <div id="lista-categorias"></div>
         </div>
       </div>
     </div>
@@ -573,10 +641,10 @@
 <script>
 // ─── SESIÓN ───────────────────────────────────────────────────────────────────
 window._sessionToken = '';
-let _coordLoginEmail = '';
 
 async function initApp() {
   const token = localStorage.getItem('crm_token');
+  cargarSelectorCoordinadoras();
   if (!token) { mostrarLoginCoord(); return; }
   try {
     const info = await gsrPublic('getCurrentUserInfo', token);
@@ -597,37 +665,49 @@ async function initApp() {
   }
 }
 
+async function cargarSelectorCoordinadoras() {
+  try {
+    const lista = await gsrPublic('listarCoordinadorasPublico');
+    const sel = qs('#login-coord-select');
+    sel.innerHTML = '<option value="">Selecciona…</option>' +
+      lista.map(c => `<option value="${escHtml(c.email)}">${escHtml(c.nombre)} (${escHtml(c.sede)})</option>`).join('');
+  } catch (e) {
+    qs('#login-coord-select').innerHTML = '<option value="">Error cargando lista</option>';
+  }
+}
+
 function mostrarLoginCoord(errorMsg) {
   hide('#coord-app');
   show('#login-screen-coord');
+  show('#login-paso-1');
+  hide('#login-paso-2');
   if (errorMsg) toast.error(errorMsg);
 }
 
-async function loginSolicitarCodigo() {
-  const email = qs('#login-email').value.trim().toLowerCase();
-  if (!email) { toast.warn('Ingresa tu correo'); return; }
-  const btn = qs('#btn-solicitar');
-  setLoading(btn, true);
-  try {
-    await gsrPublic('solicitarAcceso', email);
-    _coordLoginEmail = email;
-    setHtml('#login-email-display', escHtml(email));
-    hide('#login-step-email');
-    show('#login-step-codigo');
-    qs('#login-codigo').value = '';
-    qs('#login-codigo').focus();
-  } catch (e) { toast.error(e.message); }
-  finally { setLoading(btn, false); }
+function loginSiguiente() {
+  const sel = qs('#login-coord-select');
+  if (!sel.value) { toast.warn('Selecciona tu nombre'); return; }
+  const nombre = sel.options[sel.selectedIndex].text.split(' (')[0];
+  setText('#login-coord-nombre', nombre);
+  hide('#login-paso-1');
+  show('#login-paso-2');
+  qs('#login-pin').value = '';
+  qs('#login-pin').focus();
 }
 
-async function loginVerificarCodigo() {
-  const code = qs('#login-codigo').value.trim();
-  if (!code) { toast.warn('Ingresa el código'); return; }
-  const btn = qs('#btn-verificar');
+function loginVolverPaso1() {
+  show('#login-paso-1');
+  hide('#login-paso-2');
+}
+
+async function loginVerificarPin() {
+  const email = qs('#login-coord-select').value;
+  const pin   = qs('#login-pin').value.trim();
+  if (!pin) { toast.warn('Ingresa tu PIN'); return; }
+  const btn = qs('#btn-ingresar-coord');
   setLoading(btn, true);
   try {
-    const res = await gsrPublic('verificarCodigo', _coordLoginEmail, code);
-    if (res.rol !== 'coordinadora') { toast.error('Tu cuenta no tiene rol de coordinadora.'); return; }
+    const res = await gsrPublic('verificarPinCoordinadora', email, pin);
     window._sessionToken = res.token;
     localStorage.setItem('crm_token', res.token);
     setText('#coord-user-name', res.nombre);
@@ -636,13 +716,12 @@ async function loginVerificarCodigo() {
     show('#coord-app');
     iniciarDashboard();
     toast.success('Bienvenida, ' + res.nombre + ' ✓');
-  } catch (e) { toast.error(e.message); }
+  } catch (e) {
+    toast.error(e.message);
+    qs('#login-pin').value = '';
+    qs('#login-pin').focus();
+  }
   finally { setLoading(btn, false); }
-}
-
-function loginVolver() {
-  show('#login-step-email');
-  hide('#login-step-codigo');
 }
 
 function salir() {
@@ -650,8 +729,7 @@ function salir() {
   window._sessionToken = '';
   localStorage.removeItem('crm_token');
   mostrarLoginCoord();
-  qs('#login-email').value = '';
-  _coordLoginEmail = '';
+  cargarSelectorCoordinadoras();
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
@@ -772,7 +850,7 @@ async function cargarDashboard() {
     ]);
 
     // KPIs
-    const etiquetaScope = kpis.filtroPeriodo ? kpis.filtroPeriodo.nombre : 'Histórico';
+    const etiquetaScope = 'Histórico';
     const etiquetaSede  = GLOBAL_SEDE ? ` · ${GLOBAL_SEDE}` : '';
     setHtml('#kpis-grid', `
       <div class="kpi-card kpi-accent">
@@ -908,6 +986,128 @@ function limpiarFiltrosTrans() {
   filtrarTransacciones(1);
 }
 
+async function exportarDatafono() {
+  const usarRango = !GLOBAL_DESDE && !GLOBAL_HASTA && TRANS_TAB_RANGO !== 'todo';
+  const filtros = {
+    rango:       usarRango ? TRANS_TAB_RANGO : undefined,
+    sede:        GLOBAL_SEDE   || undefined,
+    fechaDesde:  GLOBAL_DESDE  || undefined,
+    fechaHasta:  GLOBAL_HASTA  || undefined,
+    asesorEmail: GLOBAL_ASESOR || undefined,
+    actividad:   qs('#f-activ').value.trim() || undefined
+  };
+  try {
+    const rows = await gsr('exportarTransaccionesDatafono', filtros);
+    if (!rows || !rows.length) { toast.warn('No hay transacciones de Datáfono para exportar'); return; }
+
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2,'0');
+    const mm = String(now.getMonth()+1).padStart(2,'0');
+    const yyyy = now.getFullYear();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const min = String(now.getMinutes()).padStart(2,'0');
+    const fechaGen = `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+
+    const headers = [
+      'FECHA DATÁFONO','FRANQUICIA','N° AUTORIZACIÓN','VALOR',
+      'NOMBRE TITULAR','CÉDULA','CELULAR',
+      'BENEFICIARIO DE PAGO','CÉDULA DE BENEFICIARIO','CELULAR DE BENEFICIARIO',
+      'CONCEPTO','DÉBITO/CRÉDITO','N° DATÁFONO'
+    ];
+    const keys = [
+      'fechaDatafono','franquicia','noAutorizacion','valor',
+      'nombreTitular','cedula','celular',
+      'beneficiarioPago','cedulaBeneficiario','celularBeneficiario',
+      'concepto','debitoCredito','noDatafono'
+    ];
+    const totalCols = headers.length;
+    const thStyle = 'style="background:#2d3148;color:#fff;font-weight:bold;padding:6px 10px;font-size:11px;border:1px solid #555"';
+    const tdStyle = 'style="padding:5px 10px;font-size:11px;border:1px solid #ccc"';
+    const fmtCOP = v => new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(v||0);
+
+    // Agrupar por sede
+    const porSede = {};
+    rows.forEach(r => {
+      const s = r.sede || 'Sin sede';
+      if (!porSede[s]) porSede[s] = [];
+      porSede[s].push(r);
+    });
+    const sedes = Object.keys(porSede).sort();
+
+    // ── RESUMEN CONSOLIDADO ──
+    let body = '';
+    body += `<tr><td colspan="${totalCols}" style="font-size:16px;font-weight:bold;padding:12px 10px;background:#1a1d2e;color:#6c63ff;border:none">CIERRE DATÁFONO</td></tr>`;
+    body += `<tr><td colspan="${totalCols}" style="font-size:11px;color:#888;padding:2px 10px;border:none">Generado: ${fechaGen}</td></tr>`;
+    body += `<tr><td colspan="${totalCols}" style="border:none">&nbsp;</td></tr>`;
+    body += `<tr>
+      <td style="background:#6c63ff;color:#fff;font-weight:bold;padding:6px 10px;border:1px solid #555">SEDE</td>
+      <td style="background:#6c63ff;color:#fff;font-weight:bold;padding:6px 10px;border:1px solid #555">N° TRANSACCIONES</td>
+      <td style="background:#6c63ff;color:#fff;font-weight:bold;padding:6px 10px;border:1px solid #555">TOTAL DATÁFONO</td>
+      <td colspan="${totalCols-3}" style="border:none"></td></tr>`;
+    let granTotal = 0;
+    sedes.forEach(sede => {
+      const trans = porSede[sede];
+      const totalSede = trans.reduce((s,r) => s + (Number(r.valor)||0), 0);
+      granTotal += totalSede;
+      body += `<tr>
+        <td ${tdStyle}>${escHtml(sede)}</td>
+        <td ${tdStyle} style="text-align:center;padding:5px 10px;font-size:11px;border:1px solid #ccc">${trans.length}</td>
+        <td ${tdStyle} style="text-align:right;padding:5px 10px;font-size:11px;border:1px solid #ccc">${fmtCOP(totalSede)}</td>
+        <td colspan="${totalCols-3}" style="border:none"></td></tr>`;
+    });
+    body += `<tr>
+      <td style="font-weight:bold;background:#2d3148;color:#fff;padding:6px 10px;border:1px solid #555">GRAN TOTAL</td>
+      <td style="font-weight:bold;background:#2d3148;color:#fff;text-align:center;padding:6px 10px;border:1px solid #555">${rows.length}</td>
+      <td style="font-weight:bold;background:#2d3148;color:#fff;text-align:right;padding:6px 10px;border:1px solid #555">${fmtCOP(granTotal)}</td>
+      <td colspan="${totalCols-3}" style="border:none"></td></tr>`;
+
+    // ── BLOQUES POR SEDE ──
+    sedes.forEach(sede => {
+      const trans = porSede[sede];
+      const totalSede = trans.reduce((s,r) => s + (Number(r.valor)||0), 0);
+      body += `<tr><td colspan="${totalCols}" style="border:none">&nbsp;</td></tr>`;
+      body += `<tr><td colspan="${totalCols}" style="border:none">&nbsp;</td></tr>`;
+      body += `<tr><td colspan="${totalCols}" style="font-size:14px;font-weight:bold;padding:10px;background:#6c63ff;color:#fff;border:1px solid #555">📍 ${escHtml(sede)} — ${trans.length} transacción(es)</td></tr>`;
+      body += `<tr>${headers.map(h => `<th ${thStyle}>${escHtml(h)}</th>`).join('')}</tr>`;
+      trans.forEach(r => {
+        body += '<tr>' + keys.map(k => {
+          const v = r[k] ?? '';
+          if (k === 'valor') return `<td ${tdStyle} style="text-align:right;padding:5px 10px;font-size:11px;border:1px solid #ccc">${fmtCOP(v)}</td>`;
+          return `<td ${tdStyle}>${escHtml(String(v))}</td>`;
+        }).join('') + '</tr>';
+      });
+      body += `<tr>
+        ${`<td colspan="${keys.indexOf('valor')}" style="text-align:right;font-weight:bold;background:#f0f0f0;padding:6px 10px;border:1px solid #ccc">SUBTOTAL ${escHtml(sede)}</td>`}
+        <td style="text-align:right;font-weight:bold;background:#f0f0f0;padding:6px 10px;border:1px solid #ccc">${fmtCOP(totalSede)}</td>
+        <td colspan="${totalCols - keys.indexOf('valor') - 1}" style="background:#f0f0f0;border:1px solid #ccc"></td>
+      </tr>`;
+    });
+
+    // ── GRAN TOTAL FINAL ──
+    body += `<tr><td colspan="${totalCols}" style="border:none">&nbsp;</td></tr>`;
+    body += `<tr>
+      ${`<td colspan="${keys.indexOf('valor')}" style="text-align:right;font-weight:bold;background:#2d3148;color:#fff;padding:8px 10px;font-size:12px;border:1px solid #555">GRAN TOTAL DATÁFONO</td>`}
+      <td style="text-align:right;font-weight:bold;background:#2d3148;color:#fff;padding:8px 10px;font-size:12px;border:1px solid #555">${fmtCOP(granTotal)}</td>
+      <td colspan="${totalCols - keys.indexOf('valor') - 1}" style="background:#2d3148;border:1px solid #555"></td>
+    </tr>`;
+
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+      <x:Name>Cierre Datáfono</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+      </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>
+      <body><table>${body}</table></body></html>`;
+
+    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `datafono_${dd}-${mm}-${yyyy}_${hh}${min}.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${rows.length} registro(s) exportados`);
+  } catch(e) { toast.error('Error exportando: ' + e.message); }
+}
+
 async function filtrarTransacciones(page = 1) {
   TRANS_PAGE = page;
   const usarRango = !GLOBAL_DESDE && !GLOBAL_HASTA && TRANS_TAB_RANGO !== 'todo';
@@ -928,15 +1128,29 @@ async function filtrarTransacciones(page = 1) {
       { key:'timestamp',     label:'Fecha' },
       { key:'nombrePersona', label:'Persona' },
       { key:'actividad',     label:'Actividad' },
-      { key:'monto',         label:'Monto',    render: v => fmt.cop(v) },
+      { key:'monto',         label:'Monto',    render: (v, r) => `<span style="${r.estado==='Anulada'?'text-decoration:line-through;opacity:.5':''}">${fmt.cop(v)}</span>` },
       { key:'metodoPago',    label:'Método',   render: v => badgeEstado(v) },
       { key:'sede',          label:'Sede' },
       { key:'asesorNombre',  label:'Asesor' },
       { key:'estadoIglesia', label:'Iglesia',  render: v => badgeEstado(v) },
-      { key:'estadoAcademia',label:'Academia', render: v => badgeEstado(v) }
+      { key:'estadoAcademia',label:'Academia', render: v => badgeEstado(v) },
+      { key:'estado',        label:'Estado',   render: (v, r) => {
+        var estado = v || 'Activa';
+        if (estado === 'Anulada') return badgeEstado('Anulada');
+        return `${badgeEstado('Activa')} <button class="btn btn-ghost" style="font-size:.65rem;padding:1px 6px;color:var(--red);margin-left:4px" onclick="anularTransaccionCoord('${escHtml(r.id)}')">Anular</button>`;
+      }}
     ]);
     renderPaginacion('pag-trans', res, filtrarTransacciones);
   } catch(e) { toast.error('Error: ' + e.message); }
+}
+
+async function anularTransaccionCoord(idTrans) {
+  if (!confirm('¿Anular esta transacción? Esta acción no se puede deshacer.')) return;
+  try {
+    await gsr('anularTransaccion', idTrans);
+    toast.success('Transacción anulada ✓');
+    filtrarTransacciones(TRANS_PAGE);
+  } catch(e) { toast.error(e.message); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1016,10 +1230,11 @@ async function abrirFicha(id) {
     renderTable('ficha-historial', transacciones, [
       { key:'timestamp', label:'Fecha' },
       { key:'actividad', label:'Actividad' },
-      { key:'monto',     label:'Monto',  render: v => fmt.cop(v) },
+      { key:'monto',     label:'Monto',  render: (v, r) => `<span style="${r.estado==='Anulada'?'text-decoration:line-through;opacity:.5':''}">${fmt.cop(v)}</span>` },
       { key:'metodoPago',label:'Método', render: v => badgeEstado(v) },
       { key:'estadoIglesia',  label:'Iglesia', render: v => badgeEstado(v) },
-      { key:'estadoAcademia', label:'Academia',render: v => badgeEstado(v) }
+      { key:'estadoAcademia', label:'Academia',render: v => badgeEstado(v) },
+      { key:'estado',         label:'Estado',  render: v => badgeEstado(v || 'Activa') }
     ]);
   } catch(e) { toast.error('Error: ' + e.message); }
 }
@@ -1119,18 +1334,24 @@ function exportarAnalisis() {
 // ═══════════════════════════════════════════════════════════════════════════
 // 8. ACTIVIDADES CRUD
 // ═══════════════════════════════════════════════════════════════════════════
+let _maModulos = [];
+let _catCache   = [];
+
 async function cargarActividades() {
+  await loadActCats();
+
   try {
     const acts = await gsr('listarTodasActividades');
     renderTable('tabla-actividades', acts, [
       { key:'nombre',              label:'Nombre' },
       { key:'categoria',           label:'Categoría' },
-      { key:'valorBase',           label:'Valor base', render: v => fmt.cop(v) },
-      { key:'valorVariable',       label:'Variable',   render: v => v ? '✓' : '–' },
-      { key:'requiereInscripcion', label:'Inscripción',render: v => v ? '✓' : '–' },
-      { key:'legalizarIglesia',    label:'Iglesia',    render: v => v ? '✓' : '–' },
-      { key:'legalizarAcademia',   label:'Academia',   render: v => v ? '✓' : '–' },
-      { key:'activa',              label:'Activa',     render: v => v ? '<span class="badge badge-green">Sí</span>' : '<span class="badge badge-red">No</span>' },
+      { key:'valorBase',           label:'Valor', render: (v,r) => r.valorVariable ? '<span class="badge">Variable</span>' : fmt.cop(v) },
+      { key:'horarios',            label:'Horarios',  render: v => (v&&v.length) ? `${v.length} horario${v.length>1?'s':''}` : '–' },
+      { key:'modulos',             label:'Módulos',   render: v => (v&&v.length) ? `${v.length} módulo${v.length>1?'s':''}` : '–' },
+      { key:'requiereInscripcion', label:'Inscripción', render: v => v ? '✓' : '–' },
+      { key:'legalizarPago',       label:'Leg. pago',  render: v => v ? '✓' : '–' },
+      { key:'legalizarInscripcion',label:'Leg. insc.', render: v => v ? '✓' : '–' },
+      { key:'activa',              label:'Activa', render: v => v ? '<span class="badge badge-green">Sí</span>' : '<span class="badge badge-red">No</span>' },
       { key:'id', label:'', render: (v,r) => `
         <div style="display:flex;gap:6px">
           <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" onclick='editarActividad(${JSON.stringify(r)})'>✏️</button>
@@ -1140,37 +1361,278 @@ async function cargarActividades() {
   } catch(e) { toast.error('Error: ' + e.message); }
 }
 
-function abrirModalActividad() {
+async function loadActCats() {
+  try {
+    _catCache = await gsr('listarCategorias');
+    const sel = qs('#ma-cat');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Selecciona…</option>'
+      + _catCache.map(c => `<option value="${escHtml(c.nombre)}">${escHtml(c.nombre)}</option>`).join('')
+      + '<option value="__otra__">Otra…</option>';
+    if (cur) sel.value = cur;
+    onActCatChange();
+  } catch(e) { /* silencioso, fallback al select vacío */ }
+}
+
+async function abrirModalCategorias() {
+  openModal('modal-categorias');
+  await renderListaCats();
+}
+
+async function renderListaCats() {
+  setHtml('#lista-categorias','<div class="skeleton" style="height:120px"></div>');
+  try {
+    _catCache = await gsr('listarCategorias');
+    setHtml('#lista-categorias', _catCache.length
+      ? _catCache.map(c => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:.88rem">${escHtml(c.nombre)}</span>
+          <button class="btn btn-ghost" style="padding:2px 8px;font-size:.75rem;color:var(--red)" onclick="eliminarCatUI('${escHtml(c.id)}','${escHtml(c.nombre)}')">✕</button>
+        </div>`).join('')
+      : '<p class="text-muted text-center mt-16">Sin categorías.</p>');
+  } catch(e) { toast.error('Error: ' + e.message); }
+}
+
+async function crearCatUI() {
+  const input  = qs('#nueva-cat-input');
+  const nombre = input.value.trim();
+  if (!nombre) { toast.warn('Escribe el nombre de la categoría'); return; }
+  try {
+    await gsr('crearCategoria', nombre);
+    input.value = '';
+    await renderListaCats();
+    await loadActCats();
+    toast.success('Categoría agregada');
+  } catch(e) { toast.error(e.message); }
+}
+
+async function eliminarCatUI(id, nombre) {
+  if (!confirm(`¿Eliminar la categoría "${nombre}"?\nLas actividades existentes que la usen no se verán afectadas.`)) return;
+  try {
+    await gsr('eliminarCategoria', id);
+    await renderListaCats();
+    await loadActCats();
+    toast.success('Categoría eliminada');
+  } catch(e) { toast.error(e.message); }
+}
+
+function onActCatChange() {
+  const val = qs('#ma-cat').value;
+  qs('#ma-cat-otra').classList.toggle('hidden', val !== '__otra__');
+  const isAcademia = val === 'Academia El Camino';
+  qs('#act-modulos-section').classList.toggle('hidden', !isAcademia);
+  qs('#ma-valor-section').classList.toggle('hidden', isAcademia);
+}
+
+function onActTipoValorChange() {
+  const isVar = document.querySelector('input[name="ma-tipovalor"]:checked').value === 'variable';
+  qs('#ma-valor-wrap').classList.toggle('hidden', isVar);
+}
+
+const DIAS_SEMANA_ = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo','Otro'];
+const HORAS_OPTIONS_ = (() => {
+  const opts = [];
+  for (let h = 5; h <= 22; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const h12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const val = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+      opts.push({ val, label: h12 + ':' + String(m).padStart(2,'0') + ' ' + ampm });
+    }
+  }
+  return opts;
+})();
+
+function actRenderModulos() {
+  if (!_maModulos.length) {
+    setHtml('#ma-modulos-list','<p class="text-muted" style="font-size:.82rem;margin-bottom:12px">Sin módulos aún. Agrega uno para continuar.</p>');
+    return;
+  }
+  setHtml('#ma-modulos-list', _maModulos.map((m, mi) => {
+    const horarios = m.horarios || [];
+    const filaHorarios = horarios.map((h, hi) => {
+      const esOtro = h.dia === 'Otro';
+      if (esOtro) {
+        return `
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px;position:relative">
+          <button class="btn btn-ghost" style="position:absolute;top:6px;right:6px;height:26px;width:26px;padding:0;color:var(--red);display:flex;align-items:center;justify-content:center;font-size:.75rem" onclick="actRemoveHorarioMod(${mi},${hi})">✕</button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <div style="font-size:.68rem;color:var(--text-dim);font-weight:600;margin-bottom:3px">DÍA</div>
+              <select class="input" style="font-size:.82rem;width:100%" onchange="actSetHorarioMod(${mi},${hi},'dia',this.value);actRenderModulos()">
+                ${DIAS_SEMANA_.map(d=>`<option${h.dia===d?' selected':''}>${d}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <div style="font-size:.68rem;color:var(--text-dim);font-weight:600;margin-bottom:3px">MODALIDAD</div>
+              <select class="input" style="font-size:.82rem;width:100%" onchange="actSetHorarioMod(${mi},${hi},'modalidad',this.value)">
+                <option${h.modalidad==='Presencial'?' selected':''}>Presencial</option>
+                <option${h.modalidad==='Virtual'?' selected':''}>Virtual</option>
+              </select>
+            </div>
+          </div>
+        </div>`;
+      }
+      return `
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px;position:relative">
+        <button class="btn btn-ghost" style="position:absolute;top:6px;right:6px;height:26px;width:26px;padding:0;color:var(--red);display:flex;align-items:center;justify-content:center;font-size:.75rem" onclick="actRemoveHorarioMod(${mi},${hi})">✕</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div>
+            <div style="font-size:.68rem;color:var(--text-dim);font-weight:600;margin-bottom:3px">DÍA</div>
+            <select class="input" style="font-size:.82rem;width:100%" onchange="actSetHorarioMod(${mi},${hi},'dia',this.value);actRenderModulos()">
+              ${DIAS_SEMANA_.map(d=>`<option${h.dia===d?' selected':''}>${d}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <div style="font-size:.68rem;color:var(--text-dim);font-weight:600;margin-bottom:3px">HORA INICIO</div>
+            <select class="input" style="font-size:.82rem;width:100%" onchange="actSetHorarioMod(${mi},${hi},'inicio',this.value)">
+              <option value="">Hora…</option>
+              ${HORAS_OPTIONS_.map(o=>`<option value="${o.val}"${h.inicio===o.val?' selected':''}>${o.label}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <div style="font-size:.68rem;color:var(--text-dim);font-weight:600;margin-bottom:3px">MODALIDAD</div>
+            <select class="input" style="font-size:.82rem;width:100%" onchange="actSetHorarioMod(${mi},${hi},'modalidad',this.value)">
+              <option${h.modalidad==='Presencial'?' selected':''}>Presencial</option>
+              <option${h.modalidad==='Virtual'?' selected':''}>Virtual</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:.68rem;color:var(--text-dim);font-weight:600;margin-bottom:3px">MAESTRO</div>
+            <input class="input" style="font-size:.82rem;width:100%" placeholder="Nombre del maestro" value="${escHtml(h.maestro||'')}" oninput="actSetHorarioMod(${mi},${hi},'maestro',this.value)">
+          </div>
+        </div>
+      </div>`}).join('');
+
+    const cabeceraHorarios = '';
+
+    return `
+      <div class="ma-modulo-card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div class="input-group" style="margin:0;flex:1">
+            <label style="font-size:.72rem">Nombre del módulo *</label>
+            <input class="input" value="${escHtml(m.nombre||'')}" placeholder="Ej: Nivel 1 – Introducción" oninput="actSetModulo(${mi},'nombre',this.value)">
+          </div>
+          <div class="input-group" style="margin:0;width:130px">
+            <label style="font-size:.72rem">Valor (COP) *</label>
+            <input class="input" type="number" min="0" value="${m.valor||''}" placeholder="0" oninput="actSetModulo(${mi},'valor',Number(this.value)||0)">
+          </div>
+          <button class="btn btn-ghost" style="width:34px;padding:0;color:var(--red);display:flex;align-items:center;justify-content:center;margin-top:16px" title="Eliminar módulo" onclick="actRemoveModulo(${mi})">✕</button>
+        </div>
+        <div class="ma-modulo-horarios">
+          <div style="font-size:.68rem;font-weight:700;color:var(--text-dim);margin-bottom:6px">HORARIOS</div>
+          ${cabeceraHorarios}
+          ${filaHorarios}
+          <button class="btn btn-ghost" style="font-size:.78rem;padding:3px 8px;color:var(--accent);margin-top:2px" onclick="actAddHorarioMod(${mi})">+ Agregar horario</button>
+        </div>
+      </div>`;
+  }).join(''));
+}
+
+function actSetModulo(mi, campo, val) { _maModulos[mi][campo] = val; }
+function actAddModulo() { _maModulos.push({ nombre:'', valor:0, horarios:[] }); actRenderModulos(); }
+function actRemoveModulo(mi) { _maModulos.splice(mi, 1); actRenderModulos(); }
+
+function actSetHorarioMod(mi, hi, campo, val) { _maModulos[mi].horarios[hi][campo] = val; }
+function actAddHorarioMod(mi) {
+  if (!_maModulos[mi].horarios) _maModulos[mi].horarios = [];
+  _maModulos[mi].horarios.push({ dia:'Lunes', inicio:'', modalidad:'Presencial', maestro:'' });
+  actRenderModulos();
+}
+function actRemoveHorarioMod(mi, hi) { _maModulos[mi].horarios.splice(hi, 1); actRenderModulos(); }
+
+async function abrirModalActividad() {
   ACTIV_EDITANDO = null;
+  _maModulos = [];
   setText('#modal-act-titulo','Nueva actividad');
-  qs('#ma-nombre').value = ''; qs('#ma-cat').value = ''; qs('#ma-valor').value = '';
-  qs('#ma-variable').checked = false; qs('#ma-inscripcion').checked = false;
-  qs('#ma-iglesia').checked = false;  qs('#ma-academia').checked = false;
+  qs('#ma-nombre').value = '';
+  qs('#ma-cat-otra').value = '';
+  qs('#ma-cat-otra').classList.add('hidden');
+  qs('#act-modulos-section').classList.add('hidden');
+  qs('#ma-valor-section').classList.remove('hidden');
+  document.querySelector('input[name="ma-tipovalor"][value="fijo"]').checked = true;
+  qs('#ma-valor-wrap').classList.remove('hidden');
+  qs('#ma-valor').value = '';
+  document.querySelector('input[name="ma-legal-pago"][value="no"]').checked = true;
+  document.querySelector('input[name="ma-legal-inscripcion"][value="no"]').checked = true;
+  actRenderModulos();
+  await loadActCats();
+  qs('#ma-cat').value = '';
   openModal('modal-actividad');
 }
 
-function editarActividad(act) {
+async function editarActividad(act) {
   ACTIV_EDITANDO = act;
+  _maModulos = Array.isArray(act.modulos) ? JSON.parse(JSON.stringify(act.modulos)) : [];
   setText('#modal-act-titulo','Editar actividad');
-  qs('#ma-nombre').value    = act.nombre;
-  qs('#ma-cat').value       = act.categoria;
-  qs('#ma-valor').value     = act.valorBase;
-  qs('#ma-variable').checked    = act.valorVariable;
-  qs('#ma-inscripcion').checked = act.requiereInscripcion;
-  qs('#ma-iglesia').checked     = act.legalizarIglesia;
-  qs('#ma-academia').checked    = act.legalizarAcademia;
+  qs('#ma-nombre').value = act.nombre;
+  await loadActCats();
+  // Si la categoría existe en el select la selecciona, si no usa "Otra"
+  const inList = _catCache.some(c => c.nombre === act.categoria);
+  if (inList) {
+    qs('#ma-cat').value = act.categoria;
+    qs('#ma-cat-otra').classList.add('hidden');
+  } else {
+    qs('#ma-cat').value = '__otra__';
+    qs('#ma-cat-otra').value = act.categoria;
+    qs('#ma-cat-otra').classList.remove('hidden');
+  }
+  const isVar = act.valorVariable;
+  document.querySelector(`input[name="ma-tipovalor"][value="${isVar?'variable':'fijo'}"]`).checked = true;
+  qs('#ma-valor-wrap').classList.toggle('hidden', isVar);
+  qs('#ma-valor').value = act.valorBase || '';
+  document.querySelector(`input[name="ma-legal-pago"][value="${act.legalizarPago ? 'si' : 'no'}"]`).checked = true;
+  document.querySelector(`input[name="ma-legal-inscripcion"][value="${act.legalizarInscripcion ? 'si' : 'no'}"]`).checked = true;
+  const isAcademia = act.categoria === 'Academia El Camino';
+  qs('#act-modulos-section').classList.toggle('hidden', !isAcademia);
+  qs('#ma-valor-section').classList.toggle('hidden', isAcademia);
+  actRenderModulos();
   openModal('modal-actividad');
 }
 
 async function guardarActividad() {
+  const catSel   = qs('#ma-cat').value;
+  const categoria = catSel === '__otra__' ? qs('#ma-cat-otra').value.trim() : catSel;
+  const isVar    = document.querySelector('input[name="ma-tipovalor"]:checked').value === 'variable';
+  const isAcademia = categoria === 'Academia El Camino';
+
+  if (isAcademia) {
+    if (!_maModulos.length) {
+      toast.warn('Debes agregar al menos un módulo para Academia El Camino');
+      return;
+    }
+    if (_maModulos.some(m => !m.nombre || !m.nombre.trim())) {
+      toast.warn('Cada módulo debe tener un nombre');
+      return;
+    }
+    if (_maModulos.some(m => !m.valor || m.valor <= 0)) {
+      toast.warn('Cada módulo debe tener un valor');
+      return;
+    }
+    if (_maModulos.some(m => !m.horarios || !m.horarios.length)) {
+      toast.warn('Cada módulo debe tener al menos un horario');
+      return;
+    }
+    for (const m of _maModulos) {
+      for (const h of (m.horarios || [])) {
+        if (h.dia !== 'Otro') {
+          if (!h.inicio) { toast.warn('Cada horario debe tener hora de inicio'); return; }
+          if (!h.maestro || !h.maestro.trim()) { toast.warn('Cada horario debe tener nombre del maestro'); return; }
+        }
+      }
+    }
+  }
+
   const datos = {
     nombre:              qs('#ma-nombre').value.trim(),
-    categoria:           qs('#ma-cat').value.trim(),
-    valorBase:           Number(qs('#ma-valor').value),
-    valorVariable:       qs('#ma-variable').checked,
-    requiereInscripcion: qs('#ma-inscripcion').checked,
-    legalizarIglesia:    qs('#ma-iglesia').checked,
-    legalizarAcademia:   qs('#ma-academia').checked
+    categoria,
+    valorBase:           isAcademia ? 0 : (isVar ? 0 : (Number(qs('#ma-valor').value) || 0)),
+    valorVariable:       isAcademia ? false : isVar,
+    legalizarPago:       document.querySelector('input[name="ma-legal-pago"]:checked').value === 'si',
+    legalizarInscripcion:document.querySelector('input[name="ma-legal-inscripcion"]:checked').value === 'si',
+    modulos:             isAcademia ? _maModulos : []
   };
   const btn = qs('#btn-guardar-act');
   setLoading(btn, true);

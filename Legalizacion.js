@@ -42,13 +42,16 @@ function obtenerCola_(tipo) {
   const legalizaciones = sheetToObjects_('Legalizaciones')
     .filter(l => l.Tipo === tipo && l.Estado === 'Pendiente');
 
-  // Enriquecer con datos de la transacción
   const transMap = {};
   sheetToObjects_('Transacciones').forEach(t => { transMap[t.ID_Trans] = t; });
 
   const ahora = new Date();
 
   return legalizaciones
+    .filter(l => {
+      const trans = transMap[l.ID_Trans];
+      return !trans || (trans.Estado || 'Activa') !== 'Anulada';
+    })
     .map(l => {
       const trans = transMap[l.ID_Trans] || {};
       const ts    = trans.Timestamp ? new Date(trans.Timestamp) : null;

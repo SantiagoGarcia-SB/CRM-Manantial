@@ -6,7 +6,7 @@
 
 /**
  * Crea una inscripción vinculada a una transacción. Llamada internamente desde crearTransaccion.
- * @param {{idTrans, idPersona, actividad, modulo, horario, sede, periodo, asesorEmail}} datos
+ * @param {{idTrans, actividad, modulo, horario, sede, asesorEmail}} datos
  * @returns {{ok:boolean, id:string}}
  */
 function crearInscripcionDesdeTransaccion_(datos) {
@@ -17,12 +17,10 @@ function crearInscripcionDesdeTransaccion_(datos) {
   sheet.appendRow([
     id,
     datos.idTrans,
-    datos.idPersona,
     datos.actividad,
     datos.modulo   || '',
     datos.horario  || '',
     datos.sede,
-    datos.periodo,
     datos.asesorEmail,
     ahora
   ]);
@@ -45,7 +43,6 @@ function listarInscripciones(token, filtros = {}) {
     const sedeMap = buildAsesorSedeMap_();
     inscripciones = inscripciones.filter(i => sedeMap[i.Asesor_Email] === filtros.sede);
   }
-  if (filtros.periodo)     inscripciones = inscripciones.filter(i => i.Periodo === filtros.periodo);
   if (filtros.modulo)      inscripciones = inscripciones.filter(i => (i.Modulo || '').toLowerCase().includes(filtros.modulo.toLowerCase()));
   if (filtros.asesorEmail) inscripciones = inscripciones.filter(i => i.Asesor_Email === filtros.asesorEmail);
   if (filtros.fechaDesde) {
@@ -75,12 +72,10 @@ function listarInscripciones(token, filtros = {}) {
       return {
         id:              i.ID_Inscripcion,
         idTrans:         i.ID_Trans,
-        idPersona:       i.ID_Persona,
         actividad:       i.Actividad,
         modulo:          i.Modulo,
         horario:         i.Horario,
         sede:            i.Sede,
-        periodo:         i.Periodo,
         asesorEmail:     i.Asesor_Email,
         fecha:           i.Fecha ? formatDate_(new Date(i.Fecha)) : '',
         monto:           Number(trans.Monto) || 0,
@@ -102,7 +97,6 @@ function getKPIsInscripciones(token, periodoId) {
   authenticate_(token);
   requireRol_('coordinadora');
   let inscripciones = sheetToObjects_('Inscripciones');
-  if (periodoId) inscripciones = inscripciones.filter(i => i.Periodo === periodoId);
 
   // Enriquecer con monto desde Transacciones
   const transMap = {};

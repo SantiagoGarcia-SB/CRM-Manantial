@@ -2,20 +2,21 @@
 const SPREADSHEET_ID = '1YTlDfnO-vfQp1L9zYIZDbc38nS9MJn0phIifIrV_O64';
 
 const SHEET_HEADERS = {
-  Personas:       ['ID_Persona','Nombre','Documento','Celular','Correo','Sede','Fecha_Registro'],
-  Transacciones:  ['ID_Trans','Timestamp','ID_Persona','Nombre_Persona','Actividad','Sede','Monto',
+  Personas:       ['Documento','Nombre','Celular','Correo','Sede','Fecha_Registro'],
+  Transacciones:  ['ID_Trans','Timestamp','Nombre_Persona','Documento_Persona','Celular_Persona','Actividad','Sede','Monto',
                    'Metodo_Pago','Asesor_Email','Asesor_Nombre',
-                   'Estado_Legalizacion_Iglesia','Estado_Legalizacion_Academia','Periodo',
+                   'Estado_Legalizacion_Iglesia','Estado_Legalizacion_Academia',
                    'Datafono_Franquicia','Datafono_Tipo_Tarjeta','Datafono_Valor',
                    'Datafono_Beneficiario_Mismo','Datafono_Nombre_Beneficiario',
                    'Datafono_Doc_Beneficiario','Datafono_Celular_Beneficiario',
-                   'Datafono_No_Autorizacion','Datafono_No_Datafono'],
-  Inscripciones:  ['ID_Inscripcion','ID_Trans','ID_Persona','Actividad','Modulo','Horario','Sede',
-                   'Periodo','Asesor_Email','Fecha'],
+                   'Datafono_No_Autorizacion','Datafono_No_Datafono','Estado'],
+  Inscripciones:  ['ID_Inscripcion','ID_Trans','Actividad','Modulo','Horario','Sede',
+                   'Asesor_Email','Fecha'],
   Actividades:    ['ID_Actividad','Nombre','Categoria','Valor_Base','Valor_Variable',
-                   'Requiere_Inscripcion','Legalizar_Iglesia','Legalizar_Academia','Activa'],
-  Periodos:       ['ID_Periodo','Nombre','Tipo','Año','Fecha_Inicio','Fecha_Fin','Activo'],
-  Asesores:       ['Email','Nombre','Sede','Rol','Activo'],
+                   'Requiere_Inscripcion','Legalizar_Iglesia','Legalizar_Academia','Activa',
+                   'Legalizar_Pago','Legalizar_Inscripcion','Horarios','Modulos'],
+  Categorias:     ['ID_Categoria','Nombre'],
+  Asesores:       ['Email','Nombre','Sede','Rol','Activo','Pin'],
   Legalizaciones: ['ID_Legal','ID_Trans','Tipo','Estado','Fecha_Legalizacion','Notas']
 };
 
@@ -25,7 +26,7 @@ const SHEET_HEADERS = {
 function doGet(e) {
   const page = (e && e.parameter && e.parameter.page) === 'coord' ? 'coordinadora' : 'asesor';
   return HtmlService.createTemplateFromFile(page).evaluate()
-    .setTitle('CRM Manantial')
+    .setTitle('CRM Punto de Información')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0');
 }
@@ -34,6 +35,10 @@ function doGet(e) {
 
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+function cargarPaginaCoord() {
+  return HtmlService.createTemplateFromFile('coordinadora').evaluate().getContent();
 }
 
 function getSpreadsheet() {
@@ -125,7 +130,7 @@ function buildErrorPage_(mensaje, emailDetectado) {
   return HtmlService.createHtmlOutput(
     '<!DOCTYPE html><html lang="es"><head>' +
     '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<title>Acceso Restringido – CRM Manantial</title>' +
+    '<title>Acceso Restringido – CRM Punto de Información</title>' +
     '<style>' + css + '</style></head><body>' +
     '<div class="card">' +
     '<div class="icon">🔒</div>' +
@@ -160,15 +165,6 @@ function setupSheets() {
       Logger.log('Hoja ya existe: ' + name);
     }
   });
-
-  const periodos = ss.getSheetByName('Periodos');
-  if (periodos.getLastRow() < 2) {
-    const now = new Date();
-    periodos.appendRow([
-      generateId_('PER'), 'Semestre 1 - 2025', 'Semestre1', 2025,
-      new Date(now.getFullYear(), 0, 1), new Date(now.getFullYear(), 5, 30), true
-    ]);
-  }
 
   const actividades = ss.getSheetByName('Actividades');
   if (actividades.getLastRow() < 2) {

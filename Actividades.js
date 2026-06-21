@@ -21,16 +21,24 @@ function toBool_(val) {
  * Mapea una fila de actividad a objeto normalizado.
  */
 function mapActividad_(a) {
+  let horarios = [];
+  let modulos  = [];
+  try { horarios = JSON.parse(a.Horarios  || '[]'); } catch(e) {}
+  try { modulos  = JSON.parse(a.Modulos   || '[]'); } catch(e) {}
   return {
-    id:                 a.ID_Actividad,
-    nombre:             a.Nombre,
-    categoria:          a.Categoria,
-    valorBase:          Number(a.Valor_Base) || 0,
-    valorVariable:      toBool_(a.Valor_Variable),
-    requiereInscripcion:toBool_(a.Requiere_Inscripcion),
-    legalizarIglesia:   toBool_(a.Legalizar_Iglesia),
-    legalizarAcademia:  toBool_(a.Legalizar_Academia),
-    activa:             toBool_(a.Activa)
+    id:                  a.ID_Actividad,
+    nombre:              a.Nombre,
+    categoria:           a.Categoria,
+    valorBase:           Number(a.Valor_Base) || 0,
+    valorVariable:       toBool_(a.Valor_Variable),
+    requiereInscripcion: toBool_(a.Requiere_Inscripcion),
+    legalizarIglesia:    toBool_(a.Legalizar_Iglesia),
+    legalizarAcademia:   toBool_(a.Legalizar_Academia),
+    legalizarPago:       toBool_(a.Legalizar_Pago),
+    legalizarInscripcion:toBool_(a.Legalizar_Inscripcion),
+    horarios:            horarios,
+    modulos:             modulos,
+    activa:              toBool_(a.Activa)
   };
 }
 
@@ -89,12 +97,16 @@ function crearActividad(token, datos) {
     id,
     datos.nombre.trim(),
     datos.categoria.trim(),
-    Number(datos.valorBase)       || 0,
-    datos.valorVariable           ? true : false,
-    datos.requiereInscripcion     ? true : false,
-    datos.legalizarIglesia        ? true : false,
-    datos.legalizarAcademia       ? true : false,
-    true  // Activa por defecto
+    Number(datos.valorBase)         || 0,
+    datos.valorVariable             ? true : false,
+    datos.requiereInscripcion       ? true : false,
+    datos.legalizarIglesia          ? true : false,
+    datos.legalizarAcademia         ? true : false,
+    true,  // Activa por defecto
+    datos.legalizarPago             ? true : false,
+    datos.legalizarInscripcion      ? true : false,
+    JSON.stringify(datos.horarios   || []),
+    JSON.stringify(datos.modulos    || [])
   ]);
 
   return { ok: true, id };
@@ -121,7 +133,11 @@ function actualizarActividad(token, id, datos) {
     valorVariable:       'Valor_Variable',
     requiereInscripcion: 'Requiere_Inscripcion',
     legalizarIglesia:    'Legalizar_Iglesia',
-    legalizarAcademia:   'Legalizar_Academia'
+    legalizarAcademia:   'Legalizar_Academia',
+    legalizarPago:       'Legalizar_Pago',
+    legalizarInscripcion:'Legalizar_Inscripcion',
+    horarios:            'Horarios',
+    modulos:             'Modulos'
   };
 
   for (let i = 1; i < values.length; i++) {
@@ -129,7 +145,12 @@ function actualizarActividad(token, id, datos) {
       Object.entries(camposMap).forEach(([key, col]) => {
         if (datos[key] !== undefined) {
           const colIdx = headers.indexOf(col);
-          if (colIdx >= 0) sheet.getRange(i + 1, colIdx + 1).setValue(datos[key]);
+          if (colIdx >= 0) {
+            const val = (key === 'horarios' || key === 'modulos') && Array.isArray(datos[key])
+              ? JSON.stringify(datos[key])
+              : datos[key];
+            sheet.getRange(i + 1, colIdx + 1).setValue(val);
+          }
         }
       });
       return { ok: true };
@@ -162,79 +183,73 @@ function toggleActividad(token, id, activa) {
   throw new Error('Actividad no encontrada: ' + id);
 }
 
-// ─── PERÍODOS ─────────────────────────────────────────────────────────────────
+// ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
+
+const CATEGORIAS_DEFAULT_ = [
+  'Academia El Camino', 'Campamentos', 'Conéctate',
+  'Donaciones', 'Encuentros', 'Grupos de Cuidado'
+];
 
 /**
- * Lista todos los periodos.
- * @returns {Object[]}
+ * Lista todas las categorías. Si la hoja está vacía, siembra las categorías por defecto.
+ * @returns {{id:string, nombre:string}[]}
  */
-function listarPeriodos(token) {
+function listarCategorias(token) {
   authenticate_(token);
-  requireRol_('asesor', 'coordinadora');
-  return sheetToObjects_('Periodos').map(p => ({
-    id:          p.ID_Periodo,
-    nombre:      p.Nombre,
-    tipo:        p.Tipo,
-    año:         Number(p.Año) || 0,
-    fechaInicio: p.Fecha_Inicio instanceof Date ? formatDate_(p.Fecha_Inicio) : String(p.Fecha_Inicio || ''),
-    fechaFin:    p.Fecha_Fin   instanceof Date ? formatDate_(p.Fecha_Fin)   : String(p.Fecha_Fin   || ''),
-    activo:      toBool_(p.Activo)
-  }));
+  requireRol_('coordinadora');
+  const sheet = getSheet_('Categorias', true);
+  const rows  = sheetToObjects_('Categorias');
+
+  if (rows.length === 0) {
+    CATEGORIAS_DEFAULT_.forEach(nombre => {
+      sheet.appendRow([generateId_('CAT'), nombre]);
+    });
+    return CATEGORIAS_DEFAULT_.map(nombre => ({ id: '', nombre }));
+  }
+
+  return rows
+    .map(c => ({ id: c.ID_Categoria, nombre: c.Nombre }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 }
 
 /**
- * Crea un periodo y opcionalmente lo marca como activo (desactivando los demás).
- * @param {{nombre:string, tipo:string, año:number, fechaInicio:string, fechaFin:string, activo:boolean}} datos
+ * Crea una nueva categoría. Lanza error si ya existe una con el mismo nombre.
+ * @param {string} nombre
  * @returns {{ok:boolean, id:string}}
  */
-function crearPeriodo(token, datos) {
+function crearCategoria(token, nombre) {
   authenticate_(token);
   requireRol_('coordinadora');
-  validateRequired_(datos, ['nombre', 'tipo', 'año']);
-
-  if (datos.activo) desactivarTodosLosPeriodos_();
-
-  const sheet = getSheet_('Periodos', true);
-  const id    = generateId_('PER');
-  sheet.appendRow([
-    id, datos.nombre, datos.tipo, datos.año,
-    datos.fechaInicio || '', datos.fechaFin || '',
-    datos.activo ? true : false
-  ]);
+  if (!nombre || !nombre.trim()) throw new Error('El nombre es requerido');
+  const existing = sheetToObjects_('Categorias');
+  if (existing.some(c => c.Nombre.toLowerCase() === nombre.trim().toLowerCase())) {
+    throw new Error('Ya existe una categoría con ese nombre');
+  }
+  const sheet = getSheet_('Categorias', true);
+  const id    = generateId_('CAT');
+  sheet.appendRow([id, nombre.trim()]);
   return { ok: true, id };
 }
 
 /**
- * Marca un periodo como activo (desactiva todos los demás).
+ * Elimina una categoría por ID.
  * @param {string} id
  * @returns {{ok:boolean}}
  */
-function activarPeriodo(token, id) {
+function eliminarCategoria(token, id) {
   authenticate_(token);
   requireRol_('coordinadora');
-  desactivarTodosLosPeriodos_();
-  const sheet   = getSheet_('Periodos');
+  const sheet   = getSheet_('Categorias');
+  if (!sheet) throw new Error('Hoja de categorías no encontrada');
   const values  = sheet.getDataRange().getValues();
   const headers = values[0];
-  const idIdx   = headers.indexOf('ID_Periodo');
-  const actIdx  = headers.indexOf('Activo');
-
+  const idIdx   = headers.indexOf('ID_Categoria');
   for (let i = 1; i < values.length; i++) {
     if (values[i][idIdx] === id) {
-      sheet.getRange(i + 1, actIdx + 1).setValue(true);
+      sheet.deleteRow(i + 1);
       return { ok: true };
     }
   }
-  throw new Error('Periodo no encontrado: ' + id);
+  throw new Error('Categoría no encontrada');
 }
 
-function desactivarTodosLosPeriodos_() {
-  const sheet   = getSheet_('Periodos');
-  if (!sheet || sheet.getLastRow() < 2) return;
-  const values  = sheet.getDataRange().getValues();
-  const headers = values[0];
-  const actIdx  = headers.indexOf('Activo');
-  for (let i = 1; i < values.length; i++) {
-    sheet.getRange(i + 1, actIdx + 1).setValue(false);
-  }
-}

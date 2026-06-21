@@ -1,6 +1,7 @@
 // ─── TRANSACCIONES.GS ─────────────────────────────────────────────────────────
 // Contrato público:
 //   crearTransaccion(payload)           → {ok, transaccion, inscripcion?}
+//   anularTransaccion(idTrans)          → {ok}
 //   listarTransacciones(filtros)        → {transacciones:[], total:number}
 //   obtenerResumenAsesor(email?)        → {transacciones:[], resumen:{}}
 //   getHistorialTurno(sede?)             → {transacciones:[], totales:{}}
@@ -35,7 +36,7 @@
 function crearTransaccion(token, payload) {
   authenticate_(token);
   const asesorInfo = requireRol_('asesor', 'coordinadora');
-  validateRequired_(payload, ['idPersona','nombrePersona','idActividad','nombreActividad','monto','metodoPago','sede']);
+  validateRequired_(payload, ['nombrePersona','idActividad','nombreActividad','monto','metodoPago','sede']);
 
   if (!['Efectivo','Datáfono','Nequi'].includes(payload.metodoPago)) {
     throw new Error('Método de pago inválido: ' + payload.metodoPago);
@@ -44,13 +45,6 @@ function crearTransaccion(token, payload) {
 
   // Obtener actividad para leer sus flags
   const actividad = obtenerActividad_(payload.idActividad);
-
-  // Obtener periodo activo
-  const periodo = getPeriodoActivo_();
-  if (!periodo) {
-    // Advertencia: continuar sin periodo
-    Logger.log('ADVERTENCIA: No hay periodo activo configurado.');
-  }
 
   const ahora  = new Date();
   const idTrans = generateId_('TRN');
@@ -64,8 +58,9 @@ function crearTransaccion(token, payload) {
   sheet.appendRow([
     idTrans,
     ahora,
-    payload.idPersona,
     payload.nombrePersona,
+    payload.documentoPersona || '',
+    payload.celularPersona   || '',
     payload.nombreActividad,
     payload.sede,
     Number(payload.monto),
@@ -74,7 +69,6 @@ function crearTransaccion(token, payload) {
     asesorInfo.nombre,
     estadoIglesia,
     estadoAcademia,
-    periodo ? periodo.id : '',
     payload.dtFranquicia             || '',
     payload.dtTipoTarjeta            || '',
     payload.dtValor                  || '',
@@ -83,13 +77,13 @@ function crearTransaccion(token, payload) {
     payload.dtDocBeneficiario        || '',
     payload.dtCelularBeneficiario    || '',
     payload.dtNoAutorizacion         || '',
-    payload.dtNoDatafono             || ''
+    payload.dtNoDatafono             || '',
+    'Activa'
   ]);
 
   const transaccion = {
     id:              idTrans,
     timestamp:       formatDate_(ahora),
-    idPersona:       payload.idPersona,
     nombrePersona:   payload.nombrePersona,
     actividad:       payload.nombreActividad,
     sede:            payload.sede,
@@ -98,8 +92,7 @@ function crearTransaccion(token, payload) {
     asesorEmail:     asesorInfo.email,
     asesorNombre:    asesorInfo.nombre,
     estadoIglesia,
-    estadoAcademia,
-    periodo:         periodo ? periodo.nombre : 'Sin periodo'
+    estadoAcademia
   };
 
   // ── Generar filas de Legalizaciones según flags ──────────────────────────
@@ -118,12 +111,10 @@ function crearTransaccion(token, payload) {
   if (actividad.requiereInscripcion) {
     inscripcion = crearInscripcionDesdeTransaccion_({
       idTrans,
-      idPersona:    payload.idPersona,
       actividad:    payload.nombreActividad,
       modulo:       payload.modulo  || '',
       horario:      payload.horario || '',
       sede:         payload.sede,
-      periodo:      periodo ? periodo.id : '',
       asesorEmail:  asesorInfo.email
     });
   }
@@ -139,7 +130,7 @@ function crearTransaccion(token, payload) {
         metodo:    payload.metodoPago,
         asesor:    asesorInfo.nombre,
         fecha:     formatDate_(ahora),
-        periodo:   periodo ? periodo.nombre : ''
+        actividad: payload.nombreActividad
       });
     }
   } catch (e) {
@@ -147,6 +138,48 @@ function crearTransaccion(token, payload) {
   }
 
   return { ok: true, transaccion, inscripcion, legalizaciones };
+}
+
+/**
+ * Anula una transacción. Asesores solo pueden anular transacciones propias del día actual.
+ * Coordinadoras pueden anular cualquier transacción sin restricción.
+ */
+function anularTransaccion(token, idTrans) {
+  authenticate_(token);
+  const userInfo = requireRol_('asesor', 'coordinadora');
+
+  const sheet   = getSheet_('Transacciones');
+  const values  = sheet.getDataRange().getValues();
+  const headers = values[0];
+  const idIdx       = headers.indexOf('ID_Trans');
+  const tsIdx       = headers.indexOf('Timestamp');
+  const asesorIdx   = headers.indexOf('Asesor_Email');
+  const estadoIdx   = headers.indexOf('Estado');
+
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][idIdx] === idTrans) {
+      const estadoActual = values[i][estadoIdx] || 'Activa';
+      if (estadoActual === 'Anulada') throw new Error('Esta transacción ya fue anulada.');
+
+      if (userInfo.rol === 'asesor') {
+        if (values[i][asesorIdx] !== userInfo.email) {
+          throw new Error('Solo puedes anular tus propias transacciones.');
+        }
+        const fechaTrans = new Date(values[i][tsIdx]);
+        const inicioHoy  = new Date();
+        inicioHoy.setHours(0, 0, 0, 0);
+        if (fechaTrans < inicioHoy) {
+          throw new Error('Solo puedes anular transacciones del día de hoy. Contacta a tu coordinadora.');
+        }
+      }
+
+      if (estadoIdx >= 0) {
+        sheet.getRange(i + 1, estadoIdx + 1).setValue('Anulada');
+      }
+      return { ok: true };
+    }
+  }
+  throw new Error('Transacción no encontrada: ' + idTrans);
 }
 
 /**
@@ -171,8 +204,6 @@ function listarTransacciones(token, filtros = {}) {
   if (filtros.metodoPago)    trans = trans.filter(t => t.Metodo_Pago === filtros.metodoPago);
   if (filtros.estadoIglesia) trans = trans.filter(t => t.Estado_Legalizacion_Iglesia === filtros.estadoIglesia);
   if (filtros.estadoAcademia)trans = trans.filter(t => t.Estado_Legalizacion_Academia === filtros.estadoAcademia);
-  if (filtros.periodo)       trans = trans.filter(t => t.Periodo === filtros.periodo);
-
   if (filtros.fechaDesde) {
     const desde = new Date(filtros.fechaDesde);
     trans = trans.filter(t => t.Timestamp && new Date(t.Timestamp) >= desde);
@@ -234,6 +265,7 @@ function getHistorialTurno(token, sede) {
     .map(mapTransaccion_);
 
   const totales = trans.reduce((acc, t) => {
+    if (t.estado === 'Anulada') return acc;
     acc.total += t.monto;
     if (t.metodoPago === 'Efectivo')  acc.efectivo  += t.monto;
     if (t.metodoPago === 'Datáfono')  acc.datafono  += t.monto;
@@ -255,14 +287,14 @@ function getCarteraAsesor(token) {
   const ahora      = new Date();
 
   const trans = sheetToObjects_('Transacciones')
-    .filter(t => t.Asesor_Email === asesorInfo.email)
+    .filter(t => t.Asesor_Email === asesorInfo.email && (t.Estado || 'Activa') !== 'Anulada')
     .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
 
   // Agrupar por persona (última transacción de cada una)
   const porPersona = {};
   trans.forEach(t => {
-    if (!porPersona[t.ID_Persona]) {
-      porPersona[t.ID_Persona] = t;
+    if (!porPersona[t.Nombre_Persona]) {
+      porPersona[t.Nombre_Persona] = t;
     }
   });
 
@@ -279,7 +311,6 @@ function getCarteraAsesor(token) {
     else                         semaforo = 'rojo';
 
     return {
-      idPersona:       t.ID_Persona,
       nombrePersona:   t.Nombre_Persona,
       ultimaActividad: t.Actividad,
       ultimaMonto:     t.Monto,
@@ -330,13 +361,66 @@ function actualizarEstadoLegalizacion_(idTrans, tipo, estado) {
   throw new Error('Transacción no encontrada: ' + idTrans);
 }
 
+/**
+ * Exporta transacciones con método Datáfono para descarga Excel.
+ * Respeta los mismos filtros globales que listarTransacciones.
+ */
+function exportarTransaccionesDatafono(token, filtros = {}) {
+  authenticate_(token);
+  requireRol_('coordinadora');
+  let trans = sheetToObjects_('Transacciones')
+    .filter(t => t.Metodo_Pago === 'Datáfono' && (t.Estado || 'Activa') !== 'Anulada');
+
+  if (filtros.sede)        trans = trans.filter(t => t.Sede === filtros.sede);
+  if (filtros.asesorEmail) trans = trans.filter(t => t.Asesor_Email === filtros.asesorEmail);
+  if (filtros.actividad)   trans = trans.filter(t => (t.Actividad||'').toLowerCase().includes(filtros.actividad.toLowerCase()));
+  if (filtros.fechaDesde) {
+    const desde = new Date(filtros.fechaDesde);
+    trans = trans.filter(t => t.Timestamp && new Date(t.Timestamp) >= desde);
+  }
+  if (filtros.fechaHasta) {
+    const hasta = new Date(filtros.fechaHasta);
+    hasta.setHours(23, 59, 59);
+    trans = trans.filter(t => t.Timestamp && new Date(t.Timestamp) <= hasta);
+  }
+  if (filtros.rango) {
+    const ahora   = new Date();
+    let   fechaMin;
+    if (filtros.rango === 'hoy') {
+      fechaMin = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    } else if (filtros.rango === 'semana') {
+      fechaMin = new Date(ahora);
+      fechaMin.setDate(ahora.getDate() - 7);
+    }
+    if (fechaMin) trans = trans.filter(t => t.Timestamp && new Date(t.Timestamp) >= fechaMin);
+  }
+
+  trans.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
+
+  return trans.map(t => ({
+    sede:                   t.Sede                          || '',
+    fechaDatafono:          t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
+    franquicia:             t.Datafono_Franquicia           || '',
+    noAutorizacion:         t.Datafono_No_Autorizacion      || '',
+    valor:                  Number(t.Datafono_Valor)        || 0,
+    nombreTitular:          t.Nombre_Persona                || '',
+    cedula:                 t.Documento_Persona             || '',
+    celular:                t.Celular_Persona               || '',
+    beneficiarioPago:       t.Datafono_Nombre_Beneficiario  || '',
+    cedulaBeneficiario:     t.Datafono_Doc_Beneficiario     || '',
+    celularBeneficiario:    t.Datafono_Celular_Beneficiario || '',
+    concepto:               t.Actividad                     || '',
+    debitoCredito:          t.Datafono_Tipo_Tarjeta         || '',
+    noDatafono:             t.Datafono_No_Datafono          || ''
+  }));
+}
+
 // ─── HELPERS INTERNOS ─────────────────────────────────────────────────────────
 
 function mapTransaccion_(t) {
   return {
     id:              t.ID_Trans,
     timestamp:       t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
-    idPersona:       t.ID_Persona,
     nombrePersona:   t.Nombre_Persona,
     actividad:       t.Actividad,
     sede:            t.Sede,
@@ -346,7 +430,7 @@ function mapTransaccion_(t) {
     asesorNombre:    t.Asesor_Nombre,
     estadoIglesia:   t.Estado_Legalizacion_Iglesia,
     estadoAcademia:  t.Estado_Legalizacion_Academia,
-    periodo:         t.Periodo,
+    estado:          t.Estado || 'Activa',
     dtFranquicia:            t.Datafono_Franquicia           || '',
     dtTipoTarjeta:           t.Datafono_Tipo_Tarjeta         || '',
     dtValor:                 Number(t.Datafono_Valor)        || 0,

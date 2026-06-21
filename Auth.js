@@ -42,6 +42,41 @@ function listarAsesoresPublico() {
 }
 
 /**
+ * Retorna las coordinadoras activas para el selector de login.
+ */
+function listarCoordinadorasPublico() {
+  return sheetToObjects_('Asesores')
+    .filter(function(a) {
+      return (a.Activo === true || a.Activo === 'TRUE' || a.Activo === 'true')
+          && a.Rol === 'coordinadora';
+    })
+    .map(function(a) { return { email: a.Email, nombre: a.Nombre, sede: a.Sede }; })
+    .sort(function(a, b) { return String(a.nombre).localeCompare(String(b.nombre), 'es'); });
+}
+
+/**
+ * Verifica el PIN de 3 dígitos de la coordinadora y crea una sesión.
+ */
+function verificarPinCoordinadora(email, pin) {
+  if (!email || !pin) throw new Error('Datos incompletos.');
+  const emailNorm = email.toLowerCase().trim();
+  const info = getRole_(emailNorm);
+  if (!info) throw new Error('Coordinadora no encontrada.');
+  if (!info.activo) throw new Error('Esta cuenta está inactiva.');
+  if (info.rol !== 'coordinadora') throw new Error('Esta cuenta no tiene rol de coordinadora.');
+  if (!info.pin) throw new Error('Esta coordinadora no tiene PIN configurado. Agrega el PIN en la hoja Asesores.');
+  if (String(info.pin).trim() !== String(pin).trim()) throw new Error('PIN incorrecto.');
+
+  const token = Utilities.getUuid();
+  CacheService.getScriptCache().put(
+    'ses_' + token,
+    JSON.stringify({ email: info.email }),
+    21600
+  );
+  return { token: token, nombre: info.nombre, sede: info.sede, rol: info.rol };
+}
+
+/**
  * Crea una sesión para el asesor seleccionado sin requerir OTP.
  */
 function seleccionarAsesor(email) {
@@ -77,7 +112,7 @@ function solicitarAcceso(email) {
     '<div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">' +
     '<h2 style="color:#1a1f36;margin-bottom:8px">Código de acceso</h2>' +
     '<p>Hola <strong>' + escapeHtml_(info.nombre) + '</strong>,</p>' +
-    '<p>Tu código para ingresar al CRM Manantial es:</p>' +
+    '<p>Tu código para ingresar al CRM Punto de Información es:</p>' +
     '<div style="font-size:38px;letter-spacing:14px;font-weight:700;color:#6c63ff;' +
     'background:#f0f0ff;padding:16px 24px;border-radius:10px;text-align:center;margin:20px 0">' +
     code + '</div>' +
@@ -87,9 +122,9 @@ function solicitarAcceso(email) {
 
   GmailApp.sendEmail(
     emailNorm,
-    'Código de acceso – CRM Manantial',
+    'Código de acceso – CRM Punto de Información',
     'Tu código de acceso es: ' + code + '\nVálido por 10 minutos.',
-    { htmlBody: htmlCuerpo, name: 'CRM Manantial', noReply: true }
+    { htmlBody: htmlCuerpo, name: 'CRM Punto de Información', noReply: true }
   );
   return { ok: true };
 }
@@ -213,7 +248,8 @@ function getRole_(email) {
     nombre: found.Nombre,
     sede:   found.Sede,
     rol:    found.Rol,
-    activo: found.Activo === true || found.Activo === 'TRUE' || found.Activo === 'true'
+    activo: found.Activo === true || found.Activo === 'TRUE' || found.Activo === 'true',
+    pin:    found.Pin || null
   };
 }
 
@@ -231,11 +267,6 @@ function requireRol_() {
 function validateRequired_(obj, keys) {
   const missing = keys.filter(function(k) { return obj[k] === undefined || obj[k] === null || obj[k] === ''; });
   if (missing.length > 0) throw new Error('Campos requeridos faltantes: ' + missing.join(', '));
-}
-
-function getPeriodoActivo_() {
-  const periodos = sheetToObjects_('Periodos');
-  return periodos.find(function(p) { return p.Activo === true || p.Activo === 'TRUE' || p.Activo === 'true'; }) || null;
 }
 
 function formatDate_(date) {

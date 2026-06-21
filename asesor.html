@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>CRM Manantial – Asesor</title>
+  <title>CRM Punto de Información – Asesor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap">
   <?!= include('styles.css'); ?>
@@ -70,6 +70,14 @@
     .actividad-nombre { font-weight: 600; font-size: 0.9rem; }
     .actividad-valor  { font-size: 0.82rem; color: var(--accent); font-weight: 700; margin-top: 2px; }
     .actividad-cat    { font-size: 0.72rem; color: var(--muted); }
+    .cat-pill {
+      padding: 8px 16px; border-radius: 20px; border: 1.5px solid var(--border);
+      background: var(--surface2); color: var(--text-dim); font-size: 0.78rem; font-weight: 600;
+      cursor: pointer; white-space: nowrap; transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .cat-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    #cat-pills::-webkit-scrollbar { display: none; }
     .metodo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .metodo-btn {
       padding: 16px 8px; border-radius: 12px; border: 2px solid var(--border);
@@ -79,6 +87,8 @@
     }
     .metodo-btn .metodo-icon { font-size: 1.6rem; }
     .metodo-btn.selected { border-color: var(--accent); background: var(--accent-lt); color: var(--accent); }
+    .dt-benef-btn { border: 2px solid var(--border); border-radius: 10px; padding: 12px; font-weight: 600; font-size: .9rem; }
+    .dt-benef-btn.selected { border-color: var(--accent); background: var(--accent-lt); color: var(--accent); }
     .success-card { text-align: center; padding: 32px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
     .success-icon { font-size: 3.5rem; margin-bottom: 12px; }
     .summary-row  { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(45,49,72,0.5); font-size: 0.875rem; }
@@ -135,7 +145,7 @@
 
     <div style="font-size:5rem;line-height:1;margin-bottom:20px;filter:drop-shadow(0 0 28px rgba(108,99,255,0.55))">⛪</div>
 
-    <h1 style="font-size:2.5rem;font-weight:800;color:#fff;margin-bottom:6px;letter-spacing:-0.04em">CRM Manantial</h1>
+    <h1 style="font-size:2.5rem;font-weight:800;color:#fff;margin-bottom:6px;letter-spacing:-0.04em">CRM Punto de Información</h1>
     <p style="font-size:0.82rem;font-weight:700;color:var(--accent);letter-spacing:0.16em;text-transform:uppercase;margin-bottom:48px">Sistema de Recaudo</p>
 
     <!-- Versículo -->
@@ -154,7 +164,7 @@
       Empezar →
     </button>
 
-    <p style="margin-top:28px;font-size:0.75rem;color:var(--muted)">Manantial de Vida · 2025</p>
+    <p style="margin-top:28px;font-size:0.75rem;color:var(--muted)">Iglesia Manantial · 2026</p>
   </div>
 </div>
 
@@ -163,7 +173,7 @@
      PANTALLA 2: SELECCIONAR ASESOR
 ════════════════════════════════════════════════════════════════ -->
 <div id="select-screen" class="fullscreen" style="display:none;flex-direction:column;padding:28px 20px">
-  <div style="max-width:480px;margin:0 auto;width:100%">
+  <div id="asesor-selector-content" style="max-width:480px;margin:0 auto;width:100%">
 
     <button onclick="mostrarBienvenida()" style="background:none;border:none;color:var(--text-dim);font-size:1rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;margin-bottom:36px;padding:4px 0;-webkit-tap-highlight-color:transparent">
       ← Atrás
@@ -178,6 +188,39 @@
       <div class="skeleton" style="height:84px;border-radius:16px"></div>
       <div class="skeleton" style="height:84px;border-radius:16px"></div>
       <div class="skeleton" style="height:84px;border-radius:16px"></div>
+    </div>
+
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+      <button onclick="mostrarLoginCoord()" style="width:100%;padding:14px 20px;background:none;border:1px solid var(--border);border-radius:14px;color:var(--text-dim);font-size:.9rem;font-weight:600;cursor:pointer;transition:all 0.2s;-webkit-tap-highlight-color:transparent"
+        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">
+        🔐 Coordinadora
+      </button>
+    </div>
+  </div>
+
+  <!-- Paso coordinadora: selector + PIN -->
+  <div id="coord-login-step" style="display:none;max-width:480px;margin:0 auto;width:100%">
+    <button onclick="volverSelectorAsesor()" style="background:none;border:none;color:var(--text-dim);font-size:1rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;margin-bottom:36px;padding:4px 0;-webkit-tap-highlight-color:transparent">
+      ← Atrás
+    </button>
+    <div style="margin-bottom:28px">
+      <h2 style="font-size:1.9rem;font-weight:700;color:var(--text);margin-bottom:10px">Coordinadora</h2>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="input-group">
+        <label>¿Quién eres?</label>
+        <select id="coord-select" class="input"></select>
+      </div>
+      <div class="input-group">
+        <label>PIN</label>
+        <input id="coord-pin" class="input" type="password" inputmode="numeric" maxlength="3" placeholder="• • •"
+          style="font-size:2rem;letter-spacing:12px;text-align:center;padding:14px"
+          onkeydown="if(event.key==='Enter') loginCoord()">
+      </div>
+      <button id="btn-login-coord" class="btn btn-primary btn-full" onclick="loginCoord()" style="padding:16px;font-size:1rem">
+        Ingresar →
+      </button>
     </div>
   </div>
 </div>
@@ -226,11 +269,11 @@
   <div id="step1" class="flow-card mt-8">
     <div>
       <h2>Buscar persona</h2>
-      <p style="font-size:.82rem;margin-top:4px">Cédula, nombre o correo</p>
+      <p style="font-size:.82rem;margin-top:4px">Cédula y nombre completo</p>
     </div>
     <div class="input-icon">
       <span class="icon">🔍</span>
-      <input id="busqueda-persona" class="input" type="text" placeholder="Buscar por nombre, cédula…" autocomplete="off">
+      <input id="busqueda-persona" class="input" type="text" placeholder="Buscar por cédula o nombre completo…" autocomplete="off">
     </div>
     <div id="resultados-busqueda"></div>
 
@@ -241,7 +284,10 @@
           <div id="ps-nombre" style="font-weight:700"></div>
           <div id="ps-detalle" style="font-size:.78rem;margin-top:2px;color:var(--text-dim)"></div>
         </div>
-        <button class="btn btn-ghost" style="margin-left:auto;padding:4px 8px;font-size:.8rem" onclick="resetPersona()">✕</button>
+        <div style="margin-left:auto;display:flex;gap:4px">
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem;color:var(--accent)" onclick="editarPersonaSeleccionada()">Editar</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.8rem" onclick="resetPersona()">✕</button>
+        </div>
       </div>
     </div>
 
@@ -294,6 +340,7 @@
       <h2>Selecciona la actividad</h2>
       <button class="btn btn-ghost" style="font-size:.8rem;padding:4px 8px" onclick="irPaso1()">← Volver</button>
     </div>
+    <div id="cat-pills" style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px"></div>
     <div id="lista-actividades">
       <div class="skeleton" style="height:56px;margin-bottom:8px"></div>
       <div class="skeleton" style="height:56px;margin-bottom:8px"></div>
@@ -304,30 +351,15 @@
       <div style="font-size:.8rem;font-weight:700;color:var(--accent);margin-bottom:10px">📋 Datos de inscripción</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div class="input-group">
-          <label>Módulo</label>
-          <select id="insc-modulo" class="input">
+          <label>Módulo *</label>
+          <select id="insc-modulo" class="input" onchange="onModuloChange()">
             <option value="">— Selecciona un módulo —</option>
-            <option>Mentor Espiritual</option>
-            <option>Caracter y Servicio</option>
-            <option>Especialidad Cosmovisión</option>
-            <option>Familia</option>
-            <option>Espíritu Santo</option>
-            <option>Especialización Cosmovisión (RI)</option>
-            <option>Especialización Cosmovisión (SS)</option>
-            <option>Especialización Cosmovisión (PDN)</option>
-            <option>Maestros I</option>
-            <option>Maestros II</option>
-            <option>Maestros III</option>
           </select>
         </div>
         <div class="input-group">
-          <label>Horario</label>
+          <label>Horario *</label>
           <select id="insc-horario" class="input">
-            <option value="">— Selecciona un horario —</option>
-            <option>Lunes 7:00 p. m.</option>
-            <option>Miércoles 7:00 p. m.</option>
-            <option>Jueves 7:00 p. m.</option>
-            <option>Sábado 7:00 a. m.</option>
+            <option value="">— Primero selecciona un módulo —</option>
           </select>
         </div>
       </div>
@@ -336,7 +368,7 @@
     <div id="monto-variable" class="hidden">
       <div class="input-group">
         <label>Monto a pagar (COP) *</label>
-        <input id="monto-input" class="input" type="number" inputmode="numeric" min="0" placeholder="0" style="font-size:1.1rem;font-weight:700">
+        <input id="monto-input" class="input" type="text" inputmode="numeric" placeholder="$ 0" style="font-size:1.1rem;font-weight:700" oninput="formatearMonto(this)">
       </div>
     </div>
 
@@ -367,6 +399,14 @@
         <span class="text-muted">Actividad</span>
         <span id="res-actividad" class="fw-600 truncate" style="max-width:60%"></span>
       </div>
+      <div id="res-modulo-row" class="summary-row hidden">
+        <span class="text-muted">Módulo</span>
+        <span id="res-modulo" class="fw-600 truncate" style="max-width:60%"></span>
+      </div>
+      <div id="res-horario-row" class="summary-row hidden">
+        <span class="text-muted">Horario</span>
+        <span id="res-horario" class="fw-600 truncate" style="max-width:60%"></span>
+      </div>
       <div class="summary-row">
         <span class="text-muted">Monto</span>
         <span id="res-monto" class="fw-600 text-accent"></span>
@@ -392,7 +432,7 @@
           <label>Franquicia *</label>
           <select id="dt-franquicia" class="input">
             <option value="">— Selecciona —</option>
-            <option>Maester</option>
+            <option>Master</option>
             <option>Visa</option>
             <option>American Express</option>
             <option>Dinners</option>
@@ -410,7 +450,7 @@
         </div>
         <div class="input-group">
           <label>Valor (COP) *</label>
-          <input id="dt-valor" class="input" type="number" inputmode="numeric" min="0" placeholder="0">
+          <input id="dt-valor" class="input" type="text" inputmode="numeric" placeholder="$ 0" oninput="formatearMonto(this)">
         </div>
         <div class="input-group">
           <label>¿Quien paga es el beneficiario del pago? *</label>
@@ -479,6 +519,45 @@
       <div class="skeleton" style="height:64px;margin-bottom:10px"></div>
       <div class="skeleton" style="height:64px;margin-bottom:10px"></div>
       <div class="skeleton" style="height:64px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDITAR PERSONA -->
+<div id="modal-editar-persona" class="modal-overlay" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.6);align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="margin:0">Editar persona</h3>
+      <button class="btn btn-ghost" style="padding:4px 8px" onclick="cerrarEditarPersona()">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <input id="ep-documento-original" type="hidden">
+      <div class="input-group">
+        <label>Nombre completo *</label>
+        <input id="ep-nombre" class="input" placeholder="Nombre y apellidos">
+      </div>
+      <div class="input-group">
+        <label>Cédula *</label>
+        <input id="ep-documento" class="input" type="number" inputmode="numeric" placeholder="Número de documento">
+      </div>
+      <div class="input-group">
+        <label>Celular</label>
+        <input id="ep-celular" class="input" type="tel" inputmode="tel" placeholder="3001234567">
+      </div>
+      <div class="input-group">
+        <label>Correo</label>
+        <input id="ep-correo" class="input" type="email" placeholder="correo@ejemplo.com">
+      </div>
+      <div class="input-group">
+        <label>Sede</label>
+        <select id="ep-sede" class="input">
+          <option value="Norte">Norte</option>
+          <option value="Suba">Suba</option>
+        </select>
+      </div>
+      <button id="btn-guardar-persona" class="btn btn-primary btn-full" onclick="guardarEdicionPersona()">
+        Guardar cambios
+      </button>
     </div>
   </div>
 </div>
@@ -616,6 +695,15 @@ function mostrarApp(info) {
   qs('#sede-recaudo-select').value = info.sede;
   const label = qs('#hist-tab-sede-label');
   if (label) label.textContent = info.sede;
+  precargarDatos();
+}
+
+function precargarDatos() {
+  if (!actividadesCache.length) {
+    gsr('listarActividades').then(function(acts) {
+      actividadesCache = acts;
+    }).catch(function(){});
+  }
 }
 
 function salir() {
@@ -624,8 +712,66 @@ function salir() {
   localStorage.removeItem('crm_token');
   STATE.persona = STATE.actividad = STATE.metodoPago = null;
   STATE.monto = 0; STATE.sedeRecaudo = '';
+  actividadesCache = [];
   hide('#main-app');
   mostrarBienvenida();
+}
+
+// ─── LOGIN COORDINADORA ───────────────────────────────────────────────────────
+async function mostrarLoginCoord() {
+  qs('#asesor-selector-content').style.display = 'none';
+  const step = qs('#coord-login-step');
+  step.style.display = 'flex';
+  step.style.flexDirection = 'column';
+
+  const sel = qs('#coord-select');
+  sel.innerHTML = '<option value="">Cargando…</option>';
+  try {
+    const lista = await gsrPublic('listarCoordinadorasPublico');
+    sel.innerHTML = '<option value="">Selecciona…</option>' +
+      lista.map(function(c) {
+        return '<option value="' + escHtml(c.email) + '">' + escHtml(c.nombre) + ' (' + escHtml(c.sede) + ')</option>';
+      }).join('');
+  } catch (e) {
+    sel.innerHTML = '<option value="">Error cargando lista</option>';
+  }
+  qs('#coord-pin').value = '';
+}
+
+function volverSelectorAsesor() {
+  qs('#coord-login-step').style.display = 'none';
+  qs('#asesor-selector-content').style.display = 'block';
+}
+
+async function loginCoord() {
+  const email = qs('#coord-select').value;
+  const pin   = qs('#coord-pin').value.trim();
+  if (!email) { toast.warn('Selecciona tu nombre'); return; }
+  if (!pin)   { toast.warn('Ingresa tu PIN'); return; }
+  const btn = qs('#btn-login-coord');
+  setLoading(btn, true);
+  try {
+    const res = await gsrPublic('verificarPinCoordinadora', email, pin);
+    localStorage.setItem('crm_token', res.token);
+    // En GAS el window.location.href da la URL interna de googleusercontent.com,
+    // así que cargamos el HTML de coordinadora directamente desde el servidor.
+    google.script.run
+      .withSuccessHandler(function(html) {
+        document.open();
+        document.write(html);
+        document.close();
+      })
+      .withFailureHandler(function(e) {
+        toast.error('Error al cargar panel: ' + e.message);
+        setLoading(btn, false);
+      })
+      .cargarPaginaCoord();
+  } catch (e) {
+    toast.error(e.message);
+    qs('#coord-pin').value = '';
+    qs('#coord-pin').focus();
+    setLoading(btn, false);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
@@ -655,6 +801,7 @@ const STATE = {
   sedeRecaudo: ''
 };
 let actividadesCache = [];
+let catFiltroActual  = '';
 let historialTab = 'yo';
 
 // ─── NAVEGACIÓN ───────────────────────────────────────────────────────────────
@@ -672,7 +819,7 @@ const debouncedBuscar = debounce(async function(q) {
     const resultados = await gsr('buscarPersonas', q);
     renderResultados(resultados, q);
   } catch(e) { toast.error('Error al buscar: ' + e.message); }
-}, 400);
+}, 250);
 
 qs('#busqueda-persona').addEventListener('input', function(e) { debouncedBuscar(e.target.value.trim()); });
 
@@ -747,7 +894,11 @@ async function irPaso2() {
   if (!STATE.persona) { toast.warn('Selecciona una persona primero'); return; }
   hide('#step1'); show('#step2');
   actualizarStepIndicator(2);
-  if (!actividadesCache.length) await cargarActividades();
+  if (actividadesCache.length) {
+    renderActividades(actividadesCache);
+  } else {
+    await cargarActividades();
+  }
 }
 
 async function cargarActividades() {
@@ -758,24 +909,41 @@ async function cargarActividades() {
 }
 
 function renderActividades(lista) {
-  const c = qs('#lista-actividades');
-  if (!lista.length) { c.innerHTML = '<p class="text-muted text-center">Sin actividades configuradas</p>'; return; }
-  c.innerHTML = lista.map(function(a) { return `
-    <div class="actividad-item" onclick='seleccionarActividad(${JSON.stringify(a)}, this)' id="act-${a.id}">
-      <div>
-        <div class="actividad-nombre">${escHtml(a.nombre)}</div>
-        <div class="actividad-cat">${escHtml(a.categoria)}</div>
-        ${!a.valorVariable ? `<div class="actividad-valor">${fmt.cop(a.valorBase)}</div>` : '<div class="actividad-valor">Monto libre</div>'}
-      </div>
-      <span class="actividad-check">✓</span>
-    </div>`; }).join('');
+  var cats = [];
+  lista.forEach(function(a) {
+    if (cats.indexOf(a.categoria) === -1) cats.push(a.categoria);
+  });
+  cats.sort(function(a, b) { return a.localeCompare(b, 'es'); });
+
+  if (!catFiltroActual && cats.length) catFiltroActual = cats[0];
+  var pillsHtml = '';
+  cats.forEach(function(cat) {
+    pillsHtml += '<button class="cat-pill' + (catFiltroActual === cat ? ' active' : '') + '" onclick="filtrarCat(\'' + escHtml(cat) + '\')">' + escHtml(cat) + '</button>';
+  });
+  setHtml('#cat-pills', pillsHtml);
+
+  var filtradas = lista.filter(function(a) { return a.categoria === catFiltroActual; });
+
+  var c = qs('#lista-actividades');
+  if (!filtradas.length) { c.innerHTML = '<p class="text-muted text-center">Sin actividades en esta categoría</p>'; return; }
+  c.innerHTML = filtradas.map(function(a) { return '<div class="actividad-item" onclick=\'seleccionarActividad(' + JSON.stringify(a).replace(/'/g, "&#39;") + ', this)\' id="act-' + a.id + '"><div><div class="actividad-nombre">' + escHtml(a.nombre) + '</div></div><span class="actividad-check">✓</span></div>'; }).join('');
+}
+
+function filtrarCat(cat) {
+  catFiltroActual = cat;
+  renderActividades(actividadesCache);
 }
 
 function seleccionarActividad(act, el) {
   STATE.actividad = act;
   qsa('.actividad-item').forEach(function(i) { i.classList.remove('selected'); });
   el.classList.add('selected');
-  if (act.valorVariable) {
+  var hasModulos = act.modulos && act.modulos.length > 0;
+  if (hasModulos) {
+    hide('#monto-variable');
+    hide('#monto-fijo-display');
+    STATE.monto = 0;
+  } else if (act.valorVariable) {
     show('#monto-variable'); hide('#monto-fijo-display');
     qs('#monto-input').value = '';
     qs('#monto-input').focus();
@@ -785,21 +953,92 @@ function seleccionarActividad(act, el) {
     setHtml('#monto-fijo-val', fmt.cop(act.valorBase));
     STATE.monto = act.valorBase;
   }
-  toggle('#subpaso-inscripcion', act.requiereInscripcion);
+  toggle('#subpaso-inscripcion', hasModulos || act.requiereInscripcion);
+  if (hasModulos) {
+    var sel = qs('#insc-modulo');
+    sel.innerHTML = '<option value="">— Selecciona un módulo —</option>' +
+      act.modulos.map(function(m, i) {
+        return '<option value="' + i + '">' + escHtml(m.nombre) + '</option>';
+      }).join('');
+    qs('#insc-horario').innerHTML = '<option value="">— Primero selecciona un módulo —</option>';
+  }
   qs('#btn-paso3').disabled = false;
+}
+
+function formatearMonto(input) {
+  var raw = input.value.replace(/[^0-9]/g, '');
+  if (!raw) { input.value = ''; return; }
+  input.value = '$ ' + Number(raw).toLocaleString('es-CO');
+}
+
+function formatHora12(hora24) {
+  if (!hora24) return '';
+  var parts = hora24.split(':');
+  var h = parseInt(parts[0], 10);
+  var m = parts[1] || '00';
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  if (h > 12) h -= 12;
+  if (h === 0) h = 12;
+  return h + ':' + m + ' ' + ampm;
+}
+
+function onModuloChange() {
+  var idx = qs('#insc-modulo').value;
+  var horSel = qs('#insc-horario');
+  if (idx === '' || !STATE.actividad || !STATE.actividad.modulos) {
+    horSel.innerHTML = '<option value="">— Primero selecciona un módulo —</option>';
+    return;
+  }
+  var modulo = STATE.actividad.modulos[Number(idx)];
+  if (modulo.valor && modulo.valor > 0) {
+    STATE.monto = modulo.valor;
+    hide('#monto-variable');
+    show('#monto-fijo-display');
+    setHtml('#monto-fijo-val', fmt.cop(modulo.valor));
+  }
+  var horarios = modulo.horarios || [];
+  if (!horarios.length) {
+    horSel.innerHTML = '<option value="">Sin horarios disponibles</option>';
+    return;
+  }
+  horSel.innerHTML = '<option value="">— Selecciona un horario —</option>' +
+    horarios.map(function(h, i) {
+      var label = h.dia + ' ' + formatHora12(h.inicio) + ' · ' + h.modalidad + (h.maestro ? ' · ' + h.maestro : '');
+      return '<option value="' + i + '">' + escHtml(label) + '</option>';
+    }).join('');
 }
 
 function irPaso3() {
   if (!STATE.actividad) { toast.warn('Selecciona una actividad'); return; }
   if (STATE.actividad.valorVariable) {
-    const v = Number(qs('#monto-input').value);
+    var v = Number(qs('#monto-input').value.replace(/[^0-9]/g, ''));
     if (!v || v <= 0) { toast.warn('Ingresa el monto a pagar'); return; }
     STATE.monto = v;
   }
-  STATE.modulo  = qs('#insc-modulo').value.trim();
-  STATE.horario = qs('#insc-horario').value.trim();
+  var hasModulos = STATE.actividad.modulos && STATE.actividad.modulos.length > 0;
+  if (hasModulos) {
+    var modIdx = qs('#insc-modulo').value;
+    if (modIdx === '') { toast.warn('Selecciona un módulo'); return; }
+    var mod = STATE.actividad.modulos[Number(modIdx)];
+    STATE.modulo = mod.nombre;
+    var horIdx = qs('#insc-horario').value;
+    if (horIdx === '') { toast.warn('Selecciona un horario'); return; }
+    var hor = mod.horarios[Number(horIdx)];
+    STATE.horario = hor.dia + ' ' + formatHora12(hor.inicio) + ' ' + hor.modalidad + (hor.maestro ? ' (' + hor.maestro + ')' : '');
+  } else {
+    STATE.modulo  = qs('#insc-modulo').value.trim();
+    STATE.horario = qs('#insc-horario').value.trim();
+  }
   setHtml('#res-persona',   escHtml(STATE.persona.nombre));
   setHtml('#res-actividad', escHtml(STATE.actividad.nombre));
+  if (STATE.modulo) {
+    setHtml('#res-modulo', escHtml(STATE.modulo));
+    show('#res-modulo-row');
+  } else { hide('#res-modulo-row'); }
+  if (STATE.horario) {
+    setHtml('#res-horario', escHtml(STATE.horario));
+    show('#res-horario-row');
+  } else { hide('#res-horario-row'); }
   setHtml('#res-monto',     fmt.cop(STATE.monto));
   hide('#step2'); show('#step3');
   actualizarStepIndicator(3);
@@ -814,7 +1053,7 @@ function seleccionarMetodo(metodo, btn) {
   qsa('.metodo-btn').forEach(function(b) { b.classList.remove('selected'); });
   btn.classList.add('selected');
   toggle('#subpaso-datafono', metodo === 'Datáfono');
-  if (metodo === 'Datáfono') qs('#dt-valor').value = STATE.monto || '';
+  if (metodo === 'Datáfono' && STATE.monto) { qs('#dt-valor').value = '$ ' + Number(STATE.monto).toLocaleString('es-CO'); }
   qs('#btn-registrar').disabled = false;
 }
 
@@ -831,7 +1070,7 @@ async function registrarTransaccion() {
   if (STATE.metodoPago === 'Datáfono') {
     const franquicia  = qs('#dt-franquicia').value;
     const tipoTarjeta = qs('#dt-tipo-tarjeta').value;
-    const valor       = Number(qs('#dt-valor').value);
+    const valor       = Number(qs('#dt-valor').value.replace(/[^0-9]/g, ''));
     const noAut       = qs('#dt-autorizacion').value.trim();
     const noDatafono  = qs('#dt-no-datafono').value;
     if (!franquicia)          { toast.warn('Selecciona la franquicia'); return; }
@@ -861,7 +1100,9 @@ async function registrarTransaccion() {
   const btn = qs('#btn-registrar');
   setLoading(btn, true);
   const payload = {
-    idPersona: STATE.persona.id, nombrePersona: STATE.persona.nombre,
+    nombrePersona: STATE.persona.nombre,
+    documentoPersona: STATE.persona.documento || '',
+    celularPersona: STATE.persona.celular || '',
     correoPersona: STATE.persona.correo || '',
     idActividad: STATE.actividad.id, nombreActividad: STATE.actividad.nombre,
     monto: STATE.monto, metodoPago: STATE.metodoPago,
@@ -881,7 +1122,7 @@ function mostrarExito(t, ins) {
   const rows = [
     ['Persona', t.nombrePersona], ['Actividad', t.actividad],
     ['Monto', fmt.cop(t.monto)], ['Método', t.metodoPago],
-    ['Fecha', t.timestamp], ['Periodo', t.periodo],
+    ['Fecha', t.timestamp],
     ...(ins ? [['Inscripción', '✓ Creada']] : [])
   ];
   setHtml('#success-resumen', rows.map(function(r) {
@@ -894,7 +1135,8 @@ function mostrarExito(t, ins) {
 function nuevaTransaccion() {
   STATE.persona = STATE.actividad = STATE.metodoPago = null;
   STATE.monto = 0; STATE.modulo = ''; STATE.horario = ''; STATE.dtBeneficiarioMismo = null;
-  qs('#insc-modulo').selectedIndex = 0; qs('#insc-horario').selectedIndex = 0;
+  qs('#insc-modulo').innerHTML = '<option value="">— Selecciona un módulo —</option>';
+  qs('#insc-horario').innerHTML = '<option value="">— Primero selecciona un módulo —</option>';
   hide('#subpaso-datafono'); hide('#subpaso-beneficiario');
   qs('#dt-franquicia').selectedIndex = 0; qs('#dt-tipo-tarjeta').selectedIndex = 0; qs('#dt-no-datafono').selectedIndex = 0;
   qs('#dt-valor').value = ''; qs('#dt-autorizacion').value = '';
@@ -907,6 +1149,7 @@ function nuevaTransaccion() {
   qs('#btn-paso2').disabled = true; qs('#btn-paso3').disabled = true; qs('#btn-registrar').disabled = true;
   qsa('.actividad-item').forEach(function(i) { i.classList.remove('selected'); });
   qsa('.metodo-btn').forEach(function(b) { b.classList.remove('selected'); });
+  catFiltroActual = '';
   actualizarStepIndicator(1);
 }
 
@@ -942,7 +1185,10 @@ function renderCartera(items) {
         <div class="cartera-nombre">${escHtml(i.nombrePersona)}</div>
         <div class="cartera-detalle">${escHtml(i.ultimaActividad)} · ${i.diasDesde}d · Iglesia: ${i.estadoIglesia} | Academia: ${i.estadoAcademia}</div>
       </div>
-      <div class="cartera-monto">${fmt.cop(i.ultimaMonto)}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div class="cartera-monto">${fmt.cop(i.ultimaMonto)}</div>
+        <button class="btn btn-ghost" style="font-size:.7rem;padding:2px 8px;color:var(--accent)" onclick="abrirEditarPersona('${escHtml(i.nombrePersona)}')">Editar</button>
+      </div>
     </div>`; }).join('');
 }
 
@@ -979,17 +1225,92 @@ async function cargarHistorial() {
 function renderHistorial(lista, showAsesor) {
   const c = qs('#historial-lista');
   if (!lista.length) { c.innerHTML = '<p class="text-muted text-center mt-16">Sin transacciones hoy</p>'; return; }
-  c.innerHTML = `<div class="card" style="padding:0">` + lista.map(function(t) { return `
-    <div style="padding:12px 16px;border-bottom:1px solid rgba(45,49,72,.5);display:flex;justify-content:space-between;align-items:center">
+  c.innerHTML = `<div class="card" style="padding:0">` + lista.map(function(t) {
+    var esAnulada = t.estado === 'Anulada';
+    var anularBtn = !esAnulada && !showAsesor
+      ? `<button class="btn btn-ghost" style="font-size:.7rem;padding:2px 8px;color:var(--red);margin-top:4px" onclick="anularTransaccionUI('${escHtml(t.id)}')">Anular</button>`
+      : '';
+    return `
+    <div style="padding:12px 16px;border-bottom:1px solid rgba(45,49,72,.5);display:flex;justify-content:space-between;align-items:center${esAnulada ? ';opacity:.5' : ''}">
       <div>
-        <div style="font-weight:600;font-size:.875rem">${escHtml(t.nombrePersona)}</div>
-        <div style="font-size:.75rem;color:var(--text-dim)">${escHtml(t.actividad)} · ${escHtml(t.timestamp)}${showAsesor ? ' · ' + escHtml(t.asesorNombre || '') : ''}</div>
+        <div style="font-weight:600;font-size:.875rem">${escHtml(t.nombrePersona)}${esAnulada ? ' ' + badgeEstado('Anulada') : ''}</div>
+        <div style="font-size:.75rem;color:var(--text-dim)">${escHtml(t.actividad)} · ${escHtml(t.timestamp)}${showAsesor ? ' · ' + escHtml(t.asesorNombre || '') : ''}${t.dtNoAutorizacion ? ' · Aut: ' + escHtml(t.dtNoAutorizacion) : ''}</div>
       </div>
       <div style="text-align:right">
-        <div style="font-weight:700;color:var(--accent)">${fmt.cop(t.monto)}</div>
+        <div style="font-weight:700;color:var(--accent)${esAnulada ? ';text-decoration:line-through' : ''}">${fmt.cop(t.monto)}</div>
         <div style="font-size:.72rem">${badgeEstado(t.metodoPago)}</div>
+        ${anularBtn}
       </div>
     </div>`; }).join('') + `</div>`;
+}
+
+async function anularTransaccionUI(idTrans) {
+  if (!confirm('¿Estás seguro de anular esta transacción? Esta acción no se puede deshacer.')) return;
+  try {
+    await gsr('anularTransaccion', idTrans);
+    toast.success('Transacción anulada ✓');
+    cargarHistorial();
+  } catch(e) { toast.error(e.message); }
+}
+
+// ─── EDITAR PERSONA ──────────────────────────────────────────────────────────
+function editarPersonaSeleccionada() {
+  if (!STATE.persona) return;
+  qs('#ep-documento-original').value = STATE.persona.documento;
+  qs('#ep-nombre').value    = STATE.persona.nombre;
+  qs('#ep-documento').value = STATE.persona.documento;
+  qs('#ep-celular').value   = STATE.persona.celular || '';
+  qs('#ep-correo').value    = STATE.persona.correo  || '';
+  qs('#ep-sede').value      = STATE.persona.sede    || '';
+  qs('#modal-editar-persona').style.display = 'flex';
+}
+
+async function abrirEditarPersona(nombre) {
+  try {
+    const resultados = await gsr('buscarPersonas', nombre);
+    const persona = resultados.find(function(p) { return p.nombre === nombre; });
+    if (!persona) { toast.warn('Persona no encontrada'); return; }
+    qs('#ep-documento-original').value = persona.documento;
+    qs('#ep-nombre').value    = persona.nombre;
+    qs('#ep-documento').value = persona.documento;
+    qs('#ep-celular').value   = persona.celular || '';
+    qs('#ep-correo').value    = persona.correo  || '';
+    qs('#ep-sede').value      = persona.sede    || '';
+    var modal = qs('#modal-editar-persona');
+    modal.style.display = 'flex';
+  } catch(e) { toast.error('Error: ' + e.message); }
+}
+
+function cerrarEditarPersona() {
+  qs('#modal-editar-persona').style.display = 'none';
+}
+
+async function guardarEdicionPersona() {
+  var docOriginal = qs('#ep-documento-original').value;
+  var datos = {
+    nombre:  qs('#ep-nombre').value.trim(),
+    celular: qs('#ep-celular').value.trim(),
+    correo:  qs('#ep-correo').value.trim(),
+    sede:    qs('#ep-sede').value
+  };
+  if (!datos.nombre) { toast.warn('El nombre es obligatorio'); return; }
+  var btn = qs('#btn-guardar-persona');
+  setLoading(btn, true);
+  try {
+    await gsr('actualizarPersona', docOriginal, datos);
+    toast.success('Persona actualizada ✓');
+    if (STATE.persona && STATE.persona.documento === docOriginal) {
+      STATE.persona.nombre  = datos.nombre;
+      STATE.persona.celular = datos.celular;
+      STATE.persona.correo  = datos.correo;
+      STATE.persona.sede    = datos.sede;
+      setHtml('#ps-nombre', escHtml(datos.nombre));
+      setHtml('#ps-detalle', 'CC ' + escHtml(docOriginal) + ' · ' + escHtml(datos.sede) + (datos.correo ? ' · ' + escHtml(datos.correo) : ''));
+    }
+    cerrarEditarPersona();
+    cargarCartera();
+  } catch(e) { toast.error(e.message); }
+  finally { setLoading(btn, false); }
 }
 </script>
 </body>
