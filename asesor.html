@@ -346,7 +346,9 @@
         </div>
         <div class="input-group">
           <label>Correo</label>
-          <input id="np-correo" class="input" type="email" placeholder="correo@ejemplo.com">
+          <input id="np-correo" class="input" type="email" inputmode="email" placeholder="correo@ejemplo.com"
+            onblur="validarInputCorreo(this)" onkeyup="validarInputCorreo(this)">
+          <small id="np-correo-error" style="color:var(--red);display:none"></small>
         </div>
         <div class="input-group">
           <label>Sede *</label>
@@ -584,7 +586,9 @@
       </div>
       <div class="input-group">
         <label>Correo</label>
-        <input id="ep-correo" class="input" type="email" placeholder="correo@ejemplo.com">
+        <input id="ep-correo" class="input" type="email" inputmode="email" placeholder="correo@ejemplo.com"
+          onblur="validarInputCorreo(this)" onkeyup="validarInputCorreo(this)">
+        <small id="ep-correo-error" style="color:var(--red);display:none"></small>
       </div>
       <div class="input-group">
         <label>Sede</label>
@@ -693,6 +697,27 @@
 
 <?!= include('utils.js'); ?>
 <script>
+// ─── VALIDACIÓN CORREO ───────────────────────────────────────────────────────
+function validarInputCorreo(input) {
+  var v = input.value.trim();
+  var errId = input.id + '-error';
+  var errEl = document.getElementById(errId);
+  if (!errEl) return;
+  if (!v) { errEl.style.display = 'none'; input.style.borderColor = ''; return; }
+  if (/^\d+$/.test(v)) {
+    errEl.textContent = 'Esto parece un número de celular, no un correo.';
+    errEl.style.display = 'block';
+    input.style.borderColor = 'var(--red)';
+  } else if (v.length > 3 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+    errEl.textContent = 'Formato inválido. Ej: correo@ejemplo.com';
+    errEl.style.display = 'block';
+    input.style.borderColor = 'var(--red)';
+  } else {
+    errEl.style.display = 'none';
+    input.style.borderColor = '';
+  }
+}
+
 // ─── SESIÓN ───────────────────────────────────────────────────────────────────
 window._sessionToken = '';
 

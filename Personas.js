@@ -6,6 +6,15 @@
 //   actualizarPersona(documento, datos)→ {ok}
 //   listarPersonas(filtros)            → Object[]  (coordinadora)
 
+function validarCorreo_(correo) {
+  if (!correo) return '';
+  correo = correo.toString().trim().toLowerCase();
+  if (!correo) return '';
+  if (/^\d+$/.test(correo)) throw new Error('El campo correo no puede ser un número de celular. Ingresa un email válido.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new Error('El correo "' + correo + '" no es válido. Debe tener formato correo@ejemplo.com');
+  return correo;
+}
+
 function mapPersona_(p) {
   return {
     id:            String(p.Documento || ''),
@@ -80,6 +89,7 @@ function crearPersona(token, datos) {
   requireRol_('asesor', 'coordinadora');
   validateRequired_(datos, ['nombre', 'documento', 'sede']);
   datos.nombre = datos.nombre.trim().toLowerCase().replace(/(?:^|\s)\S/g, function(c) { return c.toUpperCase(); });
+  datos.correo = validarCorreo_(datos.correo);
 
   const personas = sheetToObjects_('Personas');
   const duplicado = personas.find(p =>
@@ -133,6 +143,7 @@ function actualizarPersona(token, documento, datos) {
 
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][docIdx]) === String(documento)) {
+      if (datos.correo !== undefined && datos.correo !== null) datos.correo = validarCorreo_(datos.correo);
       const campos = { Nombre: datos.nombre, Celular: datos.celular, Correo: datos.correo, Sede: datos.sede };
       Object.entries(campos).forEach(([campo, valor]) => {
         if (valor !== undefined && valor !== null) {

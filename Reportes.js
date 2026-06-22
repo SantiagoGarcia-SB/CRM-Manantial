@@ -513,6 +513,88 @@ const CIERRE_GENERAL_SHEET_ID = '17eM2YYQHXoMjV-dttSsGjEutL-llatbUo1rwfdRCuNU';
 const CIERRE_GENERAL_EMAIL    = 'elcamino.norte@manantial.co';
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CIERRE CONSOLIDADO — Se dispara automáticamente cuando todas las sedes cierran
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function obtenerSedesActivas_() {
+  var asesores = sheetToObjects_('Asesores');
+  var sedes = {};
+  asesores.forEach(function(a) {
+    if (toBool_(a.Activo) && a.Sede) sedes[a.Sede] = true;
+  });
+  return Object.keys(sedes);
+}
+
+function verificarCierreCompleto_() {
+  var ahora = new Date();
+  var tz = 'America/Bogota';
+  var fechaHoy = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy');
+
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('ultimoCierreConsolidado') === fechaHoy) return;
+
+  var sedesActivas = obtenerSedesActivas_();
+  if (sedesActivas.length < 2) return;
+
+  var ss = SpreadsheetApp.openById(CIERRE_GENERAL_SHEET_ID);
+  for (var i = 0; i < sedesActivas.length; i++) {
+    if (!ss.getSheetByName(fechaHoy + ' - ' + sedesActivas[i])) return;
+  }
+
+  enviarCierreConsolidado_();
+  props.setProperty('ultimoCierreConsolidado', fechaHoy);
+}
+
+function enviarCierreConsolidado_() {
+  var ahora = new Date();
+  var tz = 'America/Bogota';
+  var hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  var finDia = new Date(hoy);
+  finDia.setHours(23, 59, 59, 999);
+
+  var todasTransDia = sheetToObjects_('Transacciones')
+    .filter(function(t) { return t.Timestamp && new Date(t.Timestamp) >= hoy && new Date(t.Timestamp) <= finDia; });
+
+  var trans = todasTransDia.filter(function(t) { return (t.Estado || 'Activa') !== 'Anulada'; });
+  var anuladas = todasTransDia.filter(function(t) { return t.Estado === 'Anulada'; });
+
+  if (!trans.length) return;
+
+  var inscripciones = sheetToObjects_('Inscripciones')
+    .filter(function(i) { return i.Fecha && new Date(i.Fecha) >= hoy && new Date(i.Fecha) <= finDia; });
+
+  trans.sort(function(a, b) { return new Date(a.Timestamp) - new Date(b.Timestamp); });
+
+  var fechaHoy = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy');
+  var fechaGen = Utilities.formatDate(ahora, tz, 'dd/MM/yyyy HH:mm');
+  var fmtM = function(v) { return '$ ' + new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(v || 0); };
+
+  var totalRecaudo = 0;
+  trans.forEach(function(t) { totalRecaudo += Number(t.Monto) || 0; });
+
+  var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + CIERRE_GENERAL_SHEET_ID;
+
+  var emailHtml = buildEmailCierreGerencial_({
+    titulo:        'Cierre Consolidado — Todas las Sedes',
+    fecha:         fechaHoy,
+    fechaGen:      fechaGen,
+    trans:         trans,
+    anuladas:      anuladas,
+    inscripciones: inscripciones,
+    sheetUrl:      sheetUrl,
+    mostrarSedes:  true
+  });
+
+  MailApp.sendEmail({
+    to:      CIERRE_GENERAL_EMAIL,
+    subject: '📊 Consolidado ' + fechaHoy + ' — ' + trans.length + ' trans · ' + fmtM(totalRecaudo),
+    htmlBody: emailHtml
+  });
+
+  Logger.log('Cierre consolidado ' + fechaHoy + ' enviado. ' + trans.length + ' trans. Total: ' + totalRecaudo);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // CIERRE MANUAL POR SEDE — Invocado desde la vista del asesor
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -888,5 +970,8 @@ function generarCierreSede(sede) {
   });
 
   Logger.log('Cierre sede ' + sede + ' ' + nombreFecha + ': ' + todasTrans.length + ' trans. Total: ' + totTotal);
+
+  try { verificarCierreCompleto_(); } catch (e) { Logger.log('Error verificando cierre completo: ' + e.message); }
+
   return { ok: true, mensaje: 'Cierre generado para ' + sede };
 }
