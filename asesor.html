@@ -71,7 +71,7 @@
     .actividad-check { opacity: 0; color: var(--accent); font-size: 1.1rem; transition: opacity 0.15s; }
     .actividad-nombre { font-weight: 600; font-size: 0.9rem; }
     .actividad-valor  { font-size: 0.82rem; color: var(--accent); font-weight: 700; margin-top: 2px; }
-    .actividad-cat    { font-size: 0.72rem; color: var(--muted); }
+    .actividad-cat    { font-size: 0.72rem; color: var(--text-dim); }
     .cat-pill {
       padding: 8px 16px; border-radius: 20px; border: 1.5px solid var(--border);
       background: var(--surface2); color: var(--text-dim); font-size: 0.78rem; font-weight: 600;
@@ -247,11 +247,11 @@
     </div>
     <div style="display:flex;flex-direction:column;gap:14px">
       <div class="input-group">
-        <label>¿Quién eres?</label>
+        <label for="coord-select">¿Quién eres?</label>
         <select id="coord-select" class="input"></select>
       </div>
       <div class="input-group">
-        <label>PIN</label>
+        <label for="coord-pin">PIN</label>
         <input id="coord-pin" class="input" type="password" inputmode="numeric" maxlength="3" placeholder="• • •"
           style="font-size:2rem;letter-spacing:12px;text-align:center;padding:14px"
           onkeydown="if(event.key==='Enter') loginCoord()">
@@ -279,7 +279,7 @@
   </select>
   <div class="user-chip">
     <div id="top-user-name" style="font-weight:600;color:var(--text)"></div>
-    <div><a onclick="salir()" style="font-size:0.65rem;color:var(--text-dim);cursor:pointer;text-decoration:underline">Salir</a></div>
+    <div><button type="button" onclick="salir()" style="font:inherit;font-size:0.65rem;color:var(--text-dim);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline">Salir</button></div>
   </div>
 </div>
 
@@ -333,25 +333,25 @@
       <div style="font-size:.82rem;font-weight:700;color:var(--yellow);margin-bottom:12px">➕ Registrar nueva persona</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div class="input-group">
-          <label>Nombre completo *</label>
+          <label for="np-nombre">Nombre completo *</label>
           <input id="np-nombre" class="input" placeholder="Nombre y apellidos">
         </div>
         <div class="input-group">
-          <label>Cédula *</label>
-          <input id="np-documento" class="input" type="number" inputmode="numeric" placeholder="Número de documento">
+          <label for="np-documento">Cédula *</label>
+          <input id="np-documento" class="input" type="text" inputmode="numeric" placeholder="Número de documento">
         </div>
         <div class="input-group">
-          <label>Celular</label>
+          <label for="np-celular">Celular</label>
           <input id="np-celular" class="input" type="tel" inputmode="tel" placeholder="3001234567">
         </div>
         <div class="input-group">
-          <label>Correo</label>
+          <label for="np-correo">Correo</label>
           <input id="np-correo" class="input" type="email" inputmode="email" placeholder="correo@ejemplo.com"
             onblur="validarInputCorreo(this)" onkeyup="validarInputCorreo(this)">
           <small id="np-correo-error" style="color:var(--red);display:none"></small>
         </div>
         <div class="input-group">
-          <label>Sede *</label>
+          <label for="np-sede">Sede *</label>
           <select id="np-sede" class="input">
             <option value="">Selecciona…</option>
             <option value="Norte">Norte</option>
@@ -391,13 +391,13 @@
       <div style="font-size:.8rem;font-weight:700;color:var(--accent);margin-bottom:10px">📋 Datos de inscripción</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div class="input-group">
-          <label>Módulo *</label>
+          <label for="insc-modulo">Módulo *</label>
           <select id="insc-modulo" class="input" onchange="onModuloChange()">
             <option value="">— Selecciona un módulo —</option>
           </select>
         </div>
         <div class="input-group">
-          <label>Horario *</label>
+          <label for="insc-horario">Horario *</label>
           <select id="insc-horario" class="input">
             <option value="">— Primero selecciona un módulo —</option>
           </select>
@@ -407,7 +407,7 @@
 
     <div id="monto-variable" class="hidden">
       <div class="input-group">
-        <label>Monto a pagar (COP) *</label>
+        <label for="monto-input">Monto a pagar (COP) *</label>
         <input id="monto-input" class="input" type="text" inputmode="numeric" placeholder="$ 0" style="font-size:1.1rem;font-weight:700" oninput="formatearMonto(this)">
       </div>
     </div>
@@ -453,14 +453,14 @@
       </div>
     </div>
 
-    <div class="metodo-grid">
-      <button class="metodo-btn" onclick="seleccionarMetodo('Efectivo', this)">
+    <div class="metodo-grid" role="group" aria-label="Método de pago">
+      <button class="metodo-btn" aria-pressed="false" onclick="seleccionarMetodo('Efectivo', this)">
         <span class="metodo-icon">💵</span> Efectivo
       </button>
-      <button class="metodo-btn" onclick="seleccionarMetodo('Datáfono', this)">
+      <button class="metodo-btn" aria-pressed="false" onclick="seleccionarMetodo('Datáfono', this)">
         <span class="metodo-icon">💳</span> Datáfono
       </button>
-      <button class="metodo-btn" onclick="seleccionarMetodo('Nequi', this)">
+      <button class="metodo-btn" aria-pressed="false" onclick="seleccionarMetodo('Nequi', this)">
         <span class="metodo-icon">📱</span> Nequi
       </button>
     </div>
@@ -469,7 +469,7 @@
       <div style="font-size:.8rem;font-weight:700;color:var(--accent);margin:12px 0 10px">💳 Datos del datáfono</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div class="input-group">
-          <label>Franquicia *</label>
+          <label for="dt-franquicia">Franquicia *</label>
           <select id="dt-franquicia" class="input">
             <option value="">— Selecciona —</option>
             <option>Master</option>
@@ -481,7 +481,7 @@
           </select>
         </div>
         <div class="input-group">
-          <label>Tipo de tarjeta *</label>
+          <label for="dt-tipo-tarjeta">Tipo de tarjeta *</label>
           <select id="dt-tipo-tarjeta" class="input">
             <option value="">— Selecciona —</option>
             <option>Débito</option>
@@ -489,38 +489,38 @@
           </select>
         </div>
         <div class="input-group">
-          <label>Valor (COP) *</label>
+          <label for="dt-valor">Valor (COP) *</label>
           <input id="dt-valor" class="input" type="text" inputmode="numeric" placeholder="$ 0" oninput="formatearMonto(this)">
         </div>
         <div class="input-group">
-          <label>¿El titular de la tarjeta es la misma persona? *</label>
-          <div style="display:flex;gap:8px;margin-top:4px">
-            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarTitularDiferente('Si', this)" style="flex:1">Sí</button>
-            <button type="button" class="btn btn-ghost dt-benef-btn" onclick="seleccionarTitularDiferente('No', this)" style="flex:1">No</button>
+          <label id="dt-titular-label">¿El titular de la tarjeta es la misma persona? *</label>
+          <div role="group" aria-labelledby="dt-titular-label" style="display:flex;gap:8px;margin-top:4px">
+            <button type="button" class="btn btn-ghost dt-benef-btn" aria-pressed="false" onclick="seleccionarTitularDiferente('Si', this)" style="flex:1">Sí</button>
+            <button type="button" class="btn btn-ghost dt-benef-btn" aria-pressed="false" onclick="seleccionarTitularDiferente('No', this)" style="flex:1">No</button>
           </div>
         </div>
         <div id="subpaso-titular" class="hidden">
           <div style="display:flex;flex-direction:column;gap:10px">
             <div class="input-group">
-              <label>Nombre del titular de la tarjeta *</label>
+              <label for="dt-nombre-titular">Nombre del titular de la tarjeta *</label>
               <input id="dt-nombre-titular" class="input" placeholder="Nombres y apellidos">
             </div>
             <div class="input-group">
-              <label>Número de documento del titular *</label>
-              <input id="dt-doc-titular" class="input" type="number" inputmode="numeric" placeholder="Número de identificación">
+              <label for="dt-doc-titular">Número de documento del titular *</label>
+              <input id="dt-doc-titular" class="input" type="text" inputmode="numeric" placeholder="Número de identificación">
             </div>
             <div class="input-group">
-              <label>Celular del titular *</label>
-              <input id="dt-celular-titular" class="input" type="number" inputmode="tel" placeholder="Número de celular">
+              <label for="dt-celular-titular">Celular del titular *</label>
+              <input id="dt-celular-titular" class="input" type="text" inputmode="tel" placeholder="Número de celular">
             </div>
           </div>
         </div>
         <div class="input-group">
-          <label>No. Autorización *</label>
-          <input id="dt-autorizacion" class="input" type="number" inputmode="numeric" placeholder="Número de autorización">
+          <label for="dt-autorizacion">No. Autorización *</label>
+          <input id="dt-autorizacion" class="input" type="text" inputmode="numeric" placeholder="Número de autorización">
         </div>
         <div class="input-group">
-          <label>No. Datáfono *</label>
+          <label for="dt-no-datafono">No. Datáfono *</label>
           <select id="dt-no-datafono" class="input">
             <option value="">— Selecciona —</option>
             <option>1</option>
@@ -573,25 +573,25 @@
     <div style="display:flex;flex-direction:column;gap:10px">
       <input id="ep-documento-original" type="hidden">
       <div class="input-group">
-        <label>Nombre completo *</label>
+        <label for="ep-nombre">Nombre completo *</label>
         <input id="ep-nombre" class="input" placeholder="Nombre y apellidos">
       </div>
       <div class="input-group">
-        <label>Cédula *</label>
-        <input id="ep-documento" class="input" type="number" inputmode="numeric" placeholder="Número de documento">
+        <label for="ep-documento">Cédula *</label>
+        <input id="ep-documento" class="input" type="text" inputmode="numeric" placeholder="Número de documento">
       </div>
       <div class="input-group">
-        <label>Celular</label>
+        <label for="ep-celular">Celular</label>
         <input id="ep-celular" class="input" type="tel" inputmode="tel" placeholder="3001234567">
       </div>
       <div class="input-group">
-        <label>Correo</label>
+        <label for="ep-correo">Correo</label>
         <input id="ep-correo" class="input" type="email" inputmode="email" placeholder="correo@ejemplo.com"
           onblur="validarInputCorreo(this)" onkeyup="validarInputCorreo(this)">
         <small id="ep-correo-error" style="color:var(--red);display:none"></small>
       </div>
       <div class="input-group">
-        <label>Sede</label>
+        <label for="ep-sede">Sede</label>
         <select id="ep-sede" class="input">
           <option value="Norte">Norte</option>
           <option value="Suba">Suba</option>
@@ -670,7 +670,7 @@
 </div>
 
 <!-- MODAL: DETALLE TRANSACCIÓN -->
-<div id="modal-detalle-trans" class="modal-backdrop">
+<div id="modal-detalle-trans" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="modal" style="max-width:620px">
     <div class="modal-header">
       <h3 id="detalle-trans-titulo">Detalle de transacción</h3>
@@ -1159,8 +1159,9 @@ function irPaso1()      { hide('#step2'); show('#step1'); actualizarStepIndicato
 // ─── PASO 3: PAGO ─────────────────────────────────────────────────────────────
 function seleccionarMetodo(metodo, btn) {
   STATE.metodoPago = metodo;
-  qsa('.metodo-btn').forEach(function(b) { b.classList.remove('selected'); });
+  qsa('.metodo-btn').forEach(function(b) { b.classList.remove('selected'); b.setAttribute('aria-pressed', 'false'); });
   btn.classList.add('selected');
+  btn.setAttribute('aria-pressed', 'true');
   toggle('#subpaso-datafono', metodo === 'Datáfono');
   if (metodo === 'Datáfono' && STATE.monto) { qs('#dt-valor').value = '$ ' + Number(STATE.monto).toLocaleString('es-CO'); }
   qs('#btn-registrar').disabled = false;
@@ -1168,13 +1169,18 @@ function seleccionarMetodo(metodo, btn) {
 
 function seleccionarTitularDiferente(valor, btn) {
   STATE.dtTitularMismo = valor;
-  qsa('.dt-benef-btn').forEach(function(b) { b.classList.remove('selected'); });
+  qsa('.dt-benef-btn').forEach(function(b) { b.classList.remove('selected'); b.setAttribute('aria-pressed', 'false'); });
   btn.classList.add('selected');
+  btn.setAttribute('aria-pressed', 'true');
   toggle('#subpaso-titular', valor === 'No');
 }
 
 async function registrarTransaccion() {
   if (!STATE.metodoPago) { toast.warn('Selecciona un método de pago'); return; }
+
+  // Limpia marcas de error de un intento anterior
+  qsa('#subpaso-datafono .input-error').forEach(el => el.classList.remove('input-error'));
+
   const dtData = {};
   if (STATE.metodoPago === 'Datáfono') {
     const franquicia  = qs('#dt-franquicia').value;
@@ -1182,29 +1188,39 @@ async function registrarTransaccion() {
     const valor       = Number(qs('#dt-valor').value.replace(/[^0-9]/g, ''));
     const noAut       = qs('#dt-autorizacion').value.trim();
     const noDatafono  = qs('#dt-no-datafono').value;
-    if (!franquicia)          { toast.warn('Selecciona la franquicia'); return; }
-    if (!tipoTarjeta)         { toast.warn('Selecciona el tipo de tarjeta'); return; }
-    if (!valor || valor <= 0) { toast.warn('Ingresa el valor del datáfono'); return; }
-    if (!STATE.dtTitularMismo) { toast.warn('Indica si el titular de la tarjeta es la misma persona'); return; }
-    if (!noAut)               { toast.warn('Ingresa el número de autorización'); return; }
-    if (!noDatafono)          { toast.warn('Selecciona el número de datáfono'); return; }
+
+    const errores = [];
+    if (!franquicia)           errores.push(['dt-franquicia',    'Selecciona la franquicia']);
+    if (!tipoTarjeta)          errores.push(['dt-tipo-tarjeta',  'Selecciona el tipo de tarjeta']);
+    if (!valor || valor <= 0)  errores.push(['dt-valor',         'Ingresa el valor del datáfono']);
+    if (!STATE.dtTitularMismo) errores.push(['dt-titular-label', 'Indica si el titular de la tarjeta es la misma persona']);
+    if (!noAut)                errores.push(['dt-autorizacion',  'Ingresa el número de autorización']);
+    if (!noDatafono)           errores.push(['dt-no-datafono',   'Selecciona el número de datáfono']);
+
+    let nombreTit = '', docTit = '', celularTit = '';
+    if (STATE.dtTitularMismo === 'No') {
+      nombreTit  = qs('#dt-nombre-titular').value.trim();
+      docTit     = qs('#dt-doc-titular').value.trim();
+      celularTit = qs('#dt-celular-titular').value.trim();
+      if (!nombreTit)  errores.push(['dt-nombre-titular',  'Ingresa el nombre del titular de la tarjeta']);
+      if (!docTit)     errores.push(['dt-doc-titular',     'Ingresa el documento del titular']);
+      if (!celularTit) errores.push(['dt-celular-titular', 'Ingresa el celular del titular']);
+    }
+
+    if (errores.length) {
+      errores.forEach(([id]) => { const el = qs('#' + id); if (el) el.classList.add('input-error'); });
+      toast.error(errores.length === 1 ? errores[0][1] : `Revisa ${errores.length} campos: ` + errores.map(e => e[1]).join(' · '));
+      const primerCampo = qs('#' + errores[0][0]);
+      if (primerCampo && primerCampo.scrollIntoView) primerCampo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
     Object.assign(dtData, {
       dtFranquicia: franquicia, dtTipoTarjeta: tipoTarjeta, dtValor: valor,
       dtTitularMismo: STATE.dtTitularMismo,
-      dtNombreTitular: '', dtDocTitular: '', dtCelularTitular: '',
+      dtNombreTitular: nombreTit, dtDocTitular: docTit, dtCelularTitular: celularTit,
       dtNoAutorizacion: noAut, dtNoDatafono: noDatafono
     });
-    if (STATE.dtTitularMismo === 'No') {
-      const nombreTit  = qs('#dt-nombre-titular').value.trim();
-      const docTit     = qs('#dt-doc-titular').value.trim();
-      const celularTit = qs('#dt-celular-titular').value.trim();
-      if (!nombreTit)  { toast.warn('Ingresa el nombre del titular de la tarjeta'); return; }
-      if (!docTit)     { toast.warn('Ingresa el documento del titular'); return; }
-      if (!celularTit) { toast.warn('Ingresa el celular del titular'); return; }
-      dtData.dtNombreTitular  = nombreTit;
-      dtData.dtDocTitular     = docTit;
-      dtData.dtCelularTitular = celularTit;
-    }
   }
   const btn = qs('#btn-registrar');
   setLoading(btn, true);
@@ -1498,8 +1514,8 @@ function abrirDetalleTransaccion(t) {
       '<div><div class="text-muted">Estado</div><div class="fw-600">' + badgeEstado(t.estado || 'Activa') + '</div></div>' +
       '<div><div class="text-muted">Asesor</div><div class="fw-600">' + escHtml(t.asesorNombre) + '</div></div>' +
       '<div><div class="text-muted">Email asesor</div><div class="fw-600 truncate">' + escHtml(t.asesorEmail) + '</div></div>' +
-      '<div><div class="text-muted">Legalización Iglesia</div><div class="fw-600">' + badgeEstado(t.estadoIglesia) + '</div></div>' +
-      '<div><div class="text-muted">Legalización Academia</div><div class="fw-600">' + badgeEstado(t.estadoAcademia) + '</div></div>' +
+      '<div><div class="text-muted">Leg. Pago</div><div class="fw-600">' + badgeEstado(t.estadoIglesia) + '</div></div>' +
+      '<div><div class="text-muted">Leg. Inscripción</div><div class="fw-600">' + badgeEstado(t.estadoAcademia) + '</div></div>' +
     '</div>';
 
   if (esDatafono) {

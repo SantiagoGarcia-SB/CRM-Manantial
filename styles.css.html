@@ -101,6 +101,7 @@ small { font-size: 0.78rem; color: var(--text-dim); }
 }
 .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-lt); }
 .input::placeholder { color: var(--muted); }
+.input-error { border-color: var(--red) !important; box-shadow: 0 0 0 3px rgba(239,68,68,0.12); }
 .input-icon { position: relative; }
 .input-icon .input { padding-left: 40px; }
 .input-icon .icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
@@ -119,7 +120,7 @@ small { font-size: 0.78rem; color: var(--text-dim); }
 .badge-yellow  { background: rgba(245,158,11,0.15); color: var(--yellow); }
 .badge-red     { background: rgba(239,68,68,0.15);  color: var(--red); }
 .badge-blue    { background: rgba(102,126,234,0.15); color: var(--accent); }
-.badge-muted   { background: rgba(100,116,139,0.15); color: var(--muted); }
+.badge-muted   { background: rgba(100,116,139,0.15); color: var(--text-dim); }
 
 /* ─── TABLAS ───────────────────────────────────────────────────────────────── */
 .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
@@ -201,7 +202,7 @@ tbody td { padding: 11px 14px; color: var(--text); vertical-align: middle; }
 .modal-body  { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 .modal-footer { padding: 14px 20px; border-top: 1px solid var(--border);
                 display: flex; gap: 10px; justify-content: flex-end; }
-.modal-close { background: none; border: none; color: var(--muted); font-size: 1.2rem; cursor: pointer; padding: 4px; }
+.modal-close { background: none; border: none; color: var(--text-dim); font-size: 1.2rem; cursor: pointer; padding: 4px; }
 .modal-close:hover { color: var(--text); }
 
 /* ─── PROGRESS BARS ────────────────────────────────────────────────────────── */

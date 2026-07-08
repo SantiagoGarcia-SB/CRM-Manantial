@@ -1,12 +1,11 @@
 // ─── TRANSACCIONES.GS ─────────────────────────────────────────────────────────
 // Contrato público:
-//   crearTransaccion(payload)           → {ok, transaccion, inscripcion?}
-//   anularTransaccion(idTrans)          → {ok}
-//   listarTransacciones(filtros)        → {transacciones:[], total:number}
-//   obtenerResumenAsesor(email?)        → {transacciones:[], resumen:{}}
-//   getHistorialTurno(sede?)             → {transacciones:[], totales:{}}
-//   getCarteraAsesor()                  → Object[]  (semáforo por persona)
-//   actualizarEstadoLegalizacion(id,tipo,estado) → {ok}
+//   crearTransaccion(payload)              → {ok, transaccion, inscripcion?}
+//   anularTransaccion(idTrans)             → {ok}
+//   listarTransacciones(filtros)           → {transacciones:[], total:number}
+//   getHistorialTurno(sede?)               → {transacciones:[], totales:{}}
+//   getCarteraAsesor()                     → Object[]  (semáforo por persona)
+//   exportarTransaccionesDatafono(filtros) → Object[]  (datos para CSV frontend)
 
 /**
  * Payload esperado de crearTransaccion:
@@ -59,100 +58,117 @@ function crearTransaccion(token, payload) {
     }
   }
 
-  const ahora  = new Date();
-  const idTrans = generateId_('TRN');
-
-  // Determinar estados de legalización
-  const estadoIglesia  = actividad.legalizarPago         ? 'Pendiente' : 'NA';
-  const estadoAcademia = actividad.legalizarInscripcion  ? 'Pendiente' : 'NA';
-
-  // Insertar en Transacciones
-  const sheet = getSheet_('Transacciones', true);
-  sheet.appendRow([
-    idTrans,
-    ahora,
-    payload.nombrePersona,
-    payload.documentoPersona || '',
-    payload.celularPersona   || '',
-    payload.nombreActividad,
-    payload.sede,
-    Number(payload.monto),
-    payload.metodoPago,
-    asesorInfo.email,
-    asesorInfo.nombre,
-    estadoIglesia,
-    estadoAcademia,
-    payload.dtFranquicia             || '',
-    payload.dtTipoTarjeta            || '',
-    payload.dtValor                  || '',
-    payload.dtTitularMismo      || '',
-    payload.dtNombreTitular     || '',
-    payload.dtDocTitular        || '',
-    payload.dtCelularTitular    || '',
-    payload.dtNoAutorizacion         || '',
-    payload.dtNoDatafono             || '',
-    'Activa'
-  ]);
-
-  const transaccion = {
-    id:              idTrans,
-    timestamp:       formatDate_(ahora),
-    nombrePersona:   payload.nombrePersona,
-    actividad:       payload.nombreActividad,
-    sede:            payload.sede,
-    monto:           Number(payload.monto),
-    metodoPago:      payload.metodoPago,
-    asesorEmail:     asesorInfo.email,
-    asesorNombre:    asesorInfo.nombre,
-    estadoIglesia,
-    estadoAcademia
-  };
-
-  // ── Generar filas de Legalizaciones según flags ──────────────────────────
-  const legalizaciones = [];
-  if (actividad.legalizarPago) {
-    const idLegal = crearEntradaLegalizacion_(idTrans, 'iglesia');
-    legalizaciones.push({ tipo: 'iglesia', id: idLegal });
-  }
-  if (actividad.legalizarInscripcion) {
-    const idLegal = crearEntradaLegalizacion_(idTrans, 'academia');
-    legalizaciones.push({ tipo: 'academia', id: idLegal });
+  // ── Sección crítica bajo lock ─────────────────────────────────────────────
+  // Evita que dos registros simultáneos (dos sedes a la vez) pasen la
+  // validación de inscripción duplicada antes de que cualquiera escriba, y
+  // valida el duplicado ANTES de guardar la transacción (antes, si la
+  // inscripción resultaba duplicada, la transacción ya había quedado
+  // guardada como "Activa" sin inscripción asociada — un pago fantasma).
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throw new Error('El sistema está ocupado procesando otro registro. Intenta de nuevo en unos segundos.');
   }
 
-  // ── Generar inscripción si aplica ────────────────────────────────────────
-  let inscripcion = null;
-  if (debeInscribir) {
-    // Validar que no exista inscripción duplicada (misma persona + actividad + módulo + horario)
-    const inscExistentes = sheetToObjects_('Inscripciones');
-    const transExistentes = sheetToObjects_('Transacciones');
-    const yaInscrito = inscExistentes.some(function(ins) {
-      if (ins.Actividad !== payload.nombreActividad) return false;
-      if (payload.modulo && ins.Modulo !== payload.modulo) return false;
-      if (payload.horario && ins.Horario !== payload.horario) return false;
-      // Verificar que la transacción asociada es de la misma persona y no está anulada
-      var transAsociada = transExistentes.find(function(t) { return t.ID_Trans === ins.ID_Trans; });
-      if (!transAsociada) return false;
-      if ((transAsociada.Estado || 'Activa') === 'Anulada') return false;
-      return transAsociada.Nombre_Persona === payload.nombrePersona;
-    });
-    if (yaInscrito) {
-      throw new Error('La persona "' + payload.nombrePersona + '" ya tiene una inscripción activa en ' + payload.nombreActividad + (payload.modulo ? ' - ' + payload.modulo : '') + (payload.horario ? ' (' + payload.horario + ')' : '') + '.');
+  let ahora, idTrans, transaccion, inscripcion = null, legalizaciones;
+  try {
+    if (debeInscribir) {
+      // Validar que no exista inscripción duplicada (misma persona + actividad + módulo + horario)
+      const inscExistentes  = sheetToObjects_('Inscripciones');
+      const transExistentes = sheetToObjects_('Transacciones');
+      const yaInscrito = inscExistentes.some(function(ins) {
+        if (ins.Actividad !== payload.nombreActividad) return false;
+        if (payload.modulo && ins.Modulo !== payload.modulo) return false;
+        if (payload.horario && ins.Horario !== payload.horario) return false;
+        // Verificar que la transacción asociada es de la misma persona y no está anulada
+        var transAsociada = transExistentes.find(function(t) { return t.ID_Trans === ins.ID_Trans; });
+        if (!transAsociada) return false;
+        if ((transAsociada.Estado || 'Activa') === 'Anulada') return false;
+        return transAsociada.Nombre_Persona === payload.nombrePersona;
+      });
+      if (yaInscrito) {
+        throw new Error('La persona "' + payload.nombrePersona + '" ya tiene una inscripción activa en ' + payload.nombreActividad + (payload.modulo ? ' - ' + payload.modulo : '') + (payload.horario ? ' (' + payload.horario + ')' : '') + '.');
+      }
     }
 
-    inscripcion = crearInscripcionDesdeTransaccion_({
+    ahora   = new Date();
+    idTrans = generateId_('TRN');
+
+    // Determinar estados de legalización
+    const estadoIglesia  = actividad.legalizarPago         ? 'Pendiente' : 'NA';
+    const estadoAcademia = actividad.legalizarInscripcion  ? 'Pendiente' : 'NA';
+
+    // Insertar en Transacciones
+    const sheet = getSheet_('Transacciones', true);
+    sheet.appendRow([
       idTrans,
-      actividad:      payload.nombreActividad,
-      modulo:         payload.modulo  || '',
-      horario:        payload.horario || '',
-      sede:           payload.sede,
-      asesorEmail:    asesorInfo.email,
-      nombrePersona:  payload.nombrePersona,
-      documentoPersona: payload.documentoPersona || '',
-      celularPersona: payload.celularPersona || ''
-    });
+      ahora,
+      payload.nombrePersona,
+      payload.documentoPersona || '',
+      payload.celularPersona   || '',
+      payload.nombreActividad,
+      payload.sede,
+      Number(payload.monto),
+      payload.metodoPago,
+      asesorInfo.email,
+      asesorInfo.nombre,
+      estadoIglesia,
+      estadoAcademia,
+      payload.dtFranquicia             || '',
+      payload.dtTipoTarjeta            || '',
+      payload.dtValor                  || '',
+      payload.dtTitularMismo      || '',
+      payload.dtNombreTitular     || '',
+      payload.dtDocTitular        || '',
+      payload.dtCelularTitular    || '',
+      payload.dtNoAutorizacion         || '',
+      payload.dtNoDatafono             || '',
+      'Activa'
+    ]);
+
+    transaccion = {
+      id:              idTrans,
+      timestamp:       formatDate_(ahora),
+      nombrePersona:   payload.nombrePersona,
+      actividad:       payload.nombreActividad,
+      sede:            payload.sede,
+      monto:           Number(payload.monto),
+      metodoPago:      payload.metodoPago,
+      asesorEmail:     asesorInfo.email,
+      asesorNombre:    asesorInfo.nombre,
+      estadoIglesia,
+      estadoAcademia
+    };
+
+    // ── Generar filas de Legalizaciones según flags ────────────────────────
+    legalizaciones = [];
+    if (actividad.legalizarPago) {
+      const idLegal = crearEntradaLegalizacion_(idTrans, 'iglesia');
+      legalizaciones.push({ tipo: 'iglesia', id: idLegal });
+    }
+    if (actividad.legalizarInscripcion) {
+      const idLegal = crearEntradaLegalizacion_(idTrans, 'academia');
+      legalizaciones.push({ tipo: 'academia', id: idLegal });
+    }
+
+    // ── Generar inscripción si aplica ───────────────────────────────────────
+    if (debeInscribir) {
+      inscripcion = crearInscripcionDesdeTransaccion_({
+        idTrans,
+        actividad:      payload.nombreActividad,
+        modulo:         payload.modulo  || '',
+        horario:        payload.horario || '',
+        sede:           payload.sede,
+        asesorEmail:    asesorInfo.email,
+        nombrePersona:  payload.nombrePersona,
+        documentoPersona: payload.documentoPersona || '',
+        celularPersona: payload.celularPersona || ''
+      });
+    }
+  } finally {
+    lock.releaseLock();
   }
 
-  // ── Enviar email de confirmación (no bloquear si falla) ──────────────────
+  // ── Enviar email de confirmación (fuera del lock; no bloquea si falla) ────
   try {
     if (payload.correoPersona) {
       enviarConfirmacion({
@@ -162,8 +178,7 @@ function crearTransaccion(token, payload) {
         monto:     Number(payload.monto),
         metodo:    payload.metodoPago,
         asesor:    asesorInfo.nombre,
-        fecha:     formatDate_(ahora),
-        actividad: payload.nombreActividad
+        fecha:     formatDate_(ahora)
       });
     }
   } catch (e) {
@@ -370,18 +385,13 @@ function getCarteraAsesor(token) {
 }
 
 /**
- * Actualiza el estado de legalización de una transacción (llamado desde Legalizacion.gs también).
+ * Actualiza el estado de legalización de una transacción.
+ * Función interna: la usan marcarLegalizado (Legalizacion.js) y recuperarDatosFaltantes (Inscripciones.js).
  * @param {string} idTrans
  * @param {'iglesia'|'academia'} tipo
  * @param {'Pendiente'|'Legalizado'|'NA'} estado
  * @returns {{ok:boolean}}
  */
-function actualizarEstadoLegalizacion(token, idTrans, tipo, estado) {
-  authenticate_(token);
-  requireRol_('coordinadora');
-  return actualizarEstadoLegalizacion_(idTrans, tipo, estado);
-}
-
 function actualizarEstadoLegalizacion_(idTrans, tipo, estado) {
   const sheet   = getSheet_('Transacciones');
   const values  = sheet.getDataRange().getValues();

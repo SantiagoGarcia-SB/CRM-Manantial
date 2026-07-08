@@ -1,5 +1,89 @@
 // ─── CONFIGURACIÓN GLOBAL ────────────────────────────────────────────────────
-const SPREADSHEET_ID = '1YTlDfnO-vfQp1L9zYIZDbc38nS9MJn0phIifIrV_O64';
+// Los valores reales viven en Propiedades del proyecto (Script Properties), no en
+// el código, para que la coordinadora pueda cambiarlos sin tocar el script (ver
+// getConfiguracion/actualizarConfiguracion). Estos son solo los valores de
+// arranque, usados la primera vez que corre el CRM antes de configurar nada.
+const CONFIG_DEFAULTS_ = {
+  SPREADSHEET_ID:             '1YTlDfnO-vfQp1L9zYIZDbc38nS9MJn0phIifIrV_O64',
+  CIERRE_DATAFONO_SHEET_ID:   '1GnCSSsVp_bRcBGSbe6D9XpZN4-Z87iB-DNzi0be9dxY',
+  CIERRE_GENERAL_SHEET_ID:    '17eM2YYQHXoMjV-dttSsGjEutL-llatbUo1rwfdRCuNU',
+  CIERRE_GENERAL_EMAIL:       'elcamino.norte@manantial.co'
+};
+
+const CONFIG_LABELS_ = {
+  SPREADSHEET_ID:           'Hoja de cálculo principal (ID)',
+  CIERRE_DATAFONO_SHEET_ID: 'Hoja de cierre de datáfono (ID)',
+  CIERRE_GENERAL_SHEET_ID:  'Hoja de cierre general (ID)',
+  CIERRE_GENERAL_EMAIL:     'Correo que recibe el cierre gerencial'
+};
+
+/**
+ * Lee un valor de configuración: primero Propiedades del proyecto, si no
+ * existe cae al valor por defecto embebido en el código.
+ */
+function getConfig_(key) {
+  const val = PropertiesService.getScriptProperties().getProperty(key);
+  return val || CONFIG_DEFAULTS_[key];
+}
+
+/**
+ * Configuración actual del sistema, para la pantalla de ajustes de la coordinadora.
+ */
+function getConfiguracion(token) {
+  authenticate_(token);
+  requireRol_('coordinadora');
+  return Object.keys(CONFIG_DEFAULTS_).map(key => ({
+    key:   key,
+    label: CONFIG_LABELS_[key],
+    valor: getConfig_(key)
+  }));
+}
+
+/**
+ * Actualiza uno o más valores de configuración en Propiedades del proyecto.
+ * @param {Object} datos - { CLAVE: nuevoValor, ... }
+ */
+function actualizarConfiguracion(token, datos) {
+  authenticate_(token);
+  requireRol_('coordinadora');
+  const props = PropertiesService.getScriptProperties();
+  Object.keys(datos).forEach(key => {
+    if (!CONFIG_DEFAULTS_.hasOwnProperty(key)) return;
+    const val = String(datos[key] || '').trim();
+    if (val) props.setProperty(key, val);
+  });
+  return { ok: true };
+}
+
+/**
+ * Panel de salud del sistema para la coordinadora: estado de las hojas de datos,
+ * conteos rápidos y estado del cierre consolidado del día — todo lo que antes
+ * solo se podía ver corriendo funciones manualmente desde el editor de Apps
+ * Script o revisando Stackdriver.
+ */
+function getSaludSistema(token) {
+  authenticate_(token);
+  requireRol_('coordinadora');
+
+  const ss = getSpreadsheet();
+  const hojas = Object.keys(SHEET_HEADERS).map(name => {
+    const sheet = ss.getSheetByName(name);
+    return { nombre: name, existe: !!sheet, filas: sheet ? Math.max(0, sheet.getLastRow() - 1) : 0 };
+  });
+
+  const asesores    = sheetToObjects_('Asesores');
+  const actividades = sheetToObjects_('Actividades');
+  const activoTrue  = v => v === true || v === 'TRUE' || v === 'true';
+
+  return {
+    hojas: hojas,
+    asesoresActivos:     asesores.filter(a => activoTrue(a.Activo)).length,
+    asesoresTotal:       asesores.length,
+    actividadesActivas:  actividades.filter(a => activoTrue(a.Activa)).length,
+    actividadesTotal:    actividades.length,
+    cierreHoy:           getEstadoCierreHoy(token)
+  };
+}
 
 const SHEET_HEADERS = {
   Personas:       ['Documento','Nombre','Celular','Correo','Sede','Fecha_Registro'],
@@ -15,10 +99,11 @@ const SHEET_HEADERS = {
                    'Nombre_Persona','Documento_Persona','Celular_Persona'],
   Actividades:    ['ID_Actividad','Nombre','Categoria','Valor_Base','Valor_Variable',
                    'Requiere_Inscripcion','Legalizar_Iglesia','Legalizar_Academia','Activa',
-                   'Legalizar_Pago','Legalizar_Inscripcion','Horarios','Modulos'],
+                   'Legalizar_Pago','Legalizar_Inscripcion','Horarios','Modulos',
+                   'Modificado_Por','Modificado_Fecha'],
   Categorias:     ['ID_Categoria','Nombre'],
-  Asesores:       ['Email','Nombre','Sede','Rol','Activo','Pin'],
-  Legalizaciones: ['ID_Legal','ID_Trans','Tipo','Estado','Fecha_Legalizacion','Notas']
+  Asesores:       ['Email','Nombre','Sede','Rol','Activo','Pin','Modificado_Por','Modificado_Fecha'],
+  Legalizaciones: ['ID_Legal','ID_Trans','Tipo','Estado','Fecha_Legalizacion','Notas','Legalizado_Por']
 };
 
 // ─── PUNTO DE ENTRADA WEB ─────────────────────────────────────────────────────
@@ -43,10 +128,11 @@ function cargarPaginaCoord() {
 }
 
 function getSpreadsheet() {
-  if (SPREADSHEET_ID === 'TU_SPREADSHEET_ID_AQUI') {
-    throw new Error('Configura SPREADSHEET_ID en Code.gs antes de usar el CRM.');
+  const id = getConfig_('SPREADSHEET_ID');
+  if (!id || id === 'TU_SPREADSHEET_ID_AQUI') {
+    throw new Error('Configura SPREADSHEET_ID en Ajustes (o en Propiedades del proyecto) antes de usar el CRM.');
   }
-  return SpreadsheetApp.openById(SPREADSHEET_ID);
+  return SpreadsheetApp.openById(id);
 }
 
 function getSheet_(name, createIfMissing = false) {
@@ -80,72 +166,6 @@ function sheetToObjects_(sheetName) {
 
 function generateId_(prefix) {
   return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5).toUpperCase();
-}
-
-// ─── PÁGINA DE CUENTA NO AUTORIZADA ──────────────────────────────────────────
-
-/**
- * Se muestra cuando el usuario autenticado no está registrado en el sistema.
- * Con ANYONE_WITH_GOOGLE_LINK, el email siempre está disponible, así que
- * los botones ?authuser=N funcionan correctamente para cambiar de cuenta.
- */
-function buildErrorPage_(mensaje, emailDetectado) {
-  const appUrl = ScriptApp.getService().getUrl();
-
-  const emailBadge = emailDetectado
-    ? '<div class="email-badge">Cuenta activa: <strong>' + emailDetectado + '</strong></div>'
-    : '';
-
-  const cuentaBtns = [0,1,2,3].map(function(n) {
-    var url = appUrl + '?authuser=' + n;
-    var esActual = (n === 0 && !!emailDetectado);
-    var cls = esActual ? 'btn-cuenta btn-actual' : 'btn-cuenta';
-    var texto = esActual ? '1ª cuenta (actual — no registrada)' : (n + 1) + 'ª cuenta';
-    return '<a href="' + url + '" class="' + cls + '">' + texto + '</a>';
-  }).join('');
-
-  const css = [
-    '*{box-sizing:border-box}',
-    'body{margin:0;font-family:Segoe UI,sans-serif;background:#0d1829;color:#e2e8f0;',
-    'display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}',
-    '.card{background:#1e1e1e;border:1px solid #2d3640;border-radius:12px;',
-    'padding:28px 20px;max-width:400px;width:100%;text-align:center}',
-    'h2{color:#ef4444;margin:0 0 10px;font-size:1.05rem}',
-    'p{color:#94a3b8;font-size:14px;margin:0 0 14px;line-height:1.5}',
-    '.icon{font-size:40px;margin-bottom:14px}',
-    '.email-badge{background:#1e2340;border:1px solid #3b4169;border-radius:6px;',
-    'padding:7px 12px;font-size:13px;color:#94a3b8;word-break:break-all;',
-    'display:inline-block;margin-bottom:16px}',
-    '.email-badge strong{color:#c7d2fe}',
-    'hr{border:none;border-top:1px solid #2d3640;margin:16px 0}',
-    '.hint{font-size:12px;color:#64748b;margin-bottom:10px}',
-    '.btn-cuenta{display:block;width:100%;padding:12px;margin-bottom:9px;',
-    'background:#1e2340;border:1px solid #3b4169;border-radius:8px;',
-    'color:#c7d2fe;text-decoration:none;font-size:14px;font-weight:600;transition:background .15s}',
-    '.btn-cuenta:hover{background:#252b4a;border-color:#667eea}',
-    '.btn-actual{background:#111827;border-color:#374151;color:#475569;',
-    'font-size:13px;font-weight:400;pointer-events:none;cursor:default}',
-    '.nota{font-size:11px;color:#475569;margin-top:14px;line-height:1.5}'
-  ].join('');
-
-  return HtmlService.createHtmlOutput(
-    '<!DOCTYPE html><html lang="es"><head>' +
-    '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<title>Acceso Restringido – CRM Punto de Información</title>' +
-    '<style>' + css + '</style></head><body>' +
-    '<div class="card">' +
-    '<div class="icon">🔒</div>' +
-    '<h2>Cuenta no autorizada</h2>' +
-    '<p>' + mensaje + '</p>' +
-    emailBadge +
-    '<hr>' +
-    '<p class="hint">Selecciona otra cuenta de Google:</p>' +
-    cuentaBtns +
-    '<div class="nota">Si tu correo no aparece, ábrelo en Gmail primero y vuelve a intentar.</div>' +
-    '</div></body></html>'
-  )
-    .setTitle('Acceso Restringido')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 // ─── SETUP INICIAL DE HOJAS ───────────────────────────────────────────────────

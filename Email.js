@@ -132,6 +132,8 @@ Iglesia Manantial – Punto de Información
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
+// escapeHtml_ vive en Auth.js (helpers compartidos) — no se redefine aquí para
+// evitar una colisión silenciosa de nombre en el namespace global de Apps Script.
 
 function formatMoneyCOP_(monto) {
   return new Intl.NumberFormat('es-CO', {
@@ -139,13 +141,4 @@ function formatMoneyCOP_(monto) {
     currency: 'COP',
     maximumFractionDigits: 0
   }).format(Number(monto) || 0);
-}
-
-function escapeHtml_(str) {
-  return String(str || '')
-    .replace(/&/g,  '&amp;')
-    .replace(/</g,  '&lt;')
-    .replace(/>/g,  '&gt;')
-    .replace(/"/g,  '&quot;')
-    .replace(/'/g,  '&#039;');
 }

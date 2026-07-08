@@ -87,7 +87,7 @@ function obtenerActividad_(id) {
  */
 function crearActividad(token, datos) {
   authenticate_(token);
-  requireRol_('coordinadora');
+  const actorInfo = requireRol_('coordinadora');
   validateRequired_(datos, ['nombre', 'categoria']);
 
   const sheet = getSheet_('Actividades', true);
@@ -106,7 +106,9 @@ function crearActividad(token, datos) {
     datos.legalizarPago             ? true : false,
     datos.legalizarInscripcion      ? true : false,
     JSON.stringify(datos.horarios   || []),
-    JSON.stringify(datos.modulos    || [])
+    JSON.stringify(datos.modulos    || []),
+    actorInfo.email,
+    formatDate_(new Date())
   ]);
 
   return { ok: true, id };
@@ -120,7 +122,7 @@ function crearActividad(token, datos) {
  */
 function actualizarActividad(token, id, datos) {
   authenticate_(token);
-  requireRol_('coordinadora');
+  const actorInfo = requireRol_('coordinadora');
   const sheet   = getSheet_('Actividades');
   const values  = sheet.getDataRange().getValues();
   const headers = values[0];
@@ -153,6 +155,10 @@ function actualizarActividad(token, id, datos) {
           }
         }
       });
+      const modPorIdx   = headers.indexOf('Modificado_Por');
+      const modFechaIdx = headers.indexOf('Modificado_Fecha');
+      if (modPorIdx   >= 0) sheet.getRange(i + 1, modPorIdx   + 1).setValue(actorInfo.email);
+      if (modFechaIdx >= 0) sheet.getRange(i + 1, modFechaIdx + 1).setValue(formatDate_(new Date()));
       return { ok: true };
     }
   }
@@ -167,16 +173,20 @@ function actualizarActividad(token, id, datos) {
  */
 function toggleActividad(token, id, activa) {
   authenticate_(token);
-  requireRol_('coordinadora');
+  const actorInfo = requireRol_('coordinadora');
   const sheet   = getSheet_('Actividades');
   const values  = sheet.getDataRange().getValues();
   const headers = values[0];
   const idIdx   = headers.indexOf('ID_Actividad');
   const actIdx  = headers.indexOf('Activa');
+  const modPorIdx   = headers.indexOf('Modificado_Por');
+  const modFechaIdx = headers.indexOf('Modificado_Fecha');
 
   for (let i = 1; i < values.length; i++) {
     if (values[i][idIdx] === id) {
       sheet.getRange(i + 1, actIdx + 1).setValue(activa);
+      if (modPorIdx   >= 0) sheet.getRange(i + 1, modPorIdx   + 1).setValue(actorInfo.email);
+      if (modFechaIdx >= 0) sheet.getRange(i + 1, modFechaIdx + 1).setValue(formatDate_(new Date()));
       return { ok: true };
     }
   }

@@ -507,10 +507,9 @@ function buildEmailCierreGerencial_(opts) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONSTANTES DE HOJAS DE CIERRE
+// Los IDs/correo reales viven en Propiedades del proyecto — ver getConfig_ en
+// Code.js y la pantalla de Ajustes de la coordinadora (getConfiguracion).
 // ═══════════════════════════════════════════════════════════════════════════════
-const CIERRE_DATAFONO_SHEET_ID = '1GnCSSsVp_bRcBGSbe6D9XpZN4-Z87iB-DNzi0be9dxY';
-const CIERRE_GENERAL_SHEET_ID = '17eM2YYQHXoMjV-dttSsGjEutL-llatbUo1rwfdRCuNU';
-const CIERRE_GENERAL_EMAIL    = 'elcamino.norte@manantial.co';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CIERRE CONSOLIDADO — Se dispara automáticamente cuando todas las sedes cierran
@@ -529,20 +528,60 @@ function verificarCierreCompleto_() {
   var ahora = new Date();
   var tz = 'America/Bogota';
   var fechaHoy = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy');
-
   var props = PropertiesService.getScriptProperties();
-  if (props.getProperty('ultimoCierreConsolidado') === fechaHoy) return;
+
+  try {
+    if (props.getProperty('ultimoCierreConsolidado') === fechaHoy) return;
+
+    var sedesActivas = obtenerSedesActivas_();
+    if (sedesActivas.length < 2) return;
+
+    var ss = SpreadsheetApp.openById(getConfig_('CIERRE_GENERAL_SHEET_ID'));
+    var faltantes = sedesActivas.filter(function(sede) {
+      return !ss.getSheetByName(fechaHoy + ' - ' + sede);
+    });
+    props.setProperty('cierrePendienteSedes_' + fechaHoy, JSON.stringify(faltantes));
+    if (faltantes.length > 0) return;
+
+    enviarCierreConsolidado_();
+    props.setProperty('ultimoCierreConsolidado', fechaHoy);
+    props.deleteProperty('ultimoErrorCierre');
+  } catch (e) {
+    // Deja rastro visible para la coordinadora (ver getEstadoCierreHoy), no solo en Stackdriver.
+    props.setProperty('ultimoErrorCierre', JSON.stringify({ fecha: fechaHoy, mensaje: e.message, hora: Utilities.formatDate(ahora, tz, 'HH:mm') }));
+    throw e;
+  }
+}
+
+/**
+ * Estado del cierre consolidado del día, para mostrar en el dashboard de la coordinadora:
+ * qué sedes ya generaron su cierre, cuáles faltan, y si el último intento falló.
+ */
+function getEstadoCierreHoy(token) {
+  authenticate_(token);
+  requireRol_('coordinadora');
+  var tz = 'America/Bogota';
+  var fechaHoy = Utilities.formatDate(new Date(), tz, 'dd-MM-yyyy');
+  var props = PropertiesService.getScriptProperties();
 
   var sedesActivas = obtenerSedesActivas_();
-  if (sedesActivas.length < 2) return;
-
-  var ss = SpreadsheetApp.openById(CIERRE_GENERAL_SHEET_ID);
-  for (var i = 0; i < sedesActivas.length; i++) {
-    if (!ss.getSheetByName(fechaHoy + ' - ' + sedesActivas[i])) return;
+  var faltantesRaw = props.getProperty('cierrePendienteSedes_' + fechaHoy);
+  var faltantes    = faltantesRaw ? JSON.parse(faltantesRaw) : sedesActivas;
+  var consolidadoEnviado = props.getProperty('ultimoCierreConsolidado') === fechaHoy;
+  var errorRaw = props.getProperty('ultimoErrorCierre');
+  var ultimoError = null;
+  if (errorRaw) {
+    var parsed = JSON.parse(errorRaw);
+    if (parsed.fecha === fechaHoy) ultimoError = parsed;
   }
 
-  enviarCierreConsolidado_();
-  props.setProperty('ultimoCierreConsolidado', fechaHoy);
+  return {
+    fecha: fechaHoy,
+    sedesActivas: sedesActivas,
+    sedesFaltantes: consolidadoEnviado ? [] : faltantes,
+    consolidadoEnviado: consolidadoEnviado,
+    ultimoError: ultimoError
+  };
 }
 
 function enviarCierreConsolidado_() {
@@ -572,7 +611,7 @@ function enviarCierreConsolidado_() {
   var totalRecaudo = 0;
   trans.forEach(function(t) { totalRecaudo += Number(t.Monto) || 0; });
 
-  var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + CIERRE_GENERAL_SHEET_ID;
+  var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + getConfig_('CIERRE_GENERAL_SHEET_ID');
 
   var emailHtml = buildEmailCierreGerencial_({
     titulo:        'Cierre Consolidado — Todas las Sedes',
@@ -586,7 +625,7 @@ function enviarCierreConsolidado_() {
   });
 
   MailApp.sendEmail({
-    to:      CIERRE_GENERAL_EMAIL,
+    to:      getConfig_('CIERRE_GENERAL_EMAIL'),
     subject: '📊 Consolidado ' + fechaHoy + ' — ' + trans.length + ' trans · ' + fmtM(totalRecaudo),
     htmlBody: emailHtml
   });
@@ -632,7 +671,7 @@ function generarCierreSede(sede) {
   const transDatafono = todasTrans.filter(t => t.Metodo_Pago === 'Datáfono');
 
   if (transDatafono.length) {
-    const ssDf = SpreadsheetApp.openById(CIERRE_DATAFONO_SHEET_ID);
+    const ssDf = SpreadsheetApp.openById(getConfig_('CIERRE_DATAFONO_SHEET_ID'));
     let sheetDf = ssDf.getSheetByName(nombrePestana);
     if (sheetDf) sheetDf.clear();
     else sheetDf = ssDf.insertSheet(nombrePestana, 0);
@@ -747,7 +786,7 @@ function generarCierreSede(sede) {
   }
 
   // ── HOJA 2: CIERRE GENERAL ───────────────────────────────────────────────
-  const ssGen = SpreadsheetApp.openById(CIERRE_GENERAL_SHEET_ID);
+  const ssGen = SpreadsheetApp.openById(getConfig_('CIERRE_GENERAL_SHEET_ID'));
   let sheetGen = ssGen.getSheetByName(nombrePestana);
   if (sheetGen) sheetGen.clear();
   else sheetGen = ssGen.insertSheet(nombrePestana, 0);
@@ -949,7 +988,7 @@ function generarCierreSede(sede) {
   for (var c = 1; c <= totalColsGen; c++) sheetGen.autoResizeColumn(c);
 
   // ── CORREO GERENCIAL ──────────────────────────────────────────────────
-  var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + CIERRE_GENERAL_SHEET_ID + '/edit#gid=' + sheetGen.getSheetId();
+  var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + getConfig_('CIERRE_GENERAL_SHEET_ID') + '/edit#gid=' + sheetGen.getSheetId();
   var nombreFecha = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy');
 
   var emailHtml = buildEmailCierreGerencial_({
@@ -964,7 +1003,7 @@ function generarCierreSede(sede) {
   });
 
   MailApp.sendEmail({
-    to:       CIERRE_GENERAL_EMAIL,
+    to:       getConfig_('CIERRE_GENERAL_EMAIL'),
     subject:  '📊 Cierre ' + sede + ' ' + nombreFecha + ' — ' + todasTrans.length + ' trans · ' + fmtM(totTotal),
     htmlBody: emailHtml
   });

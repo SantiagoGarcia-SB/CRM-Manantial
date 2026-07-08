@@ -192,27 +192,34 @@ function listarAsesores(token) {
 
 function crearAsesor(token, datos) {
   authenticate_(token);
-  requireRol_('coordinadora');
+  const actorInfo = requireRol_('coordinadora');
   validateRequired_(datos, ['email', 'nombre', 'sede', 'rol']);
   const asesores = sheetToObjects_('Asesores');
   const existe   = asesores.find(function(a) { return a.Email.toLowerCase() === datos.email.toLowerCase(); });
   if (existe) throw new Error('Ya existe un asesor con ese correo.');
-  getSheet_('Asesores', true).appendRow([datos.email, datos.nombre, datos.sede, datos.rol, true]);
+  getSheet_('Asesores', true).appendRow([
+    datos.email, datos.nombre, datos.sede, datos.rol, true, '',
+    actorInfo.email, formatDate_(new Date())
+  ]);
   return { ok: true, mensaje: 'Asesor creado correctamente.' };
 }
 
 function actualizarAsesor(token, email, datos) {
   authenticate_(token);
-  requireRol_('coordinadora');
+  const actorInfo = requireRol_('coordinadora');
   const sheet   = getSheet_('Asesores');
   const values  = sheet.getDataRange().getValues();
   const headers = values[0];
   const emailIdx = headers.indexOf('Email');
+  const modPorIdx   = headers.indexOf('Modificado_Por');
+  const modFechaIdx = headers.indexOf('Modificado_Fecha');
   for (let i = 1; i < values.length; i++) {
     if (values[i][emailIdx] && values[i][emailIdx].toLowerCase() === email.toLowerCase()) {
       if (datos.nombre) sheet.getRange(i + 1, headers.indexOf('Nombre') + 1).setValue(datos.nombre);
       if (datos.sede)   sheet.getRange(i + 1, headers.indexOf('Sede')   + 1).setValue(datos.sede);
       if (datos.rol)    sheet.getRange(i + 1, headers.indexOf('Rol')    + 1).setValue(datos.rol);
+      if (modPorIdx   >= 0) sheet.getRange(i + 1, modPorIdx   + 1).setValue(actorInfo.email);
+      if (modFechaIdx >= 0) sheet.getRange(i + 1, modFechaIdx + 1).setValue(formatDate_(new Date()));
       return { ok: true };
     }
   }
@@ -221,15 +228,19 @@ function actualizarAsesor(token, email, datos) {
 
 function toggleAsesor(token, email, activo) {
   authenticate_(token);
-  requireRol_('coordinadora');
+  const actorInfo = requireRol_('coordinadora');
   const sheet   = getSheet_('Asesores');
   const values  = sheet.getDataRange().getValues();
   const headers = values[0];
   const emailIdx  = headers.indexOf('Email');
   const activoIdx = headers.indexOf('Activo');
+  const modPorIdx   = headers.indexOf('Modificado_Por');
+  const modFechaIdx = headers.indexOf('Modificado_Fecha');
   for (let i = 1; i < values.length; i++) {
     if (values[i][emailIdx] && values[i][emailIdx].toLowerCase() === email.toLowerCase()) {
       sheet.getRange(i + 1, activoIdx + 1).setValue(activo);
+      if (modPorIdx   >= 0) sheet.getRange(i + 1, modPorIdx   + 1).setValue(actorInfo.email);
+      if (modFechaIdx >= 0) sheet.getRange(i + 1, modFechaIdx + 1).setValue(formatDate_(new Date()));
       return { ok: true };
     }
   }

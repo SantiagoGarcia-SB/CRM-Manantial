@@ -5,8 +5,10 @@
 //   obtenerColaAcademia()                      → Object[]
 //   marcarLegalizado(idTrans, tipo, notas?)    → {ok}
 //   exportarPendientes(tipo)                   → Object[]  (datos para CSV frontend)
-//   getResumenLegalizacion()                   → {iglesia:{}, academia:{}}
-//   getAlertasPendientes()                     → Object[]  (>7 días)
+//
+// Internas, usadas solo desde otras funciones del backend (sin frontend que las llame):
+//   getResumenLegalizacion_()                  → {iglesia:{}, academia:{}}  (usada por getAlertasDashboard)
+//   getAlertasPendientes_(dias)                → Object[]  (>7 días, usada por getAlertasDashboard)
 
 /**
  * Inserta una entrada en la cola de legalización. Llamada internamente desde crearTransaccion.
@@ -88,7 +90,7 @@ function obtenerCola_(tipo) {
  */
 function marcarLegalizado(token, idTrans, tipo, notas = '') {
   authenticate_(token);
-  requireRol_('coordinadora');
+  const actorInfo = requireRol_('coordinadora');
   const ahora = new Date();
 
   // 1. Actualizar hoja Legalizaciones
@@ -100,6 +102,7 @@ function marcarLegalizado(token, idTrans, tipo, notas = '') {
   const estadoIdx  = headers.indexOf('Estado');
   const fechaIdx   = headers.indexOf('Fecha_Legalizacion');
   const notasIdx   = headers.indexOf('Notas');
+  const porIdx     = headers.indexOf('Legalizado_Por');
 
   let found = false;
   for (let i = 1; i < values.length; i++) {
@@ -107,6 +110,7 @@ function marcarLegalizado(token, idTrans, tipo, notas = '') {
       sheet.getRange(i + 1, estadoIdx  + 1).setValue('Legalizado');
       sheet.getRange(i + 1, fechaIdx   + 1).setValue(ahora);
       sheet.getRange(i + 1, notasIdx   + 1).setValue(notas);
+      if (porIdx >= 0) sheet.getRange(i + 1, porIdx + 1).setValue(actorInfo.email);
       found = true;
       break;
     }
@@ -145,15 +149,10 @@ function exportarPendientes(token, tipo) {
 
 /**
  * Resumen de estado de legalización para el dashboard.
+ * Función interna: hoy solo la consume getAlertasDashboard (Reportes.js).
  * @returns {{iglesia:{total:number, pendientes:number, legalizados:number, pct:number},
  *            academia:{total:number, pendientes:number, legalizados:number, pct:number}}}
  */
-function getResumenLegalizacion(token) {
-  authenticate_(token);
-  requireRol_('coordinadora');
-  return getResumenLegalizacion_();
-}
-
 function getResumenLegalizacion_() {
   const legalizaciones = sheetToObjects_('Legalizaciones');
   function calcular(tipo) {
@@ -169,15 +168,10 @@ function getResumenLegalizacion_() {
 
 /**
  * Alertas: transacciones con legalización pendiente de más de X días.
+ * Función interna: hoy solo la consume getAlertasDashboard (Reportes.js).
  * @param {number} dias - Umbral en días (default 7)
  * @returns {Object[]}
  */
-function getAlertasPendientes(token, dias = 7) {
-  authenticate_(token);
-  requireRol_('coordinadora');
-  return getAlertasPendientes_(dias);
-}
-
 function getAlertasPendientes_(dias) {
   if (dias === undefined) dias = 7;
   const iglesia  = obtenerCola_('iglesia').filter(i => i.diasPendiente > dias);

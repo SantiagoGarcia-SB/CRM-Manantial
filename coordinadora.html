@@ -93,14 +93,17 @@
     .legal-check {
       display: flex; align-items: center; gap: 12px;
       padding: 12px 0; border-bottom: 1px solid rgba(45,49,72,.5);
+      cursor: pointer;
     }
     .legal-check:last-child { border: none; }
-    .legal-check input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+    .legal-check input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
     .legal-info { flex: 1; min-width: 0; }
     .legal-nombre { font-weight: 600; font-size: 0.875rem; }
     .legal-sub    { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
     .legal-meta   { text-align: right; flex-shrink: 0; }
-    .legal-dias   { font-size: 0.72rem; color: var(--muted); }
+    .legal-dias   { font-size: 0.72rem; color: var(--text-dim); }
+    .legal-dias.text-red    { color: var(--red); }
+    .legal-dias.text-yellow { color: var(--yellow); }
     .legal-monto  { font-weight: 700; color: var(--accent); font-size: 0.875rem; }
 
     /* ── FILTER BAR ── */
@@ -248,7 +251,7 @@
   <!-- Paso 1: seleccionar coordinadora -->
   <div id="login-paso-1" class="card" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px">
     <div class="input-group">
-      <label>¿Quién eres?</label>
+      <label for="login-coord-select">¿Quién eres?</label>
       <select id="login-coord-select" class="input">
         <option value="">Cargando…</option>
       </select>
@@ -279,7 +282,7 @@
   <div class="sidebar-user">
     <div id="coord-user-name" class="name"></div>
     <div id="coord-user-email" class="email"></div>
-    <div style="margin-top:4px"><a onclick="salir()" style="font-size:0.7rem;color:var(--text-dim);cursor:pointer;text-decoration:underline">Cerrar sesión</a></div>
+    <div style="margin-top:4px"><button type="button" onclick="salir()" style="font:inherit;font-size:0.7rem;color:var(--text-dim);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline">Cerrar sesión</button></div>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-item active"  onclick="navTo('dashboard')">   <span class="nav-icon">📊</span><span>Dashboard</span></div>
@@ -292,6 +295,7 @@
     <div class="nav-item"         onclick="navTo('actividades')">  <span class="nav-icon">🎯</span><span>Actividades</span></div>
     <div class="nav-item"         onclick="navTo('asesores')">     <span class="nav-icon">👤</span><span>Asesores</span></div>
     <div class="nav-item"         onclick="navTo('vista-asesor')"> <span class="nav-icon">👁️</span><span>Vista Asesor</span></div>
+    <div class="nav-item"         onclick="navTo('ajustes')">      <span class="nav-icon">⚙️</span><span>Ajustes</span></div>
   </nav>
 </aside>
 
@@ -320,7 +324,7 @@
     <select id="gf-metodo" class="input" onchange="onGlobalFilterChange()" title="Método de pago">
       <option value="">Método…</option>
       <option value="Efectivo">Efectivo</option>
-      <option value="Datafono">Datáfono</option>
+      <option value="Datáfono">Datáfono</option>
       <option value="Nequi">Nequi</option>
     </select>
     <select id="gf-estado" class="input" onchange="onGlobalFilterChange()" title="Estado legalización">
@@ -337,6 +341,7 @@
 
   <!-- ─────────────────── 1. DASHBOARD ─────────────────────────────── -->
   <div id="sec-dashboard" class="section active">
+    <div id="estado-cierre"></div>
     <div id="kpis-grid" class="kpi-grid mb-24">
       <div class="kpi-card kpi-accent skeleton" style="min-height:100px"></div>
       <div class="kpi-card kpi-green skeleton" style="min-height:100px"></div>
@@ -411,7 +416,7 @@
   </div>
 
   <!-- Modal detalle transacción -->
-  <div id="modal-detalle-trans" class="modal-backdrop">
+  <div id="modal-detalle-trans" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal" style="max-width:620px">
       <div class="modal-header">
         <h3 id="detalle-trans-titulo">Detalle de transacción</h3>
@@ -435,7 +440,7 @@
   <div id="sec-personas" class="section">
     <div id="tabla-personas"></div>
     <!-- Ficha de persona (modal) -->
-    <div id="modal-ficha" class="modal-backdrop">
+    <div id="modal-ficha" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
       <div class="modal" style="max-width:660px">
         <div class="modal-header">
           <h3 id="ficha-titulo">Ficha de persona</h3>
@@ -495,7 +500,7 @@
       <button class="btn btn-primary" onclick="abrirModalActividad()">➕ Nueva actividad</button>
     </div>
     <div id="tabla-actividades"></div>
-    <div id="modal-actividad" class="modal-backdrop">
+    <div id="modal-actividad" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
       <div class="modal" style="max-width:620px">
         <div class="modal-header">
           <h3 id="modal-act-titulo">Nueva actividad</h3>
@@ -504,11 +509,11 @@
         <div class="modal-body">
           <div class="form-grid-2">
             <div class="input-group">
-              <label>Nombre *</label>
+              <label for="ma-nombre">Nombre *</label>
               <input id="ma-nombre" class="input" placeholder="Ej: Conéctate jóvenes">
             </div>
             <div class="input-group">
-              <label>Categoría *</label>
+              <label for="ma-cat">Categoría *</label>
               <select id="ma-cat" class="input" onchange="onActCatChange()">
                 <option value="">Selecciona…</option>
                 <option value="__otra__">Otra…</option>
@@ -518,8 +523,8 @@
           </div>
           <div id="ma-valor-section">
             <div class="input-group">
-              <label>Tipo de valor</label>
-              <div style="display:flex;gap:20px;margin-top:4px">
+              <label id="ma-tipovalor-label">Tipo de valor</label>
+              <div role="group" aria-labelledby="ma-tipovalor-label" style="display:flex;gap:20px;margin-top:4px">
                 <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
                   <input type="radio" name="ma-tipovalor" value="fijo" checked onchange="onActTipoValorChange()"> Fijo
                 </label>
@@ -529,7 +534,7 @@
               </div>
             </div>
             <div id="ma-valor-wrap" class="input-group">
-              <label>Valor base (COP)</label>
+              <label for="ma-valor">Valor base (COP)</label>
               <input id="ma-valor" class="input" type="number" min="0" placeholder="0">
             </div>
           </div>
@@ -573,7 +578,7 @@
       </div>
     </div>
     <!-- Modal gestión de categorías -->
-    <div id="modal-categorias" class="modal-backdrop">
+    <div id="modal-categorias" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
       <div class="modal" style="max-width:420px">
         <div class="modal-header">
           <h3>Gestionar categorías</h3>
@@ -597,7 +602,7 @@
       <button class="btn btn-primary" onclick="abrirModalAsesor()">➕ Nuevo asesor</button>
     </div>
     <div id="tabla-asesores"></div>
-    <div id="modal-asesor" class="modal-backdrop">
+    <div id="modal-asesor" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
       <div class="modal">
         <div class="modal-header">
           <h3 id="modal-as-titulo">Nuevo asesor</h3>
@@ -605,12 +610,12 @@
         </div>
         <div class="modal-body">
           <div class="form-grid-2">
-            <div class="input-group"><label>Email *</label><input id="as-email" class="input" type="email" placeholder="asesor@iglesia.com"></div>
-            <div class="input-group"><label>Nombre *</label><input id="as-nombre" class="input" placeholder="Nombre completo"></div>
+            <div class="input-group"><label for="as-email">Email *</label><input id="as-email" class="input" type="email" placeholder="asesor@iglesia.com"></div>
+            <div class="input-group"><label for="as-nombre">Nombre *</label><input id="as-nombre" class="input" placeholder="Nombre completo"></div>
           </div>
           <div class="form-grid-2">
             <div class="input-group">
-              <label>Sede *</label>
+              <label for="as-sede">Sede *</label>
               <select id="as-sede" class="input">
                 <option value="">Selecciona…</option>
                 <option value="Norte">Norte</option>
@@ -618,7 +623,7 @@
               </select>
             </div>
             <div class="input-group">
-              <label>Rol *</label>
+              <label for="as-rol">Rol *</label>
               <select id="as-rol" class="input">
                 <option value="asesor">Asesor</option>
                 <option value="coordinadora">Coordinadora</option>
@@ -643,6 +648,27 @@
     <iframe id="iframe-asesor" src="about:blank"
       style="width:375px;height:700px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);display:block;margin:0 auto">
     </iframe>
+  </div>
+
+  <!-- ─────────────────── AJUSTES ───────────────────────────────── -->
+  <div id="sec-ajustes" class="section">
+    <h3 class="mb-16">Salud del sistema</h3>
+    <div id="salud-kpis" class="kpi-grid mb-24">
+      <div class="kpi-card skeleton" style="min-height:90px"></div>
+      <div class="kpi-card skeleton" style="min-height:90px"></div>
+      <div class="kpi-card skeleton" style="min-height:90px"></div>
+    </div>
+    <div id="salud-hojas" class="mb-24"></div>
+
+    <h3 class="mb-16">Configuración</h3>
+    <div class="alert alert-info mb-24">
+      <span>⚙️</span>
+      <span>Estos valores viven en Propiedades del proyecto de Apps Script, no en el código — cambiarlos aquí no requiere volver a desplegar el script.</span>
+    </div>
+    <div class="card" style="max-width:560px">
+      <div id="ajustes-form" style="display:flex;flex-direction:column;gap:14px"></div>
+      <button class="btn btn-primary mt-16" onclick="guardarAjustes()">Guardar cambios</button>
+    </div>
   </div>
 
   </div><!-- /content -->
@@ -812,7 +838,8 @@ const SECTION_LOADERS = {
   analisis:     cargarAnalisis,
   actividades:  cargarActividades,
   asesores:     cargarAsesores,
-  'vista-asesor': () => {}
+  'vista-asesor': () => {},
+  ajustes:      cargarAjustes
 };
 
 // ─── MOBILE SIDEBAR ──────────────────────────────────────────────────────────
@@ -836,10 +863,10 @@ function navTo(sec) {
   qsa('.nav-item').forEach(n => n.classList.remove('active'));
   qs(`#sec-${sec}`).classList.add('active');
   const navItems = qsa('.nav-item');
-  const secMap = ['dashboard','alertas','transacciones','inscripciones','personas','legalizacion','analisis','comparacion','actividades','asesores','vista-asesor'];
+  const secMap = ['dashboard','alertas','transacciones','inscripciones','personas','legalizacion','analisis','actividades','asesores','vista-asesor','ajustes'];
   const idx = secMap.indexOf(sec);
   if (idx >= 0 && navItems[idx]) navItems[idx].classList.add('active');
-  const titles = { dashboard:'Dashboard', alertas:'Alertas', transacciones:'Transacciones', inscripciones:'Inscripciones', personas:'Personas', legalizacion:'Legalización', analisis:'Análisis',actividades:'Catálogo de actividades', asesores:'Gestión de asesores', 'vista-asesor':'Vista Asesor (preview)' };
+  const titles = { dashboard:'Dashboard', alertas:'Alertas', transacciones:'Transacciones', inscripciones:'Inscripciones', personas:'Personas', legalizacion:'Legalización', analisis:'Análisis',actividades:'Catálogo de actividades', asesores:'Gestión de asesores', 'vista-asesor':'Vista Asesor (preview)', ajustes:'Ajustes del sistema' };
   setText('#topbar-title', titles[sec] || sec);
   CURRENT_SECTION = sec;
   (SECTION_LOADERS[sec] || (() => {}))();
@@ -853,14 +880,17 @@ function recargarSeccion() { (SECTION_LOADERS[CURRENT_SECTION] || (() => {}))();
 async function cargarDashboard() {
   try {
     const s = GLOBAL_SEDE || null;
-    const [kpis, porAct, porSede, porMetodo, reciente, desempeno] = await Promise.all([
+    const [kpis, porAct, porSede, porMetodo, reciente, desempeno, estadoCierre] = await Promise.all([
       gsr('getKPIsDashboard',          null, s),
       gsr('getRecaudoPorActividad',    null, s),
       gsr('getDistribucionPorSede',    null, s),
       gsr('getDistribucionPorMetodo',  null, s),
       gsr('getActividadReciente',      15, null, s),
-      gsr('getDesempenoAsesores',      null, s)
+      gsr('getDesempenoAsesores',      null, s),
+      gsr('getEstadoCierreHoy')
     ]);
+
+    renderEstadoCierre(estadoCierre);
 
     // KPIs
     const etiquetaScope = 'Histórico';
@@ -922,6 +952,29 @@ async function cargarDashboard() {
   } catch(e) { toast.error('Error cargando dashboard: ' + e.message); }
 }
 
+function renderEstadoCierre(estado) {
+  if (!estado) { setHtml('#estado-cierre', ''); return; }
+
+  if (estado.ultimoError) {
+    setHtml('#estado-cierre', `<div class="alert alert-error mb-24">
+      <span>⚠️</span>
+      <div><strong>El cierre consolidado de hoy falló</strong> (${escHtml(estado.ultimoError.hora)}): ${escHtml(estado.ultimoError.mensaje)}.
+      Se reintentará automáticamente con el próximo cierre de sede que se genere.</div>
+    </div>`);
+    return;
+  }
+
+  if (!estado.consolidadoEnviado && estado.sedesActivas.length >= 2 && estado.sedesFaltantes.length > 0) {
+    setHtml('#estado-cierre', `<div class="alert alert-info mb-24">
+      <span>🕒</span>
+      <div><strong>Cierre consolidado pendiente hoy</strong> — falta que generen su cierre: ${estado.sedesFaltantes.map(escHtml).join(', ')}.</div>
+    </div>`);
+    return;
+  }
+
+  setHtml('#estado-cierre', '');
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 2. ALERTAS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -963,7 +1016,7 @@ async function cargarAlertas() {
     renderTable('tabla-alertas-leg', a.sinLegalizar7Dias, [
       { key:'nombrePersona', label:'Persona' },
       { key:'actividad',     label:'Actividad' },
-      { key:'tipo',          label:'Cola',    render: v => badgeEstado(v === 'iglesia' ? 'Leg. pago' : 'Leg. insc.') },
+      { key:'tipo',          label:'Cola',    render: v => badgeEstado(v === 'iglesia' ? 'Leg. Pago' : 'Leg. Inscripción') },
       { key:'diasPendiente', label:'Días',    render: v => `<span class="badge badge-red">${v}d</span>` },
       { key:'monto',         label:'Monto',   render: v => fmt.cop(v) },
       { key:'asesorNombre',  label:'Asesor' }
@@ -1145,8 +1198,8 @@ async function filtrarTransacciones(page = 1) {
       { key:'metodoPago',    label:'Método',   render: v => badgeEstado(v) },
       { key:'sede',          label:'Sede' },
       { key:'asesorNombre',  label:'Asesor' },
-      { key:'estadoIglesia', label:'Leg. pago',  render: v => badgeEstado(v) },
-      { key:'estadoAcademia',label:'Leg. insc.', render: v => badgeEstado(v) },
+      { key:'estadoIglesia', label:'Leg. Pago',  render: v => badgeEstado(v) },
+      { key:'estadoAcademia',label:'Leg. Inscripción', render: v => badgeEstado(v) },
       { key:'estado',        label:'Estado',   render: (v, r) => {
         var estado = v || 'Activa';
         if (estado === 'Anulada') return badgeEstado('Anulada');
@@ -1182,8 +1235,8 @@ function abrirDetalleTransaccion(t) {
       <div><div class="text-muted">Estado</div><div class="fw-600">${badgeEstado(t.estado || 'Activa')}</div></div>
       <div><div class="text-muted">Asesor</div><div class="fw-600">${escHtml(t.asesorNombre)}</div></div>
       <div><div class="text-muted">Email asesor</div><div class="fw-600 truncate">${escHtml(t.asesorEmail)}</div></div>
-      <div><div class="text-muted">Leg. pago</div><div class="fw-600">${badgeEstado(t.estadoIglesia)}</div></div>
-      <div><div class="text-muted">Leg. inscripción</div><div class="fw-600">${badgeEstado(t.estadoAcademia)}</div></div>
+      <div><div class="text-muted">Leg. Pago</div><div class="fw-600">${badgeEstado(t.estadoIglesia)}</div></div>
+      <div><div class="text-muted">Leg. Inscripción</div><div class="fw-600">${badgeEstado(t.estadoAcademia)}</div></div>
     </div>`;
 
   if (esDatafono) {
@@ -1245,8 +1298,8 @@ async function filtrarInscripciones(page = 1) {
       { key:'sede',            label:'Sede' },
       { key:'monto',           label:'Monto',    render: v => fmt.cop(v) },
       { key:'metodoPago',      label:'Método',   render: v => badgeEstado(v) },
-      { key:'estadoIglesia',   label:'Leg. pago',  render: v => badgeEstado(v) },
-      { key:'estadoAcademia',  label:'Leg. insc.', render: v => badgeEstado(v) }
+      { key:'estadoIglesia',   label:'Leg. Pago',  render: v => badgeEstado(v) },
+      { key:'estadoAcademia',  label:'Leg. Inscripción', render: v => badgeEstado(v) }
     ]);
   } catch(e) { toast.error('Error: ' + e.message); }
 }
@@ -1290,8 +1343,8 @@ async function abrirFicha(id) {
       { key:'actividad', label:'Actividad' },
       { key:'monto',     label:'Monto',  render: (v, r) => `<span style="${r.estado==='Anulada'?'text-decoration:line-through;opacity:.5':''}">${fmt.cop(v)}</span>` },
       { key:'metodoPago',label:'Método', render: v => badgeEstado(v) },
-      { key:'estadoIglesia',  label:'Leg. pago', render: v => badgeEstado(v) },
-      { key:'estadoAcademia', label:'Leg. insc.',render: v => badgeEstado(v) },
+      { key:'estadoIglesia',  label:'Leg. Pago', render: v => badgeEstado(v) },
+      { key:'estadoAcademia', label:'Leg. Inscripción',render: v => badgeEstado(v) },
       { key:'estado',         label:'Estado',  render: v => badgeEstado(v || 'Activa') }
     ]);
   } catch(e) { toast.error('Error: ' + e.message); }
@@ -1319,8 +1372,8 @@ async function cargarCola(tipo) {
 function renderCola(items) {
   if (!items.length) { setHtml('#cola-legal','<p class="text-muted text-center mt-24">Cola vacía ✓</p>'); return; }
   setHtml('#cola-legal', `<div class="card" style="padding:0 16px">${items.map(i=>`
-    <div class="legal-check">
-      <input type="checkbox" data-id="${escHtml(i.idTrans)}" data-tipo="${escHtml(i.tipo)}">
+    <label class="legal-check">
+      <input type="checkbox" data-id="${escHtml(i.idTrans)}" data-tipo="${escHtml(i.tipo)}" aria-label="Seleccionar ${escHtml(i.nombrePersona)} para legalizar">
       <div class="legal-info">
         <div class="legal-nombre">${escHtml(i.nombrePersona)}</div>
         <div class="legal-sub">${escHtml(i.actividad)} · ${escHtml(i.metodoPago)} · ${escHtml(i.asesorNombre)} · ${escHtml(i.fecha)}</div>
@@ -1329,7 +1382,7 @@ function renderCola(items) {
         <div class="legal-monto">${fmt.cop(i.monto)}</div>
         <div class="legal-dias ${i.urgente ? 'text-red' : 'text-yellow'}">${i.diasPendiente}d</div>
       </div>
-    </div>`).join('')}</div>`);
+    </label>`).join('')}</div>`);
 }
 
 async function marcarSeleccionados() {
@@ -1407,8 +1460,8 @@ async function cargarActividades() {
       { key:'horarios',            label:'Horarios',  render: v => (v&&v.length) ? `${v.length} horario${v.length>1?'s':''}` : '–' },
       { key:'modulos',             label:'Módulos',   render: v => (v&&v.length) ? `${v.length} módulo${v.length>1?'s':''}` : '–' },
       { key:'legalizarInscripcion', label:'Inscripción', render: v => v ? '✓' : '–' },
-      { key:'legalizarPago',       label:'Leg. pago',  render: v => v ? '✓' : '–' },
-      { key:'legalizarInscripcion',label:'Leg. insc.', render: v => v ? '✓' : '–' },
+      { key:'legalizarPago',       label:'Leg. Pago',  render: v => v ? '✓' : '–' },
+      { key:'legalizarInscripcion',label:'Leg. Inscripción', render: v => v ? '✓' : '–' },
       { key:'activa',              label:'Activa', render: v => v ? '<span class="badge badge-green">Sí</span>' : '<span class="badge badge-red">No</span>' },
       { key:'id', label:'', render: (v,r) => `
         <div style="display:flex;gap:6px">
@@ -1865,6 +1918,74 @@ function renderPaginacion(containerId, res, loadFn) {
   const prev = res.page > 1    ? `<button class="btn btn-secondary" onclick="${loadFn.name}(${res.page-1})">← Anterior</button>` : '';
   const next = res.page < total? `<button class="btn btn-secondary" onclick="${loadFn.name}(${res.page+1})">Siguiente →</button>` : '';
   setHtml(`#${containerId}`, `${prev}<span class="text-muted" style="font-size:.82rem;padding:0 12px">Pág. ${res.page}/${total} · ${res.total} registros</span>${next}`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AJUSTES DEL SISTEMA
+// ═══════════════════════════════════════════════════════════════════════════
+async function cargarAjustes() {
+  try {
+    const [config, salud] = await Promise.all([
+      gsr('getConfiguracion'),
+      gsr('getSaludSistema')
+    ]);
+
+    setHtml('#ajustes-form', config.map(c => `
+      <div class="input-group">
+        <label for="cfg-${c.key}">${escHtml(c.label)}</label>
+        <input id="cfg-${c.key}" class="input" data-key="${c.key}" value="${escHtml(c.valor)}">
+      </div>`).join(''));
+
+    renderSaludSistema(salud);
+  } catch(e) { toast.error('Error cargando ajustes: ' + e.message); }
+}
+
+function renderSaludSistema(salud) {
+  setHtml('#salud-kpis', `
+    <div class="kpi-card kpi-green">
+      <div class="kpi-label">Asesores activos</div>
+      <div class="kpi-value">${fmt.num(salud.asesoresActivos)}</div>
+      <div class="kpi-delta">de ${fmt.num(salud.asesoresTotal)} registrados</div>
+    </div>
+    <div class="kpi-card kpi-accent">
+      <div class="kpi-label">Actividades activas</div>
+      <div class="kpi-value">${fmt.num(salud.actividadesActivas)}</div>
+      <div class="kpi-delta">de ${fmt.num(salud.actividadesTotal)} en catálogo</div>
+    </div>
+    <div class="kpi-card ${salud.cierreHoy.ultimoError ? 'kpi-red' : (salud.cierreHoy.consolidadoEnviado ? 'kpi-green' : 'kpi-yellow')}">
+      <div class="kpi-label">Cierre consolidado hoy</div>
+      <div class="kpi-value" style="font-size:1.05rem">${
+        salud.cierreHoy.ultimoError ? '⚠️ Falló'
+        : salud.cierreHoy.consolidadoEnviado ? '✅ Enviado'
+        : '🕒 Pendiente'
+      }</div>
+    </div>`);
+
+  setHtml('#salud-hojas', `<div class="card" style="padding:0">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="text-align:left;padding:10px 16px;font-size:.72rem;color:var(--text-dim);text-transform:uppercase">Hoja</th>
+        <th style="text-align:left;padding:10px 16px;font-size:.72rem;color:var(--text-dim);text-transform:uppercase">Estado</th>
+        <th style="text-align:right;padding:10px 16px;font-size:.72rem;color:var(--text-dim);text-transform:uppercase">Filas</th>
+      </tr></thead>
+      <tbody>
+        ${salud.hojas.map(h => `<tr style="border-top:1px solid var(--border)">
+          <td style="padding:10px 16px">${escHtml(h.nombre)}</td>
+          <td style="padding:10px 16px">${h.existe ? badgeEstado('Activa') : '<span class="badge badge-red">Falta</span>'}</td>
+          <td style="padding:10px 16px;text-align:right">${fmt.num(h.filas)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`);
+}
+
+async function guardarAjustes() {
+  const datos = {};
+  qsa('#ajustes-form [data-key]').forEach(el => { datos[el.dataset.key] = el.value.trim(); });
+  try {
+    await gsr('actualizarConfiguracion', datos);
+    toast.success('Ajustes guardados ✓');
+  } catch(e) { toast.error('Error guardando ajustes: ' + e.message); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
