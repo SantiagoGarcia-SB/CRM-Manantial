@@ -2,6 +2,7 @@
 // Contrato público:
 //   crearInscripcionDesdeTransaccion_(datos) → {ok, id}  (interno, sin _)
 //   listarInscripciones(filtros)             → {inscripciones:[], total:number}
+//   exportarInscripciones(filtros)           → Object[]  (sin paginar, para descarga Excel)
 //   getKPIsInscripciones()                   → Object  (resumen por actividad)
 
 /**
@@ -32,13 +33,11 @@ function crearInscripcionDesdeTransaccion_(datos) {
 }
 
 /**
- * Lista inscripciones con filtros. Solo coordinadora.
- * @param {{actividad?:string, sede?:string, periodo?:string, page?:number, pageSize?:number}} filtros
- * @returns {{inscripciones:Object[], total:number}}
+ * Filtra y enriquece inscripciones con datos de la transacción asociada. Interno, sin paginar.
+ * @param {Object} filtros
+ * @returns {Object[]}
  */
-function listarInscripciones(token, filtros = {}) {
-  authenticate_(token);
-  requireRol_('coordinadora');
+function obtenerInscripcionesFiltradas_(filtros = {}) {
   let inscripciones = sheetToObjects_('Inscripciones');
 
   if (filtros.actividad)   inscripciones = inscripciones.filter(i => (i.Actividad || '').toLowerCase().includes(filtros.actividad.toLowerCase()));
@@ -62,14 +61,8 @@ function listarInscripciones(token, filtros = {}) {
   const transMap = {};
   sheetToObjects_('Transacciones').forEach(t => { transMap[t.ID_Trans] = t; });
 
-  const total    = inscripciones.length;
-  const page     = filtros.page     || 1;
-  const pageSize = filtros.pageSize || 50;
-  const start    = (page - 1) * pageSize;
-
-  const result = inscripciones
+  return inscripciones
     .sort((a, b) => new Date(b.Fecha) - new Date(a.Fecha))
-    .slice(start, start + pageSize)
     .map(i => {
       const trans = transMap[i.ID_Trans] || {};
       return {
@@ -90,8 +83,35 @@ function listarInscripciones(token, filtros = {}) {
         estadoAcademia:  trans.Estado_Legalizacion_Academia || ''
       };
     });
+}
 
-  return { inscripciones: result, total, page, pageSize };
+/**
+ * Lista inscripciones con filtros. Solo coordinadora.
+ * @param {{actividad?:string, sede?:string, periodo?:string, page?:number, pageSize?:number}} filtros
+ * @returns {{inscripciones:Object[], total:number}}
+ */
+function listarInscripciones(token, filtros = {}) {
+  authenticate_(token);
+  requireRol_('coordinadora');
+  const inscripciones = obtenerInscripcionesFiltradas_(filtros);
+
+  const total    = inscripciones.length;
+  const page     = filtros.page     || 1;
+  const pageSize = filtros.pageSize || 50;
+  const start    = (page - 1) * pageSize;
+
+  return { inscripciones: inscripciones.slice(start, start + pageSize), total, page, pageSize };
+}
+
+/**
+ * Exporta todas las inscripciones que cumplen los filtros (sin paginar), para descarga en Excel.
+ * @param {Object} filtros
+ * @returns {Object[]}
+ */
+function exportarInscripciones(token, filtros = {}) {
+  authenticate_(token);
+  requireRol_('coordinadora');
+  return obtenerInscripcionesFiltradas_(filtros);
 }
 
 /**

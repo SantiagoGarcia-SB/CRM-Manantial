@@ -103,7 +103,7 @@ const SHEET_HEADERS = {
                    'Modificado_Por','Modificado_Fecha'],
   Categorias:     ['ID_Categoria','Nombre'],
   Asesores:       ['Email','Nombre','Sede','Rol','Activo','Pin','Modificado_Por','Modificado_Fecha'],
-  Legalizaciones: ['ID_Legal','ID_Trans','Tipo','Estado','Fecha_Legalizacion','Notas','Legalizado_Por']
+  Legalizaciones: ['ID_Legal','ID_Trans','Tipo','Estado','Fecha_Legalizacion','Notas','Legalizado_Por','Numero_Caja']
 };
 
 // ─── PUNTO DE ENTRADA WEB ─────────────────────────────────────────────────────
@@ -149,6 +149,24 @@ function getSheet_(name, createIfMissing = false) {
     }
   }
   return sheet;
+}
+
+/**
+ * Garantiza que una hoja tenga la columna indicada, agregándola al final si falta.
+ * Útil para migraciones incrementales de esquema sin tocar datos existentes.
+ * @returns {number} índice 0-based de la columna en la hoja.
+ */
+function ensureColumn_(sheet, headerName) {
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  let idx = headers.indexOf(headerName);
+  if (idx === -1) {
+    idx = lastCol;
+    const cell = sheet.getRange(1, lastCol + 1);
+    cell.setValue(headerName);
+    cell.setBackground('#0d1829').setFontColor('#ffffff').setFontWeight('bold');
+  }
+  return idx;
 }
 
 function sheetToObjects_(sheetName) {

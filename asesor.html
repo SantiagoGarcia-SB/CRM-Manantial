@@ -1099,12 +1099,10 @@ function onModuloChange() {
     return;
   }
   var modulo = STATE.actividad.modulos[Number(idx)];
-  if (modulo.valor && modulo.valor > 0) {
-    STATE.monto = modulo.valor;
-    hide('#monto-variable');
-    show('#monto-fijo-display');
-    setHtml('#monto-fijo-val', fmt.cop(modulo.valor));
-  }
+  STATE.monto = Number(modulo.valor) || 0;
+  hide('#monto-variable');
+  show('#monto-fijo-display');
+  setHtml('#monto-fijo-val', fmt.cop(STATE.monto));
   var horarios = modulo.horarios || [];
   if (!horarios.length) {
     horSel.innerHTML = '<option value="">Sin horarios disponibles</option>';

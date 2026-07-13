@@ -2,6 +2,7 @@
 // Contrato público:
 //   crearTransaccion(payload)              → {ok, transaccion, inscripcion?}
 //   anularTransaccion(idTrans)             → {ok}
+//   actualizarTransaccion(idTrans, datos)  → {ok}  (corrección de errores, solo activas)
 //   listarTransacciones(filtros)           → {transacciones:[], total:number}
 //   getHistorialTurno(sede?)               → {transacciones:[], totales:{}}
 //   getCarteraAsesor()                     → Object[]  (semáforo por persona)
@@ -40,7 +41,7 @@ function crearTransaccion(token, payload) {
   if (!['Efectivo','Datáfono','Nequi'].includes(payload.metodoPago)) {
     throw new Error('Método de pago inválido: ' + payload.metodoPago);
   }
-  if (Number(payload.monto) < 1) throw new Error('El monto debe ser mayor a 0.');
+  if (isNaN(Number(payload.monto)) || Number(payload.monto) < 0) throw new Error('El monto debe ser un número válido mayor o igual a 0.');
 
   // Obtener actividad para leer sus flags
   const actividad = obtenerActividad_(payload.idActividad);
@@ -252,6 +253,10 @@ function listarTransacciones(token, filtros = {}) {
   if (filtros.metodoPago)    trans = trans.filter(t => t.Metodo_Pago === filtros.metodoPago);
   if (filtros.estadoIglesia) trans = trans.filter(t => t.Estado_Legalizacion_Iglesia === filtros.estadoIglesia);
   if (filtros.estadoAcademia)trans = trans.filter(t => t.Estado_Legalizacion_Academia === filtros.estadoAcademia);
+  if (filtros.busqueda) {
+    const q = filtros.busqueda.toString().toLowerCase();
+    trans = trans.filter(t => (t.Documento_Persona || '').toString().toLowerCase().includes(q));
+  }
   if (filtros.fechaDesde) {
     const desde = new Date(filtros.fechaDesde);
     trans = trans.filter(t => t.Timestamp && new Date(t.Timestamp) >= desde);
@@ -415,6 +420,64 @@ function actualizarEstadoLegalizacion_(idTrans, tipo, estado) {
 }
 
 /**
+ * Edita los datos de una transacción existente para corregir errores de captura.
+ * No permite editar transacciones anuladas ni cambiar actividad/sede/legalizaciones.
+ * @param {string} idTrans
+ * @param {{nombrePersona?, documentoPersona?, celularPersona?, monto?, metodoPago?,
+ *          dtFranquicia?, dtTipoTarjeta?, dtNoAutorizacion?, dtNoDatafono?}} datos
+ * @returns {{ok:boolean}}
+ */
+function actualizarTransaccion(token, idTrans, datos) {
+  authenticate_(token);
+  requireRol_('coordinadora');
+
+  if (datos.metodoPago && !['Efectivo','Datáfono','Nequi'].includes(datos.metodoPago)) {
+    throw new Error('Método de pago inválido: ' + datos.metodoPago);
+  }
+  if (datos.monto !== undefined && (isNaN(Number(datos.monto)) || Number(datos.monto) < 0)) {
+    throw new Error('El monto debe ser un número válido mayor o igual a 0.');
+  }
+  if (datos.nombrePersona !== undefined && !datos.nombrePersona.toString().trim()) {
+    throw new Error('El nombre de la persona es obligatorio.');
+  }
+
+  const colMap = {
+    nombrePersona:    'Nombre_Persona',
+    documentoPersona: 'Documento_Persona',
+    celularPersona:   'Celular_Persona',
+    monto:            'Monto',
+    metodoPago:       'Metodo_Pago',
+    dtFranquicia:     'Datafono_Franquicia',
+    dtTipoTarjeta:    'Datafono_Tipo_Tarjeta',
+    dtNoAutorizacion: 'Datafono_No_Autorizacion',
+    dtNoDatafono:     'Datafono_No_Datafono'
+  };
+
+  const sheet   = getSheet_('Transacciones');
+  const values  = sheet.getDataRange().getValues();
+  const headers = values[0];
+  const idIdx     = headers.indexOf('ID_Trans');
+  const estadoIdx = headers.indexOf('Estado');
+
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][idIdx] === idTrans) {
+      if ((values[i][estadoIdx] || 'Activa') === 'Anulada') {
+        throw new Error('No se puede editar una transacción anulada.');
+      }
+      Object.keys(colMap).forEach(key => {
+        if (datos[key] === undefined) return;
+        const colIdx = headers.indexOf(colMap[key]);
+        if (colIdx === -1) return;
+        const val = key === 'monto' ? Number(datos[key]) || 0 : datos[key];
+        sheet.getRange(i + 1, colIdx + 1).setValue(val);
+      });
+      return { ok: true };
+    }
+  }
+  throw new Error('Transacción no encontrada: ' + idTrans);
+}
+
+/**
  * Exporta transacciones con método Datáfono para descarga Excel.
  * Respeta los mismos filtros globales que listarTransacciones.
  */
@@ -478,6 +541,8 @@ function mapTransaccion_(t) {
     id:              t.ID_Trans,
     timestamp:       t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
     nombrePersona:   t.Nombre_Persona,
+    documentoPersona:t.Documento_Persona || '',
+    celularPersona:  t.Celular_Persona   || '',
     actividad:       t.Actividad,
     sede:            t.Sede,
     monto:           Number(t.Monto) || 0,
