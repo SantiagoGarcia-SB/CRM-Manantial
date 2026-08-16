@@ -93,7 +93,7 @@ const SHEET_HEADERS = {
                    'Datafono_Franquicia','Datafono_Tipo_Tarjeta','Datafono_Valor',
                    'Datafono_Titular_Mismo','Datafono_Nombre_Titular',
                    'Datafono_Doc_Titular','Datafono_Celular_Titular',
-                   'Datafono_No_Autorizacion','Datafono_No_Datafono','Estado'],
+                   'Datafono_No_Autorizacion','Datafono_No_Datafono','Estado','Nequi_Comprobante_URL'],
   Inscripciones:  ['ID_Inscripcion','ID_Trans','Actividad','Modulo','Horario','Sede',
                    'Asesor_Email','Fecha',
                    'Nombre_Persona','Documento_Persona','Celular_Persona'],
@@ -127,12 +127,27 @@ function cargarPaginaCoord() {
   return HtmlService.createTemplateFromFile('coordinadora').evaluate().getContent();
 }
 
+// GAS reinicia el scope global en cada ejecución de google.script.run, así que
+// memoizar aquí es seguro: nunca sobrevive entre llamadas distintas.
+let _ss_ = null;
+
 function getSpreadsheet() {
+  if (_ss_) return _ss_;
   const id = getConfig_('SPREADSHEET_ID');
   if (!id || id === 'TU_SPREADSHEET_ID_AQUI') {
     throw new Error('Configura SPREADSHEET_ID en Ajustes (o en Propiedades del proyecto) antes de usar el CRM.');
   }
-  return SpreadsheetApp.openById(id);
+  return _ss_ = SpreadsheetApp.openById(id);
+}
+
+// Carpeta de Drive donde se guardan las fotos de comprobantes (ej. transferencias
+// Nequi). Se reutiliza si ya existe, para no crear una carpeta nueva cada vez.
+let _folderComprobantes_ = null;
+function getCarpetaComprobantes_() {
+  if (_folderComprobantes_) return _folderComprobantes_;
+  const nombre = 'CRM Manantial - Comprobantes de pago';
+  const it = DriveApp.getFoldersByName(nombre);
+  return _folderComprobantes_ = it.hasNext() ? it.next() : DriveApp.createFolder(nombre);
 }
 
 function getSheet_(name, createIfMissing = false) {
@@ -169,17 +184,25 @@ function ensureColumn_(sheet, headerName) {
   return idx;
 }
 
+// Caché de solo-lectura por ejecución: evita releer la misma hoja completa dos
+// veces dentro de una cadena de llamadas (ej. requireRol_ y un reporte que
+// también lee 'Asesores'). Ninguna función de esta app relee una hoja después
+// de escribirle en la misma ejecución, así que no hace falta invalidación.
+let _sheetObjCache_ = {};
+
 function sheetToObjects_(sheetName) {
+  if (_sheetObjCache_.hasOwnProperty(sheetName)) return _sheetObjCache_[sheetName];
   const sheet = getSheet_(sheetName);
-  if (!sheet) return [];
+  if (!sheet) return _sheetObjCache_[sheetName] = [];
   const data = sheet.getDataRange().getValues();
-  if (data.length < 2) return [];
+  if (data.length < 2) return _sheetObjCache_[sheetName] = [];
   const headers = data[0];
-  return data.slice(1).map(row => {
+  const objs = data.slice(1).map(row => {
     const obj = {};
     headers.forEach((h, i) => { obj[h] = row[i]; });
     return obj;
   });
+  return _sheetObjCache_[sheetName] = objs;
 }
 
 function generateId_(prefix) {

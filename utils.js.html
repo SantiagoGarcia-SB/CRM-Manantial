@@ -49,25 +49,43 @@ const toast = (() => {
  * @param {...any} args    - Argumentos
  * @returns {Promise<any>}
  */
+// google.script.run no tiene timeout propio: si la conexión se cae o el
+// backend tarda demasiado, ni withSuccessHandler ni withFailureHandler se
+// llaman nunca — la UI queda esperando indefinidamente (ej. un selector
+// atascado en "Cargando…" sin ningún mensaje de error). GSR_TIMEOUT_MS pone
+// un límite para que siempre haya una respuesta, buena o mala.
+const GSR_TIMEOUT_MS = 25000;
+function conTimeout_(promise) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('La solicitud tardó demasiado en responder. Verifica tu conexión e intenta de nuevo.'));
+    }, GSR_TIMEOUT_MS);
+    promise.then(
+      v => { clearTimeout(timer); resolve(v); },
+      e => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
 // Llama una función protegida: auto-prepend el token de sesión.
 function gsr(fnName, ...args) {
-  return new Promise((resolve, reject) => {
+  return conTimeout_(new Promise((resolve, reject) => {
     const token = window._sessionToken || '';
     const runner = google.script.run
       .withSuccessHandler(resolve)
       .withFailureHandler(e => reject(new Error(e.message || String(e))));
     runner[fnName](token, ...args);
-  });
+  }));
 }
 
 // Llama una función pública (sin token): solicitarAcceso, verificarCodigo, cerrarSesion, getCurrentUserInfo.
 function gsrPublic(fnName, ...args) {
-  return new Promise((resolve, reject) => {
+  return conTimeout_(new Promise((resolve, reject) => {
     const runner = google.script.run
       .withSuccessHandler(resolve)
       .withFailureHandler(e => reject(new Error(e.message || String(e))));
     runner[fnName](...args);
-  });
+  }));
 }
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
@@ -99,16 +117,17 @@ function badgeEstado(estado) {
     'Legalizado':  '<span class="badge badge-green">Legalizado</span>',
     'Pendiente':   '<span class="badge badge-yellow">Pendiente</span>',
     'NA':          '<span class="badge badge-muted">N/A</span>',
-    'Efectivo':    '<span class="badge badge-green">Efectivo</span>',
-    'Datáfono':    '<span class="badge badge-blue">Datáfono</span>',
-    'Nequi':       '<span class="badge badge-blue">Nequi</span>',
+    'Efectivo':    '<span class="badge badge-green">💵 Efectivo</span>',
+    'Datáfono':    '<span class="badge badge-blue">💳 Datáfono</span>',
+    'Nequi':       '<span class="badge badge-purple">📱 Nequi</span>',
     'Anulada':     '<span class="badge badge-red">Anulada</span>',
     'Activa':      '<span class="badge badge-green">Activa</span>'
   };
   return map[estado] || `<span class="badge badge-muted">${escHtml(estado)}</span>`;
 }
+const SEMAFORO_LABEL = { verde: 'Al día', amarillo: 'Pendiente', rojo: 'Atrasado' };
 function badgeSemaforo(s) {
-  return `<span class="semaforo semaforo-${s}" title="${s}"></span>`;
+  return `<span class="semaforo-wrap" title="${s}"><span class="semaforo semaforo-${s}"></span><span class="semaforo-label">${SEMAFORO_LABEL[s] || s}</span></span>`;
 }
 
 // ── Modal helpers ─────────────────────────────────────────────────────────────
@@ -194,10 +213,62 @@ function setLoading(btn, loading) {
 }
 
 // ── Número de pesos COP inline ────────────────────────────────────────────────
-function inputMoney(input) {
+// Formatea en vivo un input de monto como "$ 1.234.567" (usar con oninput).
+function formatearMonto(input) {
+  var raw = input.value.replace(/[^0-9]/g, '');
+  if (!raw) { input.value = ''; return; }
+  input.value = '$ ' + Number(raw).toLocaleString('es-CO');
+}
+
+// ── Autocapitalización de nombres ─────────────────────────────────────────────
+// Pone en mayúscula la primera letra de cada palabra a medida que se escribe.
+function capitalizarPalabras(str) {
+  return str.replace(/(^|\s)([a-záéíóúñü])/gi, (m, sep, ch) => sep + ch.toUpperCase());
+}
+function autocapitalizarNombre(input) {
   input.addEventListener('input', function() {
-    const raw = this.value.replace(/\D/g,'');
-    this.dataset.raw = raw;
+    const pos = this.selectionStart;
+    const antes = this.value;
+    const despues = capitalizarPalabras(antes);
+    if (antes !== despues) {
+      this.value = despues;
+      this.setSelectionRange(pos, pos);
+    }
+  });
+}
+
+// ── Confirm dialog (reemplaza confirm() nativo del navegador) ────────────────
+function confirmDialog(message, opts = {}) {
+  const { title = 'Confirmar acción', confirmText = 'Confirmar', cancelText = 'Cancelar', danger = true } = opts;
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.id = 'confirm-dialog-' + Date.now();
+    wrap.className = 'modal-backdrop open';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-modal', 'true');
+    wrap.innerHTML =
+      '<div class="modal" style="max-width:380px">' +
+        '<div class="modal-header"><h3>' + escHtml(title) + '</h3><button class="modal-close" type="button">✕</button></div>' +
+        '<div class="modal-body"><p style="white-space:pre-line">' + escHtml(message) + '</p></div>' +
+        '<div class="modal-footer">' +
+          '<button class="btn btn-ghost" type="button" data-action="cancel">' + escHtml(cancelText) + '</button>' +
+          '<button class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" type="button" data-action="confirm">' + escHtml(confirmText) + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(wrap);
+    document.body.style.overflow = 'hidden';
+    function cleanup(result) {
+      wrap.remove();
+      document.body.style.overflow = '';
+      resolve(result);
+    }
+    wrap.addEventListener('click', e => {
+      if (e.target === wrap || e.target.closest('.modal-close') || e.target.dataset.action === 'cancel') cleanup(false);
+      else if (e.target.dataset.action === 'confirm') cleanup(true);
+    });
+    document.addEventListener('keydown', function onKey(e) {
+      if (e.key === 'Escape') { document.removeEventListener('keydown', onKey); cleanup(false); }
+    });
   });
 }
 </script>

@@ -26,6 +26,7 @@ input, select, textarea { font-family: inherit; }
   --green:     #10b981;
   --yellow:    #f59e0b;
   --red:       #ef4444;
+  --purple:    #d946ef;
   --muted:     #64748b;
   --text:      #e2e8f0;
   --text-dim:  #94a3b8;
@@ -120,6 +121,7 @@ small { font-size: 0.78rem; color: var(--text-dim); }
 .badge-yellow  { background: rgba(245,158,11,0.15); color: var(--yellow); }
 .badge-red     { background: rgba(239,68,68,0.15);  color: var(--red); }
 .badge-blue    { background: rgba(102,126,234,0.15); color: var(--accent); }
+.badge-purple  { background: rgba(217,70,239,0.15); color: var(--purple); }
 .badge-muted   { background: rgba(100,116,139,0.15); color: var(--text-dim); }
 
 /* ─── TABLAS ───────────────────────────────────────────────────────────────── */
@@ -250,10 +252,12 @@ tbody td { padding: 11px 14px; color: var(--text); vertical-align: middle; }
 .toast-info    { border-left: 4px solid var(--accent); }
 
 /* ─── SEMÁFORO CARTERA ─────────────────────────────────────────────────────── */
-.semaforo { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.semaforo { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 .semaforo-verde   { background: var(--green);  box-shadow: 0 0 8px var(--green); }
 .semaforo-amarillo{ background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
 .semaforo-rojo    { background: var(--red);    box-shadow: 0 0 8px var(--red); }
+.semaforo-wrap  { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.semaforo-label { font-size: 0.62rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
 
 /* ─── SEARCH RESULTS ───────────────────────────────────────────────────────── */
 .search-results {

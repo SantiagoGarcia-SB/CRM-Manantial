@@ -220,6 +220,7 @@ function actualizarAsesor(token, email, datos) {
       if (datos.rol)    sheet.getRange(i + 1, headers.indexOf('Rol')    + 1).setValue(datos.rol);
       if (modPorIdx   >= 0) sheet.getRange(i + 1, modPorIdx   + 1).setValue(actorInfo.email);
       if (modFechaIdx >= 0) sheet.getRange(i + 1, modFechaIdx + 1).setValue(formatDate_(new Date()));
+      invalidarCacheRol_(email);
       return { ok: true };
     }
   }
@@ -241,6 +242,7 @@ function toggleAsesor(token, email, activo) {
       sheet.getRange(i + 1, activoIdx + 1).setValue(activo);
       if (modPorIdx   >= 0) sheet.getRange(i + 1, modPorIdx   + 1).setValue(actorInfo.email);
       if (modFechaIdx >= 0) sheet.getRange(i + 1, modFechaIdx + 1).setValue(formatDate_(new Date()));
+      invalidarCacheRol_(email);
       return { ok: true };
     }
   }
@@ -249,12 +251,26 @@ function toggleAsesor(token, email, activo) {
 
 // ─── HELPERS COMPARTIDOS (disponibles en todos los .gs) ───────────────────────
 
+// Cachea el rol/sede/nombre por correo (TTL corto) para que las llamadas
+// protegidas no relean la hoja Asesores completa en cada request — es la hoja
+// que más se lee en todo el sistema (requireRol_ pasa por aquí siempre).
+// Un TTL de 2 min acota el peor caso a "un cambio de rol tarda hasta 2 min en
+// aplicar", y crearAsesor/actualizarAsesor/toggleAsesor invalidan la entrada
+// de inmediato, así que en la práctica los cambios administrativos son instantáneos.
+const ROLE_CACHE_TTL_ = 120;
+function roleCacheKey_(email) { return 'role_' + String(email).toLowerCase().trim(); }
+
 function getRole_(email) {
   if (!email) return null;
+  const cache    = CacheService.getScriptCache();
+  const cacheKey = roleCacheKey_(email);
+  const cached   = cache.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
   const asesores = sheetToObjects_('Asesores');
   const found    = asesores.find(function(a) { return a.Email && a.Email.toLowerCase() === email.toLowerCase(); });
   if (!found) return null;
-  return {
+  const info = {
     email:  found.Email,
     nombre: found.Nombre,
     sede:   found.Sede,
@@ -262,6 +278,12 @@ function getRole_(email) {
     activo: found.Activo === true || found.Activo === 'TRUE' || found.Activo === 'true',
     pin:    found.Pin || null
   };
+  cache.put(cacheKey, JSON.stringify(info), ROLE_CACHE_TTL_);
+  return info;
+}
+
+function invalidarCacheRol_(email) {
+  if (email) CacheService.getScriptCache().remove(roleCacheKey_(email));
 }
 
 function requireRol_() {

@@ -30,9 +30,32 @@
  *   dtDocTitular?:       string,
  *   dtCelularTitular?:   string,
  *   dtNoAutorizacion?:        string,
- *   dtNoDatafono?:            string
+ *   dtNoDatafono?:            string,
+ *   // Comprobante Nequi (solo cuando metodoPago === 'Nequi'):
+ *   nequiComprobante?:        string  // data URL "data:image/jpeg;base64,...." desde el navegador
  * }
  */
+
+/**
+ * Decodifica una foto en base64 (data URL, ya comprimida en el navegador) y la
+ * guarda como archivo en Drive. Lanza error si el formato no es una imagen válida.
+ * @returns {string} URL del archivo guardado
+ */
+function guardarComprobanteNequi_(dataUrl, nombrePersona) {
+  const match = /^data:(image\/\w+);base64,(.+)$/.exec(dataUrl || '');
+  if (!match) throw new Error('El comprobante de Nequi no tiene un formato de imagen válido.');
+  const mimeType = match[1];
+  const ext      = mimeType.split('/')[1] || 'jpg';
+  const bytes    = Utilities.base64Decode(match[2]);
+  const nombreArchivo = 'Nequi_' + (nombrePersona || 'comprobante').replace(/[^\w\s-]/g, '') + '_' + Date.now() + '.' + ext;
+  const blob = Utilities.newBlob(bytes, mimeType, nombreArchivo);
+  const file = getCarpetaComprobantes_().createFile(blob);
+  // Visible para cualquiera del dominio con el link (no público), suficiente para
+  // que la coordinadora verifique el pago sin exponer el comprobante afuera.
+  file.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW);
+  return file.getUrl();
+}
+
 function crearTransaccion(token, payload) {
   authenticate_(token);
   const asesorInfo = requireRol_('asesor', 'coordinadora');
@@ -57,6 +80,13 @@ function crearTransaccion(token, payload) {
     if (actividad.horarios && actividad.horarios.length > 0 && !payload.horario) {
       throw new Error('Debe seleccionar un horario para la actividad "' + actividad.nombre + '".');
     }
+  }
+
+  // Subir el comprobante de Nequi ANTES del lock: es I/O a Drive que puede tardar
+  // uno o dos segundos, y no debe bloquear a otros asesores registrando pagos.
+  var nequiComprobanteUrl = '';
+  if (payload.metodoPago === 'Nequi' && payload.nequiComprobante) {
+    nequiComprobanteUrl = guardarComprobanteNequi_(payload.nequiComprobante, payload.nombrePersona);
   }
 
   // ── Sección crítica bajo lock ─────────────────────────────────────────────
@@ -126,6 +156,14 @@ function crearTransaccion(token, payload) {
       'Activa'
     ]);
 
+    // Columna aparte (no en el array posicional de arriba): así una hoja ya
+    // existente en producción, sin esta columna todavía, la agrega sola en vez
+    // de escribir un valor "fantasma" en una columna sin encabezado.
+    if (nequiComprobanteUrl) {
+      const colIdx = ensureColumn_(sheet, 'Nequi_Comprobante_URL');
+      sheet.getRange(sheet.getLastRow(), colIdx + 1).setValue(nequiComprobanteUrl);
+    }
+
     transaccion = {
       id:              idTrans,
       timestamp:       formatDate_(ahora),
@@ -137,7 +175,8 @@ function crearTransaccion(token, payload) {
       asesorEmail:     asesorInfo.email,
       asesorNombre:    asesorInfo.nombre,
       estadoIglesia,
-      estadoAcademia
+      estadoAcademia,
+      nequiComprobanteUrl
     };
 
     // ── Generar filas de Legalizaciones según flags ────────────────────────
@@ -377,6 +416,7 @@ function getCarteraAsesor(token) {
       nombrePersona:   t.Nombre_Persona,
       ultimaActividad: t.Actividad,
       ultimaMonto:     t.Monto,
+      ultimaMetodoPago:t.Metodo_Pago,
       ultimaFecha:     formatDate_(fecha),
       diasDesde:       diasP,
       semaforo,
@@ -560,6 +600,7 @@ function mapTransaccion_(t) {
     dtDocTitular:       t.Datafono_Doc_Titular     || '',
     dtCelularTitular:   t.Datafono_Celular_Titular || '',
     dtNoAutorizacion:        t.Datafono_No_Autorizacion      || '',
-    dtNoDatafono:            t.Datafono_No_Datafono          || ''
+    dtNoDatafono:            t.Datafono_No_Datafono          || '',
+    nequiComprobanteUrl:     t.Nequi_Comprobante_URL         || ''
   };
 }
