@@ -1,12 +1,14 @@
 // ─── REPORTES.GS ──────────────────────────────────────────────────────────────
 // Contrato público:
-//   getKPIsDashboard()                    → Object
-//   getRecaudoPorActividad(sede?)         → Object[]
-//   getDistribucionPorSede(sede?)         → Object[]
-//   getDistribucionPorMetodo(sede?)       → Object[]
-//   getActividadReciente(limite?, sede?)  → Object[]
-//   getDesempenoAsesores(sede?)           → Object[]
-//   getAlertasDashboard()                 → Object
+//   getKPIsDashboard(filtros?)                    → Object
+//   getRecaudoPorActividad(filtros?)              → Object[]
+//   getDistribucionPorSede(filtros?)              → Object[]
+//   getDistribucionPorMetodo(filtros?)            → Object[]
+//   getActividadReciente(limite?, filtros?)       → Object[]
+//   getDesempenoAsesores(filtros?)                → Object[]
+//   getAlertasDashboard()                         → Object
+// filtros: {sede?, asesorEmail?, metodoPago?, estadoIglesia?, estadoAcademia?,
+//           fechaDesde?, fechaHasta?} — ver aplicarFiltrosTransacciones_ en Transacciones.js
 
 function resolverTitularBeneficiario_(t) {
   var esDiferente = t.Datafono_Titular_Mismo === 'No';
@@ -22,9 +24,10 @@ function resolverTitularBeneficiario_(t) {
   };
 }
 
-function getKPIsDashboard(token, _, sede) {
+function getKPIsDashboard(token, filtros) {
   authenticate_(token);
   requireRol_('coordinadora');
+  filtros = filtros || {};
 
   const transacciones  = sheetToObjects_('Transacciones');
   const inscripciones  = sheetToObjects_('Inscripciones');
@@ -33,26 +36,40 @@ function getKPIsDashboard(token, _, sede) {
   const ahora     = new Date();
   const inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
 
-  const sedeMap = sede ? buildAsesorSedeMap_() : null;
+  const transFiltradas = aplicarFiltrosTransacciones_(
+    transacciones.filter(t => (t.Estado || 'Activa') !== 'Anulada'),
+    filtros
+  );
 
-  let transFiltradas = transacciones.filter(t => (t.Estado || 'Activa') !== 'Anulada');
-  if (sede) transFiltradas = transFiltradas.filter(t => sedeMap[t.Asesor_Email] === sede);
+  const recaudoTotal = transFiltradas.reduce((s, t) => s + montoReal_(t), 0);
 
-  const recaudoTotal = transFiltradas.reduce((s, t) => s + (Number(t.Monto) || 0), 0);
-
+  // Inscripciones no tiene método de pago ni estado de legalización propio,
+  // así que aquí solo se aplican sede/asesor/fecha (el subconjunto de
+  // filtros que sí le corresponde).
   let inscFiltradas = inscripciones;
-  if (sede) inscFiltradas = inscFiltradas.filter(i => sedeMap[i.Asesor_Email] === sede);
+  if (filtros.sede) {
+    const sedeMap = buildAsesorSedeMap_();
+    inscFiltradas = inscFiltradas.filter(i => sedeMap[i.Asesor_Email] === filtros.sede);
+  }
+  if (filtros.asesorEmail) inscFiltradas = inscFiltradas.filter(i => i.Asesor_Email === filtros.asesorEmail);
+  if (filtros.fechaDesde) {
+    const desde = new Date(filtros.fechaDesde);
+    inscFiltradas = inscFiltradas.filter(i => i.Fecha && new Date(i.Fecha) >= desde);
+  }
+  if (filtros.fechaHasta) {
+    const hasta = new Date(filtros.fechaHasta);
+    hasta.setHours(23, 59, 59);
+    inscFiltradas = inscFiltradas.filter(i => i.Fecha && new Date(i.Fecha) <= hasta);
+  }
 
   const pagosPendientes = legalizaciones.filter(l => l.Estado === 'Pendiente').length;
 
-  let sinLegal = transFiltradas.filter(t =>
+  const sinLegal = transFiltradas.filter(t =>
     t.Estado_Legalizacion_Iglesia === 'Pendiente' ||
     t.Estado_Legalizacion_Academia === 'Pendiente'
   );
-  if (sede) sinLegal = sinLegal.filter(t => sedeMap[t.Asesor_Email] === sede);
 
-  let transHoy = transFiltradas.filter(t => t.Timestamp && new Date(t.Timestamp) >= inicioHoy);
-  if (sede) transHoy = transHoy.filter(t => sedeMap[t.Asesor_Email] === sede);
+  const transHoy = transFiltradas.filter(t => t.Timestamp && new Date(t.Timestamp) >= inicioHoy);
 
   return {
     recaudoTotal,
@@ -63,75 +80,71 @@ function getKPIsDashboard(token, _, sede) {
   };
 }
 
-function getRecaudoPorActividad(token, _, sede) {
+function getRecaudoPorActividad(token, filtros) {
   authenticate_(token);
   requireRol_('coordinadora');
-  let trans = sheetToObjects_('Transacciones').filter(t => (t.Estado || 'Activa') !== 'Anulada');
-  if (sede) {
-    const sedeMap = buildAsesorSedeMap_();
-    trans = trans.filter(t => sedeMap[t.Asesor_Email] === sede);
-  }
+  let trans = aplicarFiltrosTransacciones_(
+    sheetToObjects_('Transacciones').filter(t => (t.Estado || 'Activa') !== 'Anulada'),
+    filtros
+  );
 
   const agrupado = {};
   trans.forEach(t => {
     const key = t.Actividad || 'Sin actividad';
     if (!agrupado[key]) agrupado[key] = { actividad: key, cantidad: 0, recaudado: 0 };
     agrupado[key].cantidad++;
-    agrupado[key].recaudado += Number(t.Monto) || 0;
+    agrupado[key].recaudado += montoReal_(t);
   });
 
   return Object.values(agrupado).sort((a, b) => b.recaudado - a.recaudado);
 }
 
-function getDistribucionPorSede(token, _, sede) {
+function getDistribucionPorSede(token, filtros) {
   authenticate_(token);
   requireRol_('coordinadora');
-  let trans = sheetToObjects_('Transacciones').filter(t => (t.Estado || 'Activa') !== 'Anulada');
-  if (sede) {
-    const sedeMap = buildAsesorSedeMap_();
-    trans = trans.filter(t => sedeMap[t.Asesor_Email] === sede);
-  }
+  let trans = aplicarFiltrosTransacciones_(
+    sheetToObjects_('Transacciones').filter(t => (t.Estado || 'Activa') !== 'Anulada'),
+    filtros
+  );
 
   const agrupado = {};
   trans.forEach(t => {
     const key = t.Sede || 'Sin sede';
     if (!agrupado[key]) agrupado[key] = { sede: key, recaudado: 0, cantidad: 0 };
-    agrupado[key].recaudado += Number(t.Monto) || 0;
+    agrupado[key].recaudado += montoReal_(t);
     agrupado[key].cantidad++;
   });
 
   return Object.values(agrupado);
 }
 
-function getDistribucionPorMetodo(token, _, sede) {
+function getDistribucionPorMetodo(token, filtros) {
   authenticate_(token);
   requireRol_('coordinadora');
-  let trans = sheetToObjects_('Transacciones').filter(t => (t.Estado || 'Activa') !== 'Anulada');
-  if (sede) {
-    const sedeMap = buildAsesorSedeMap_();
-    trans = trans.filter(t => sedeMap[t.Asesor_Email] === sede);
-  }
+  let trans = aplicarFiltrosTransacciones_(
+    sheetToObjects_('Transacciones').filter(t => (t.Estado || 'Activa') !== 'Anulada'),
+    filtros
+  );
 
   const agrupado = {};
   trans.forEach(t => {
     const key = t.Metodo_Pago || 'Desconocido';
     if (!agrupado[key]) agrupado[key] = { metodo: key, recaudado: 0, cantidad: 0 };
-    agrupado[key].recaudado += Number(t.Monto) || 0;
+    agrupado[key].recaudado += montoReal_(t);
     agrupado[key].cantidad++;
   });
 
   return Object.values(agrupado);
 }
 
-function getActividadReciente(token, limite, _, sede) {
+function getActividadReciente(token, limite, filtros) {
   authenticate_(token);
   requireRol_('coordinadora');
   limite = limite || 15;
-  let trans = sheetToObjects_('Transacciones').filter(t => (t.Estado || 'Activa') !== 'Anulada');
-  if (sede) {
-    const sedeMap = buildAsesorSedeMap_();
-    trans = trans.filter(t => sedeMap[t.Asesor_Email] === sede);
-  }
+  let trans = aplicarFiltrosTransacciones_(
+    sheetToObjects_('Transacciones').filter(t => (t.Estado || 'Activa') !== 'Anulada'),
+    filtros
+  );
   return trans
     .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))
     .slice(0, limite)
@@ -139,7 +152,7 @@ function getActividadReciente(token, limite, _, sede) {
       idTrans:       t.ID_Trans,
       nombrePersona: t.Nombre_Persona,
       actividad:     t.Actividad,
-      monto:         Number(t.Monto) || 0,
+      monto:         montoReal_(t),
       metodoPago:    t.Metodo_Pago,
       asesorNombre:  t.Asesor_Nombre,
       sede:          t.Sede,
@@ -147,14 +160,13 @@ function getActividadReciente(token, limite, _, sede) {
     }));
 }
 
-function getDesempenoAsesores(token, _, sede) {
+function getDesempenoAsesores(token, filtros) {
   authenticate_(token);
   requireRol_('coordinadora');
-  let trans = sheetToObjects_('Transacciones').filter(t => (t.Estado || 'Activa') !== 'Anulada');
-  if (sede) {
-    const sedeMap = buildAsesorSedeMap_();
-    trans = trans.filter(t => sedeMap[t.Asesor_Email] === sede);
-  }
+  let trans = aplicarFiltrosTransacciones_(
+    sheetToObjects_('Transacciones').filter(t => (t.Estado || 'Activa') !== 'Anulada'),
+    filtros
+  );
 
   const porAsesor = {};
   trans.forEach(t => {
@@ -169,7 +181,7 @@ function getDesempenoAsesores(token, _, sede) {
       };
     }
     porAsesor[email].transacciones++;
-    porAsesor[email].recaudado += Number(t.Monto) || 0;
+    porAsesor[email].recaudado += montoReal_(t);
     const ts = t.Timestamp ? new Date(t.Timestamp) : null;
     if (ts && (!porAsesor[email].ultimaActividad || ts > porAsesor[email].ultimaActividad)) {
       porAsesor[email].ultimaActividad = ts;
@@ -241,12 +253,12 @@ function buildEmailCierreGerencial_(opts) {
   var trans = opts.trans;
   var anuladas = opts.anuladas || [];
   var inscripciones = opts.inscripciones || [];
-  var fmtM = function(v) { return '$ ' + new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(v || 0); };
+  var fmtM = formatCOP_;
   var pct = function(p, t) { return t ? ((p / t) * 100).toFixed(1) + '%' : '0%'; };
   var fmtHora = function(d) { return Utilities.formatDate(d, 'America/Bogota', 'h:mm a'); };
 
   var totalRecaudo = 0;
-  trans.forEach(function(t) { totalRecaudo += Number(t.Monto) || 0; });
+  trans.forEach(function(t) { totalRecaudo += montoReal_(t); });
   var ticketProm = trans.length ? Math.round(totalRecaudo / trans.length) : 0;
 
   var timestamps = [];
@@ -259,7 +271,7 @@ function buildEmailCierreGerencial_(opts) {
   trans.forEach(function(t) {
     var s = t.Sede || 'Sin sede';
     if (!porSede[s]) porSede[s] = { efectivo: 0, datafono: 0, nequi: 0, total: 0, count: 0 };
-    var m = Number(t.Monto) || 0;
+    var m = montoReal_(t);
     porSede[s].total += m; porSede[s].count++;
     if (t.Metodo_Pago === 'Efectivo') porSede[s].efectivo += m;
     else if (t.Metodo_Pago === 'Datáfono') porSede[s].datafono += m;
@@ -272,7 +284,7 @@ function buildEmailCierreGerencial_(opts) {
   trans.forEach(function(t) {
     var mp = t.Metodo_Pago || 'Otro';
     if (!porMetodo[mp]) porMetodo[mp] = { total: 0, count: 0 };
-    porMetodo[mp].total += Number(t.Monto) || 0;
+    porMetodo[mp].total += montoReal_(t);
     porMetodo[mp].count++;
   });
 
@@ -280,7 +292,7 @@ function buildEmailCierreGerencial_(opts) {
   trans.forEach(function(t) {
     var a = t.Actividad || 'Sin actividad';
     if (!porActividad[a]) porActividad[a] = { total: 0, count: 0 };
-    porActividad[a].total += Number(t.Monto) || 0;
+    porActividad[a].total += montoReal_(t);
     porActividad[a].count++;
   });
   var actividadesOrd = Object.keys(porActividad).sort(function(a, b) { return porActividad[b].total - porActividad[a].total; });
@@ -289,7 +301,7 @@ function buildEmailCierreGerencial_(opts) {
   trans.forEach(function(t) {
     var key = t.Asesor_Email || 'desconocido';
     if (!porAsesor[key]) porAsesor[key] = { nombre: t.Asesor_Nombre || key, sede: t.Sede || '', total: 0, count: 0 };
-    porAsesor[key].total += Number(t.Monto) || 0;
+    porAsesor[key].total += montoReal_(t);
     porAsesor[key].count++;
   });
   var asesoresOrd = Object.keys(porAsesor).sort(function(a, b) { return porAsesor[b].total - porAsesor[a].total; });
@@ -301,7 +313,7 @@ function buildEmailCierreGerencial_(opts) {
   });
 
   var totalAnulado = 0;
-  anuladas.forEach(function(t) { totalAnulado += Number(t.Monto) || 0; });
+  anuladas.forEach(function(t) { totalAnulado += montoReal_(t); });
 
   var inscPorAct = {};
   inscripciones.forEach(function(i) {
@@ -337,7 +349,10 @@ function buildEmailCierreGerencial_(opts) {
   h += '<div style="background:#0d1829;padding:18px 20px">';
   h += '<img src="https://www.soymanantial.com/footer/50.svg" alt="Manantial" style="height:26px;margin-bottom:10px">';
   h += '<h1 style="color:#667eea;margin:0;font-size:16px">' + opts.titulo + '</h1>';
-  h += '<p style="color:#94a3b8;margin:4px 0 0;font-size:11px">' + opts.fecha + ' · Generado: ' + opts.fechaGen + '</p>';
+  // opts.fecha usa guiones (dd-MM-yyyy, para nombres de pestaña) y opts.fechaGen
+  // usa barras (dd/MM/yyyy HH:mm) — se normaliza aquí solo para que esta línea
+  // no mezcle los dos formatos en el mismo renglón del correo.
+  h += '<p style="color:#94a3b8;margin:4px 0 0;font-size:11px">' + opts.fecha.replace(/-/g, '/') + ' · Generado: ' + opts.fechaGen + '</p>';
   h += '</div>';
 
   h += '<div style="padding:16px 20px">';
@@ -452,7 +467,7 @@ function buildEmailCierreGerencial_(opts) {
     anuladas.forEach(function(t) {
       h += '<tr><td style="' + S.td + '">' + (t.Nombre_Persona || '') + '</td>';
       h += '<td style="' + S.td + '">' + (t.Actividad || '') + '</td>';
-      h += '<td style="' + S.tdR + ';color:#ef4444">' + fmtM(Number(t.Monto) || 0) + '</td>';
+      h += '<td style="' + S.tdR + ';color:#ef4444">' + fmtM(montoReal_(t)) + '</td>';
       h += '<td style="' + S.td + '">' + (t.Asesor_Nombre || '') + '</td></tr>';
     });
 
@@ -584,6 +599,123 @@ function getEstadoCierreHoy(token) {
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ALERTA DE CIERRE PENDIENTE POR INACTIVIDAD — corre sola cada 30 min desde
+// un disparador de tiempo (ver instalarTriggerAlertaCierre_ al final de este
+// archivo). No depende de un horario fijo: cada sede tiene sus propios
+// horarios de culto, así que en vez de "avisar a las 9pm" se avisa cuando ya
+// pasaron 2+ horas sin ningún pago nuevo en una sede que aún no cerró — señal
+// de que el culto terminó y todos se fueron sin generar el cierre.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * ¿Ya existe la pestaña de cierre de hoy para esta sede en la hoja de cierre
+ * general? Mismo criterio de nombre de pestaña que usa generarCierreSede.
+ */
+function existeCierreHoy_(sede) {
+  var nombrePestana = Utilities.formatDate(new Date(), 'America/Bogota', 'dd-MM-yyyy') + ' - ' + sede;
+  var ss = SpreadsheetApp.openById(getConfig_('CIERRE_GENERAL_SHEET_ID'));
+  return !!ss.getSheetByName(nombrePestana);
+}
+
+/**
+ * Envía un mensaje de texto a un espacio de Google Chat vía webhook entrante.
+ * Se configura pegando la URL del webhook en Ajustes → "Webhook de Google
+ * Chat para avisos de cierre pendiente". Si no está configurado, no revienta
+ * — solo deja rastro en el log, igual que el resto de notificaciones de este
+ * sistema que no deben bloquear nada si fallan.
+ */
+function enviarAlertaChat_(mensaje) {
+  var webhook = getConfig_('CIERRE_ALERTA_CHAT_WEBHOOK');
+  if (!webhook) {
+    Logger.log('CIERRE_ALERTA_CHAT_WEBHOOK no configurado. Alerta no enviada: ' + mensaje);
+    return;
+  }
+  try {
+    UrlFetchApp.fetch(webhook, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ text: mensaje }),
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    Logger.log('Error enviando alerta a Google Chat: ' + e.message);
+  }
+}
+
+/**
+ * Revisa cada sede activa y avisa a Chat si quedaron pagos de hoy sin cierre
+ * y sin actividad en las últimas 2 horas. Mientras siga pendiente, insiste
+ * cada hora (no cada 30 min, que es la frecuencia del chequeo) — a propósito
+ * "cansón": la idea es que la alerta se sienta hasta que alguien la resuelva,
+ * no una sola notificación que se pierde entre el resto de correos/chats.
+ */
+function verificarCierresPendientesPorInactividad() {
+  var tz          = 'America/Bogota';
+  var ahora       = new Date();
+  var fechaHoy    = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy');
+  var inicioHoy   = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  var DOS_HORAS_MS = 2 * 60 * 60 * 1000;
+  var UNA_HORA_MS  = 60 * 60 * 1000;
+  var props       = PropertiesService.getScriptProperties();
+
+  var transHoy = sheetToObjects_('Transacciones').filter(function(t) {
+    return t.Timestamp && new Date(t.Timestamp) >= inicioHoy && (t.Estado || 'Activa') !== 'Anulada';
+  });
+
+  var pendientes = [];
+
+  obtenerSedesActivas_().forEach(function(sede) {
+    var transSede = transHoy.filter(function(t) { return t.Sede === sede; });
+    if (!transSede.length) return; // no hubo actividad hoy en esta sede — nada que cerrar
+
+    if (existeCierreHoy_(sede)) return; // ya se generó el cierre
+
+    var ultimaTs = transSede.reduce(function(max, t) {
+      var ts = new Date(t.Timestamp).getTime();
+      return ts > max ? ts : max;
+    }, 0);
+
+    var msInactivo = ahora.getTime() - ultimaTs;
+    if (msInactivo < DOS_HORAS_MS) return; // todavía no pasan las 2 horas de silencio
+
+    var propKey = 'ultimoAvisoCierrePendiente_' + fechaHoy + '_' + sede;
+    var ultimoAviso = Number(props.getProperty(propKey) || 0);
+    if (ultimoAviso && (ahora.getTime() - ultimoAviso) < UNA_HORA_MS) return; // ya se avisó hace menos de una hora
+
+    pendientes.push({ sede: sede, minutos: Math.floor(msInactivo / 60000) });
+    props.setProperty(propKey, String(ahora.getTime()));
+  });
+
+  if (!pendientes.length) return;
+
+  var lineas = pendientes.map(function(p) {
+    var h = Math.floor(p.minutos / 60), m = p.minutos % 60;
+    return '• ' + p.sede + ': sin cierre generado, último pago hace ' + h + 'h ' + m + 'min.';
+  });
+
+  enviarAlertaChat_('⚠️ Cierre pendiente\n' + lineas.join('\n') + '\nProbablemente terminó el culto — genera el cierre desde el Dashboard o pide al asesor de turno que lo haga. Este aviso se repite cada hora hasta que se genere.');
+}
+
+/**
+ * SOLO EJECUTAR MANUALMENTE UNA VEZ desde el editor de Apps Script
+ * (seleccionar esta función en el desplegable de arriba y presionar
+ * "Ejecutar") para activar el chequeo automático cada 30 minutos. Si ya
+ * existía un disparador para esta misma función, lo reemplaza en vez de
+ * duplicarlo — se puede volver a ejecutar sin riesgo si hace falta.
+ */
+function instalarTriggerAlertaCierre_() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'verificarCierresPendientesPorInactividad') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+  ScriptApp.newTrigger('verificarCierresPendientesPorInactividad')
+    .timeBased()
+    .everyMinutes(30)
+    .create();
+}
+
 function enviarCierreConsolidado_() {
   var ahora = new Date();
   var tz = 'America/Bogota';
@@ -606,10 +738,10 @@ function enviarCierreConsolidado_() {
 
   var fechaHoy = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy');
   var fechaGen = Utilities.formatDate(ahora, tz, 'dd/MM/yyyy HH:mm');
-  var fmtM = function(v) { return '$ ' + new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(v || 0); };
+  var fmtM = formatCOP_;
 
   var totalRecaudo = 0;
-  trans.forEach(function(t) { totalRecaudo += Number(t.Monto) || 0; });
+  trans.forEach(function(t) { totalRecaudo += montoReal_(t); });
 
   var sheetUrl = 'https://docs.google.com/spreadsheets/d/' + getConfig_('CIERRE_GENERAL_SHEET_ID');
 
@@ -637,7 +769,11 @@ function enviarCierreConsolidado_() {
 // CIERRE MANUAL POR SEDE — Invocado desde la vista del asesor
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function generarCierreSede(sede) {
+function generarCierreSede(token, sede, forzar) {
+  // Antes era pública (sin token) y alcanzable sin sesión iniciada; solo se
+  // exige una sesión válida de cualquier rol (no solo coordinadora), porque
+  // los propios asesores usan esta función para cerrar su sede del día.
+  authenticate_(token);
   if (!sede) throw new Error('Sede es requerida');
 
   const ahora  = new Date();
@@ -665,17 +801,42 @@ function generarCierreSede(sede) {
 
   const nombrePestana = Utilities.formatDate(ahora, tz, 'dd-MM-yyyy') + ' - ' + sede;
   const fechaGen      = Utilities.formatDate(ahora, tz, 'dd/MM/yyyy HH:mm');
-  const fmtM = v => '$ ' + new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(v || 0);
+  const fmtM = formatCOP_;
 
-  // ── HOJA 1: CIERRE DATÁFONO ──────────────────────────────────────────────
   const transDatafono = todasTrans.filter(t => t.Metodo_Pago === 'Datáfono');
 
-  if (transDatafono.length) {
-    const ssDf = SpreadsheetApp.openById(getConfig_('CIERRE_DATAFONO_SHEET_ID'));
-    let sheetDf = ssDf.getSheetByName(nombrePestana);
-    if (sheetDf) sheetDf.clear();
-    else sheetDf = ssDf.insertSheet(nombrePestana, 0);
+  // ── Verificar/reclamar el cierre del día bajo bloqueo, para que dos
+  // generaciones simultáneas de la misma sede no se pisen ni se sobrescriban
+  // sin aviso. El bloqueo solo dura lo que toma abrir las hojas externas y
+  // reclamar la pestaña — el resto del reporte (más lento) se construye
+  // después, ya sin bloqueo, para no retrasar el registro de pagos de otras
+  // sedes mientras se genera este cierre.
+  let sheetDf = null, sheetGen;
+  const lockCierre = LockService.getScriptLock();
+  if (!lockCierre.tryLock(10000)) {
+    throw new Error('El sistema está ocupado generando otro cierre. Intenta de nuevo en unos segundos.');
+  }
+  try {
+    const ssGen = SpreadsheetApp.openById(getConfig_('CIERRE_GENERAL_SHEET_ID'));
+    let sheetGenExistente = ssGen.getSheetByName(nombrePestana);
+    let sheetDfExistente = null;
+    if (transDatafono.length) {
+      const ssDf = SpreadsheetApp.openById(getConfig_('CIERRE_DATAFONO_SHEET_ID'));
+      sheetDfExistente = ssDf.getSheetByName(nombrePestana);
+      if ((sheetGenExistente || sheetDfExistente) && !forzar) {
+        return { ok: false, yaExiste: true, mensaje: 'Ya existe un cierre generado hoy para la sede ' + sede + '. ¿Deseas reemplazarlo?' };
+      }
+      sheetDf = sheetDfExistente ? sheetDfExistente.clear() : ssDf.insertSheet(nombrePestana, 0);
+    } else if (sheetGenExistente && !forzar) {
+      return { ok: false, yaExiste: true, mensaje: 'Ya existe un cierre generado hoy para la sede ' + sede + '. ¿Deseas reemplazarlo?' };
+    }
+    sheetGen = sheetGenExistente ? sheetGenExistente.clear() : ssGen.insertSheet(nombrePestana, 0);
+  } finally {
+    lockCierre.releaseLock();
+  }
 
+  // ── HOJA 1: CIERRE DATÁFONO ──────────────────────────────────────────────
+  if (transDatafono.length) {
     const porDatafono = {};
     transDatafono.forEach(t => {
       const num = t.Datafono_No_Datafono || 'Sin asignar';
@@ -722,6 +883,7 @@ function generarCierreSede(sede) {
     // Resumen por datáfono
     rowsDf.push(['DATÁFONO', 'N° TRANSACCIONES', 'TOTAL', ...Array(totalColsDf - 3).fill('')]);
     headerRowsDf.push(rowsDf.length);
+    const resumenDfHeaderRow = rowsDf.length;
 
     let totalGeneralDf = 0;
     datafonos.forEach(num => {
@@ -733,6 +895,7 @@ function generarCierreSede(sede) {
 
     rowsDf.push(['TOTAL DATÁFONO', transDatafono.length, totalGeneralDf, ...Array(totalColsDf - 3).fill('')]);
     subtotalRowsDf.push(rowsDf.length);
+    const resumenDfTotalRow = rowsDf.length;
 
     // Bloques por datáfono
     datafonos.forEach(num => {
@@ -765,6 +928,7 @@ function generarCierreSede(sede) {
     gtRowDf[3] = totalGeneralDf;
     rowsDf.push(gtRowDf);
     subtotalRowsDf.push(rowsDf.length);
+    const granTotalDfRow = rowsDf.length;
 
     sheetDf.getRange(1, 1, rowsDf.length, totalColsDf).setValues(rowsDf);
 
@@ -773,7 +937,7 @@ function generarCierreSede(sede) {
 
     mergesDf.forEach(r => sheetDf.getRange(r, 1, 1, totalColsDf).merge());
     headerRowsDf.forEach(r => {
-      sheetDf.getRange(r, 1, 1, totalColsDf).setBackground('#2d3640').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+      sheetDf.getRange(r, 1, 1, totalColsDf).setBackground('#0d1829').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
     });
     dfHeaderRows.forEach(r => {
       sheetDf.getRange(r, 1, 1, totalColsDf).setBackground('#667eea').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
@@ -781,15 +945,20 @@ function generarCierreSede(sede) {
     subtotalRowsDf.forEach(r => {
       sheetDf.getRange(r, 1, 1, totalColsDf).setFontWeight('bold').setBackground('#f0f0f0').setBorder(true, true, true, true, false, false);
     });
+    // El gran total se distingue del resto de subtotales (mismo tratamiento
+    // oscuro que ya usa la fila TOTAL en el correo gerencial), para que no
+    // se confunda con un subtotal intermedio más al leer la hoja.
+    sheetDf.getRange(granTotalDfRow, 1, 1, totalColsDf).setBackground('#0d1829').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
     sheetDf.getRange(1, 4, rowsDf.length, 1).setNumberFormat('$ #,##0');
+    // La tabla "Resumen por datáfono" pone sus totales en la columna C, no en
+    // la D — antes se quedaba sin formato de moneda mientras el detalle de
+    // abajo (columna D) sí lo tenía, en la misma hoja.
+    sheetDf.getRange(resumenDfHeaderRow + 1, 3, resumenDfTotalRow - resumenDfHeaderRow, 1).setNumberFormat('$ #,##0');
     for (let c = 1; c <= totalColsDf; c++) sheetDf.autoResizeColumn(c);
   }
 
   // ── HOJA 2: CIERRE GENERAL ───────────────────────────────────────────────
-  const ssGen = SpreadsheetApp.openById(getConfig_('CIERRE_GENERAL_SHEET_ID'));
-  let sheetGen = ssGen.getSheetByName(nombrePestana);
-  if (sheetGen) sheetGen.clear();
-  else sheetGen = ssGen.insertSheet(nombrePestana, 0);
+  // (sheetGen ya fue abierta/reclamada bajo bloqueo, arriba)
 
   const headersGen = [
     'FECHA','PERSONA','CÉDULA','CELULAR','ACTIVIDAD','MONTO','MÉTODO DE PAGO','ASESOR',
@@ -822,7 +991,7 @@ function generarCierreSede(sede) {
 
   var totEfectivo = 0, totDatafono = 0, totNequi = 0, totTotal = 0;
   todasTrans.forEach(tr => {
-    var m = Number(tr.Monto) || 0;
+    var m = montoReal_(tr);
     totTotal += m;
     if (tr.Metodo_Pago === 'Efectivo')  totEfectivo += m;
     if (tr.Metodo_Pago === 'Datáfono')  totDatafono += m;
@@ -871,7 +1040,7 @@ function generarCierreSede(sede) {
   todasTrans.forEach(t => {
     const a = t.Actividad || 'Sin actividad';
     if (!porActividadGen[a]) porActividadGen[a] = { total: 0, count: 0 };
-    porActividadGen[a].total += Number(t.Monto) || 0;
+    porActividadGen[a].total += montoReal_(t);
     porActividadGen[a].count++;
   });
   Object.keys(porActividadGen)
@@ -899,7 +1068,7 @@ function generarCierreSede(sede) {
   todasTrans.forEach(t => {
     const key = t.Asesor_Email || 'desconocido';
     if (!porAsesorGen[key]) porAsesorGen[key] = { nombre: t.Asesor_Nombre || key, total: 0, count: 0 };
-    porAsesorGen[key].total += Number(t.Monto) || 0;
+    porAsesorGen[key].total += montoReal_(t);
     porAsesorGen[key].count++;
   });
   Object.keys(porAsesorGen)
@@ -929,12 +1098,12 @@ function generarCierreSede(sede) {
       rowsGen.push([
         t.Timestamp ? formatDate_(new Date(t.Timestamp)) : '',
         t.Nombre_Persona || '', t.Documento_Persona || '', t.Actividad || '',
-        Number(t.Monto) || 0, t.Metodo_Pago || '', t.Asesor_Nombre || '',
+        montoReal_(t), t.Metodo_Pago || '', t.Asesor_Nombre || '',
         ...Array(totalColsGen - 7).fill('')
       ]);
     });
 
-    const totalAnuladoGen = transAnuladasSede.reduce((s, t) => s + (Number(t.Monto) || 0), 0);
+    const totalAnuladoGen = transAnuladasSede.reduce((s, t) => s + montoReal_(t), 0);
     rowsGen.push(['TOTAL ANULADO', '', '', '', totalAnuladoGen, '', '', ...Array(totalColsGen - 7).fill('')]);
     subtotalRowsGen.push(rowsGen.length);
     anuladasEndRowGen = rowsGen.length;
@@ -958,6 +1127,7 @@ function generarCierreSede(sede) {
   subGen[colMontoGen] = totTotal;
   rowsGen.push(subGen);
   subtotalRowsGen.push(rowsGen.length);
+  var granTotalGenRow = rowsGen.length;
 
   sheetGen.getRange(1, 1, rowsGen.length, totalColsGen).setValues(rowsGen);
 
@@ -966,7 +1136,7 @@ function generarCierreSede(sede) {
 
   mergesGen.forEach(r => sheetGen.getRange(r, 1, 1, totalColsGen).merge());
   headerRowsGen.forEach(r => {
-    sheetGen.getRange(r, 1, 1, totalColsGen).setBackground('#2d3640').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
+    sheetGen.getRange(r, 1, 1, totalColsGen).setBackground('#0d1829').setFontColor('#ffffff').setFontWeight('bold').setFontSize(10);
   });
   sedeHeaderRowsGen.forEach(r => {
     sheetGen.getRange(r, 1, 1, totalColsGen).setBackground('#667eea').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
@@ -974,6 +1144,10 @@ function generarCierreSede(sede) {
   subtotalRowsGen.forEach(r => {
     sheetGen.getRange(r, 1, 1, totalColsGen).setFontWeight('bold').setBackground('#f0f0f0').setBorder(true, true, true, true, false, false);
   });
+  // El gran total de la sede se distingue del resto de subtotales (método,
+  // actividad, asesor) con el mismo tratamiento oscuro que ya usa la fila
+  // TOTAL en el correo gerencial.
+  sheetGen.getRange(granTotalGenRow, 1, 1, totalColsGen).setBackground('#0d1829').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
 
   // Formato moneda por sección (evita aplicar moneda a CÉDULA/CELULAR en detalle)
   sheetGen.getRange(4, 3, methodEndRow - 3, 1).setNumberFormat('$ #,##0');

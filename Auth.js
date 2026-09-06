@@ -1,9 +1,11 @@
 // ─── AUTH.GS ──────────────────────────────────────────────────────────────────
 // Funciones públicas SIN autenticación (llamar con gsrPublic desde el frontend):
-//   solicitarAcceso(email)       → {ok}
-//   verificarCodigo(email, code) → {token, nombre, sede, rol}
-//   cerrarSesion(token)          → {ok}
-//   getCurrentUserInfo(token)    → {nombre, sede, rol}
+//   listarAsesoresPublico()                 → Object[]  (selector de login del asesor)
+//   listarCoordinadorasPublico()            → Object[]  (selector de login de coordinadora)
+//   seleccionarAsesor(email)                → {token, nombre, email, sede, rol}  (login del asesor, sin código)
+//   verificarPinCoordinadora(email, pin)    → {token, nombre, email, sede, rol}  (login de coordinadora, con PIN)
+//   cerrarSesion(token)                     → {ok}
+//   getCurrentUserInfo(token)               → {nombre, sede, rol}
 //
 // Funciones públicas CON autenticación (primer arg = token, llamar con gsr):
 //   listarAsesores(token)                    → Object[]
@@ -73,7 +75,7 @@ function verificarPinCoordinadora(email, pin) {
     JSON.stringify({ email: info.email }),
     21600
   );
-  return { token: token, nombre: info.nombre, sede: info.sede, rol: info.rol };
+  return { token: token, nombre: info.nombre, email: info.email, sede: info.sede, rol: info.rol };
 }
 
 /**
@@ -92,66 +94,7 @@ function seleccionarAsesor(email) {
     JSON.stringify({ email: info.email }),
     21600
   );
-  return { token: token, nombre: info.nombre, sede: info.sede, rol: info.rol };
-}
-
-/**
- * Envía un código OTP de 6 dígitos al correo del asesor registrado.
- */
-function solicitarAcceso(email) {
-  if (!email) throw new Error('Ingresa tu correo electrónico.');
-  const emailNorm = email.toLowerCase().trim();
-  const info = getRole_(emailNorm);
-  if (!info) throw new Error('Correo no registrado. Contacta a tu coordinadora.');
-  if (!info.activo) throw new Error('Tu cuenta está desactivada. Contacta a tu coordinadora.');
-
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  CacheService.getScriptCache().put('otp_' + emailNorm, code, 600); // 10 min
-
-  const htmlCuerpo =
-    '<div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">' +
-    '<h2 style="color:#0d1829;margin-bottom:8px">Código de acceso</h2>' +
-    '<p>Hola <strong>' + escapeHtml_(info.nombre) + '</strong>,</p>' +
-    '<p>Tu código para ingresar al CRM Punto de Información es:</p>' +
-    '<div style="font-size:38px;letter-spacing:14px;font-weight:700;color:#667eea;' +
-    'background:#f0f0ff;padding:16px 24px;border-radius:10px;text-align:center;margin:20px 0">' +
-    code + '</div>' +
-    '<p style="color:#718096;font-size:13px">Válido por <strong>10 minutos</strong>. No compartas este código.</p>' +
-    '<p style="color:#718096;font-size:13px">Si no solicitaste este código, ignóralo.</p>' +
-    '</div>';
-
-  GmailApp.sendEmail(
-    emailNorm,
-    'Código de acceso – CRM Punto de Información',
-    'Tu código de acceso es: ' + code + '\nVálido por 10 minutos.',
-    { htmlBody: htmlCuerpo, name: 'CRM Punto de Información', noReply: true }
-  );
-  return { ok: true };
-}
-
-/**
- * Verifica el código OTP y crea una sesión de 6 horas.
- */
-function verificarCodigo(email, code) {
-  if (!email || !code) throw new Error('Datos incompletos.');
-  const emailNorm = email.toLowerCase().trim();
-  const otpKey    = 'otp_' + emailNorm;
-  const stored    = CacheService.getScriptCache().get(otpKey);
-  if (!stored) throw new Error('El código expiró. Solicita uno nuevo.');
-  if (stored.trim() !== code.toString().trim()) throw new Error('Código incorrecto.');
-
-  CacheService.getScriptCache().remove(otpKey);
-
-  const info = getRole_(emailNorm);
-  if (!info || !info.activo) throw new Error('Cuenta no válida.');
-
-  const token = Utilities.getUuid();
-  CacheService.getScriptCache().put(
-    'ses_' + token,
-    JSON.stringify({ email: info.email }),
-    21600 // 6 horas
-  );
-  return { token, nombre: info.nombre, sede: info.sede, rol: info.rol };
+  return { token: token, nombre: info.nombre, email: info.email, sede: info.sede, rol: info.rol };
 }
 
 /**

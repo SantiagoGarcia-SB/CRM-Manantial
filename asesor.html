@@ -12,6 +12,12 @@
   <style>
     body { max-width: 480px; margin: 0 auto; }
 
+    /* Modo de texto grande: sube el tamaño base de la página (html), lo que
+       reescala todo lo que ya está en rem sin tener que tocar cada valor
+       pequeño uno por uno. Se activa con el botón "A+" del top-bar. */
+    html.text-lg { font-size: 18px; }
+    #btn-texto-grande[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+
     /* ── Pantallas superpuestas ─── */
     .fullscreen {
       position: fixed; inset: 0; z-index: 50;
@@ -51,6 +57,17 @@
     .nav-btn svg, .nav-btn .nav-icon { font-size: 22px; }
     .nav-btn.active { color: var(--accent); }
 
+    /* Mantiene el botón principal del flujo de registro alcanzable con el
+       pulgar en pasos largos, sin sacarlo del flujo normal del documento
+       (así no altera el layout de sus hermanos, a diferencia de position:fixed). */
+    .cta-sticky {
+      position: sticky;
+      bottom: calc(56px + env(safe-area-inset-bottom) + 10px);
+      background: var(--surface);
+      padding-top: 8px;
+      z-index: 5;
+    }
+
     @media (min-width: 600px) {
       body { max-width: 520px; border-left: 1px solid var(--border); border-right: 1px solid var(--border); min-height: 100vh; }
       .bottom-nav { max-width: 520px; }
@@ -79,9 +96,11 @@
       -webkit-tap-highlight-color: transparent;
     }
     .cat-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .cat-pill.active::before { content: "✓ "; }
     #cat-pills::-webkit-scrollbar { display: none; }
     .metodo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .metodo-btn {
+      position: relative;
       padding: 16px 8px; border-radius: 12px; border: 2px solid var(--border);
       background: var(--surface2); color: var(--text); display: flex; flex-direction: column;
       align-items: center; gap: 6px; cursor: pointer; transition: all 0.15s;
@@ -89,8 +108,10 @@
     }
     .metodo-btn .metodo-icon { font-size: 1.6rem; }
     .metodo-btn.selected { border-color: var(--accent); background: var(--accent-lt); color: var(--accent); }
+    .metodo-btn.selected::after { content: "✓"; position: absolute; top: 6px; right: 8px; font-size: .8rem; font-weight: 700; }
     .dt-benef-btn { border: 2px solid var(--border); border-radius: 10px; padding: 12px; font-weight: 600; font-size: .9rem; }
     .dt-benef-btn.selected { border-color: var(--accent); background: var(--accent-lt); color: var(--accent); }
+    .dt-benef-btn.selected::after { content: " ✓"; }
     .success-card { text-align: center; padding: 32px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
     .success-icon { font-size: 3.5rem; margin-bottom: 12px; }
     .summary-row  { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(45,49,72,0.5); font-size: 0.875rem; }
@@ -277,6 +298,14 @@
     <option value="Norte">📍 Norte</option>
     <option value="Suba">📍 Suba</option>
   </select>
+  <button type="button" id="btn-texto-grande" onclick="toggleTextoGrande()" title="Agrandar el texto de la app" aria-pressed="false"
+    style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text);font-size:.72rem;font-weight:700;padding:4px 10px;cursor:pointer;margin-left:6px">
+    A<span style="font-size:.6em;vertical-align:top">+</span>
+  </button>
+  <button type="button" id="badge-pendientes" class="hidden" onclick="reintentarPendientes(true)" title="Pagos guardados sin conexión, pendientes por enviar"
+    style="background:var(--yellow);color:#1a1a1a;border:none;border-radius:20px;font-size:.72rem;font-weight:700;padding:4px 10px;cursor:pointer;margin-left:6px">
+    📶 <span id="badge-pendientes-n">0</span> pendiente(s)
+  </button>
   <div class="user-chip">
     <div id="top-user-name" style="font-weight:600;color:var(--text)"></div>
     <div><button type="button" onclick="salir()" style="font:inherit;font-size:0.65rem;color:var(--text-dim);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline">Salir</button></div>
@@ -307,11 +336,11 @@
   <div id="step1" class="flow-card mt-8">
     <div>
       <h2>Buscar persona</h2>
-      <p style="font-size:.82rem;margin-top:4px">Cédula y nombre completo</p>
+      <p style="font-size:.82rem;margin-top:4px">Empieza por la cédula</p>
     </div>
     <div class="input-icon">
       <span class="icon">🔍</span>
-      <input id="busqueda-persona" class="input" type="text" placeholder="Buscar por cédula o nombre completo…" autocomplete="off">
+      <input id="busqueda-persona" class="input" type="text" inputmode="numeric" placeholder="Buscar por cédula…" autocomplete="off">
     </div>
     <div id="resultados-busqueda"></div>
 
@@ -323,6 +352,7 @@
           <div id="ps-detalle" style="font-size:.78rem;margin-top:2px;color:var(--text-dim)"></div>
         </div>
         <div style="margin-left:auto;display:flex;gap:4px">
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem;color:var(--accent)" onclick="verHistorialPersona()">Historial</button>
           <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem;color:var(--accent)" onclick="editarPersonaSeleccionada()">Editar</button>
           <button class="btn btn-ghost" style="padding:4px 8px;font-size:.8rem" onclick="resetPersona()">✕</button>
         </div>
@@ -364,7 +394,7 @@
       </div>
     </div>
 
-    <div style="display:flex;gap:8px;margin-top:4px">
+    <div class="cta-sticky" style="display:flex;gap:8px;margin-top:4px">
       <button id="btn-nueva-persona" class="btn btn-secondary" style="flex:1;font-size:.82rem" onclick="showFormNuevaPersona()">
         ➕ Nueva persona
       </button>
@@ -416,7 +446,7 @@
     <div id="monto-variable" class="hidden">
       <div class="input-group">
         <label for="monto-input">Monto a pagar (COP) *</label>
-        <input id="monto-input" class="input" type="text" inputmode="numeric" placeholder="$ 0" style="font-size:1.1rem;font-weight:700" oninput="formatearMonto(this)">
+        <input id="monto-input" class="input" type="text" inputmode="numeric" placeholder="$ 0" style="font-size:1.1rem;font-weight:700" oninput="formatearMonto(this)" readonly onclick="abrirKeypad('monto-input')">
       </div>
     </div>
 
@@ -426,7 +456,7 @@
       </div>
     </div>
 
-    <button id="btn-paso3" class="btn btn-primary btn-full" onclick="irPaso3()" disabled>
+    <button id="btn-paso3" class="btn btn-primary btn-full cta-sticky" onclick="irPaso3()" disabled>
       Continuar →
     </button>
   </div>
@@ -439,6 +469,10 @@
     </div>
 
     <div class="card card-sm" style="background:var(--surface2)">
+      <div class="summary-row">
+        <span class="text-muted">Sede</span>
+        <span id="res-sede" class="fw-600 truncate" style="max-width:60%"></span>
+      </div>
       <div class="summary-row">
         <span class="text-muted">Persona</span>
         <span id="res-persona" class="fw-600 truncate" style="max-width:60%"></span>
@@ -473,6 +507,19 @@
       </button>
     </div>
 
+    <div id="subpaso-efectivo" class="hidden">
+      <div class="input-group" style="margin-top:12px">
+        <label for="ef-recibido">¿Cuánto recibiste? (opcional, para calcular el vuelto)</label>
+        <input id="ef-recibido" class="input" type="text" inputmode="numeric" placeholder="$ 0" oninput="formatearMonto(this); calcularVuelto();" readonly onclick="abrirKeypad('ef-recibido')">
+      </div>
+      <div id="ef-vuelto-box" class="alert alert-info hidden" style="margin-top:8px">
+        Vuelto a entregar: <strong id="ef-vuelto-val"></strong>
+      </div>
+      <div id="ef-vuelto-insuficiente" class="hidden" style="margin-top:8px;color:var(--red);font-size:.82rem">
+        ⚠️ Lo recibido es menor al monto a pagar.
+      </div>
+    </div>
+
     <div id="subpaso-datafono" class="hidden">
       <div style="font-size:.8rem;font-weight:700;color:var(--accent);margin:12px 0 10px">💳 Datos del datáfono</div>
       <div style="display:flex;flex-direction:column;gap:10px">
@@ -498,7 +545,7 @@
         </div>
         <div class="input-group">
           <label for="dt-valor">Valor (COP) *</label>
-          <input id="dt-valor" class="input" type="text" inputmode="numeric" placeholder="$ 0" oninput="formatearMonto(this)">
+          <input id="dt-valor" class="input" type="text" inputmode="numeric" placeholder="$ 0" oninput="formatearMonto(this)" readonly onclick="abrirKeypad('dt-valor')">
         </div>
         <div class="input-group">
           <label id="dt-titular-label">¿El titular de la tarjeta es la misma persona? *</label>
@@ -548,24 +595,28 @@
         </button>
       </div>
       <div id="nq-comprobante-preview" class="hidden" style="position:relative">
-        <img id="nq-comprobante-img" style="width:100%;max-height:280px;object-fit:contain;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg)">
+        <img id="nq-comprobante-img" style="width:100%;max-height:280px;object-fit:contain;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);cursor:zoom-in" onclick="ampliarComprobanteNequi()">
+        <div class="text-muted" style="font-size:.72rem;text-align:center;margin-top:4px">Toca la foto para verla en grande</div>
         <button type="button" class="btn btn-secondary btn-full" style="margin-top:8px" onclick="qs('#nq-comprobante-input').click()">
           🔄 Cambiar foto
         </button>
       </div>
     </div>
 
-    <button id="btn-registrar" class="btn btn-primary btn-full btn-lg" onclick="registrarTransaccion()" disabled>
-      Registrar pago
-    </button>
+    <div class="cta-sticky">
+      <button id="btn-registrar" class="btn btn-primary btn-full btn-lg" onclick="registrarTransaccion()" disabled>
+        Registrar pago
+      </button>
+      <div id="registro-fase" class="hidden text-muted text-center" style="font-size:.8rem;margin-top:8px" aria-live="polite"></div>
+    </div>
   </div>
 
   <!-- ÉXITO -->
   <div id="step-success" class="hidden mt-8">
     <div class="success-card">
-      <div class="success-icon">🎉</div>
-      <h2 style="color:var(--green)">¡Pago registrado!</h2>
-      <p style="margin:8px 0 24px;font-size:.85rem">El pago fue registrado exitosamente.</p>
+      <div class="success-icon" id="success-icon">🎉</div>
+      <h2 id="success-titulo" style="color:var(--green)">¡Pago registrado!</h2>
+      <p id="success-subtitulo" style="margin:8px 0 24px;font-size:.85rem">El pago fue registrado exitosamente.</p>
       <div id="success-resumen" style="text-align:left;background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:20px"></div>
       <button class="btn btn-primary btn-full btn-lg" onclick="nuevaTransaccion()">
         ➕ Nueva transacción
@@ -634,6 +685,15 @@
     <h2>Cierre del turno</h2>
     <p style="font-size:.82rem;margin-top:4px;margin-bottom:16px">Transacciones de hoy · Sede: <strong id="cierre-sede-label"></strong></p>
 
+    <!-- Resumen personal del asesor -->
+    <div class="card" id="mi-resumen-personal" style="margin-bottom:16px;padding:14px 16px;border-color:var(--accent)">
+      <div style="font-size:.78rem;color:var(--text-dim);margin-bottom:4px">Tu resumen de hoy</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-size:1.15rem;font-weight:700" id="mi-resumen-monto">–</span>
+        <span class="text-muted" style="font-size:.8rem" id="mi-resumen-conteo"></span>
+      </div>
+    </div>
+
     <!-- Filtro asesor -->
     <div class="input-group" style="margin-bottom:12px">
       <select id="cierre-asesor-filtro" class="input" onchange="filtrarCierreAsesor()" style="font-size:.82rem">
@@ -670,10 +730,34 @@
     <!-- Tabla dinámica -->
     <div id="cierre-tabla-container"></div>
 
+    <!-- Arqueo de caja -->
+    <button type="button" class="btn btn-secondary btn-full" style="margin-top:16px" onclick="abrirArqueoCaja()">
+      🧮 Contar efectivo (arqueo)
+    </button>
+
     <!-- Botón generar cierre -->
-    <button id="btn-generar-cierre" class="btn btn-primary btn-full btn-lg" onclick="generarCierre()" style="margin-top:20px;background:var(--green);border-color:var(--green);font-size:1rem;padding:16px">
+    <button id="btn-generar-cierre" class="btn btn-primary btn-full btn-lg" onclick="generarCierre()" style="margin-top:10px;background:var(--green);border-color:var(--green);font-size:1rem;padding:16px">
       📄 Generar cierre
     </button>
+  </div>
+</div>
+
+<!-- MODAL: ARQUEO DE CAJA -->
+<div id="modal-arqueo" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Arqueo de caja</h3>
+      <button class="modal-close" onclick="closeModal('modal-arqueo')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="text-muted" style="font-size:.8rem;margin:0 0 12px">Cuenta cuántos billetes/monedas de cada denominación tienes físicamente. Es solo una calculadora en pantalla — no se guarda en el sistema.</p>
+      <div id="arqueo-filas" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div class="card" style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">
+        <span class="text-muted" style="font-size:.82rem">Total contado</span>
+        <span id="arqueo-total-contado" style="font-weight:700;font-size:1.1rem">$ 0</span>
+      </div>
+      <div id="arqueo-diferencia" class="alert hidden" style="margin-top:10px;font-size:.85rem"></div>
+    </div>
   </div>
 </div>
 
@@ -686,6 +770,7 @@
       ¿Generar cierre para la sede <strong id="modal-cierre-sede" style="color:var(--text)"></strong>?
       <br><span style="font-size:.78rem">Se creará el reporte y se enviará por correo.</span>
     </p>
+    <div id="modal-cierre-arqueo-aviso" class="alert alert-warning hidden" style="text-align:left;margin-bottom:16px"></div>
     <div style="display:flex;gap:10px">
       <button class="btn btn-secondary btn-full" onclick="cerrarModalCierre()" style="flex:1">Cancelar</button>
       <button id="btn-confirmar-cierre" class="btn btn-primary btn-full" onclick="ejecutarCierre()" style="flex:1;background:var(--green);border-color:var(--green)">Generar</button>
@@ -701,6 +786,44 @@
       <button class="modal-close" onclick="closeModal('modal-detalle-trans')">✕</button>
     </div>
     <div class="modal-body" id="detalle-trans-body"></div>
+  </div>
+</div>
+
+<!-- VISOR: AMPLIAR COMPROBANTE NEQUI -->
+<div id="nq-zoom-overlay" class="hidden" style="position:fixed;inset:0;z-index:310;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;padding:16px" onclick="cerrarZoomComprobante()">
+  <img id="nq-zoom-img" style="max-width:100%;max-height:100%;object-fit:contain">
+</div>
+
+<!-- MODAL: HISTORIAL DE PERSONA -->
+<div id="modal-historial-persona" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h3 id="historial-persona-titulo">Historial de pagos</h3>
+      <button class="modal-close" onclick="closeModal('modal-historial-persona')">✕</button>
+    </div>
+    <div class="modal-body" id="historial-persona-body"></div>
+  </div>
+</div>
+
+<!-- TECLADO NUMÉRICO PROPIO (montos) -->
+<div id="keypad-overlay" class="hidden" style="position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center" onclick="if(event.target===this) cerrarKeypad()">
+  <div style="background:var(--surface);width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--border)">
+    <div style="text-align:center;font-size:1.6rem;font-weight:800;margin-bottom:14px" id="keypad-display">$ 0</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('1')">1</button>
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('2')">2</button>
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('3')">3</button>
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('4')">4</button>
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('5')">5</button>
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('6')">6</button>
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('7')">7</button>
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('8')">8</button>
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('9')">9</button>
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('000')">000</button>
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('0')">0</button>
+      <button type="button" class="btn btn-secondary btn-lg" onclick="keypadTecla('borrar')" aria-label="Borrar">⌫</button>
+    </div>
+    <button type="button" class="btn btn-primary btn-full btn-lg" style="margin-top:10px" onclick="cerrarKeypad()">Listo</button>
   </div>
 </div>
 
@@ -824,9 +947,13 @@ async function elegirAsesor(asesor) {
 function mostrarApp(info) {
   show('#main-app');
   setText('#top-user-name', info.nombre);
+  STATE.miNombre = info.nombre;
+  STATE.miEmail = info.email;
   STATE.sedeRecaudo = info.sede;
   qs('#sede-recaudo-select').value = info.sede;
   precargarDatos();
+  _actualizarBadgePendientes();
+  reintentarPendientes(false);
 }
 
 function precargarDatos() {
@@ -884,19 +1011,21 @@ async function loginCoord() {
   try {
     const res = await gsrPublic('verificarPinCoordinadora', email, pin);
     localStorage.setItem('crm_token', res.token);
+    window._sessionToken = res.token;
     // En GAS el window.location.href da la URL interna de googleusercontent.com,
     // así que cargamos el HTML de coordinadora directamente desde el servidor.
-    google.script.run
-      .withSuccessHandler(function(html) {
-        document.open();
-        document.write(html);
-        document.close();
-      })
-      .withFailureHandler(function(e) {
-        toast.error('Error al cargar panel: ' + e.message);
-        setLoading(btn, false);
-      })
-      .cargarPaginaCoord();
+    // Se usa gsr() (en vez de google.script.run directo) para tener el mismo
+    // límite de espera de 25s que el resto de la app, y no quedar "cargando"
+    // sin fin si el backend se cuelga.
+    try {
+      const html = await gsr('cargarPaginaCoord');
+      document.open();
+      document.write(html);
+      document.close();
+    } catch (e) {
+      toast.error('Error al cargar panel: ' + e.message);
+      setLoading(btn, false);
+    }
   } catch (e) {
     toast.error(e.message);
     qs('#coord-pin').value = '';
@@ -911,6 +1040,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const input = qs('#' + id);
     if (input) autocapitalizarNombre(input);
   });
+});
+
+// ─── MODO DE TEXTO GRANDE ──────────────────────────────────────────────────
+function toggleTextoGrande() {
+  const activo = !document.documentElement.classList.contains('text-lg');
+  document.documentElement.classList.toggle('text-lg', activo);
+  qs('#btn-texto-grande').setAttribute('aria-pressed', String(activo));
+  try { localStorage.setItem('manantial_texto_grande', activo ? '1' : '0'); } catch (e) {}
+}
+document.addEventListener('DOMContentLoaded', () => {
+  let guardado = false;
+  try { guardado = localStorage.getItem('manantial_texto_grande') === '1'; } catch (e) {}
+  if (guardado) {
+    document.documentElement.classList.add('text-lg');
+    const btn = qs('#btn-texto-grande');
+    if (btn) btn.setAttribute('aria-pressed', 'true');
+  }
 });
 
 // ─── HELPERS DE AVATAR ────────────────────────────────────────────────────────
@@ -943,6 +1089,17 @@ let catFiltroActual  = '';
 let cierreData = { transacciones: [], totales: {}, asesores: [] };
 let cierreMetodoFiltro = 'todos';
 let cierreAsesorFiltro = '';
+let _cierreTotEfectivo = 0;
+
+// Valor real de una transacción para efectos de recaudo: para Datáfono es lo
+// que efectivamente pasó por la máquina (dtValor), no el precio oficial de
+// la actividad — mismo criterio que montoReal_ en el backend (Code.js), para
+// que cualquier total mostrado en esta pantalla (todos, por método, resumen
+// personal) coincida con el reporte oficial que se genera al cerrar.
+function _montoReal(t) {
+  return (t.metodoPago === 'Datáfono' && t.dtValor) ? t.dtValor : t.monto;
+}
+let _ultimoArqueoDiff = null; // null = no se ha contado caja todavía en este turno
 
 // ─── NAVEGACIÓN ───────────────────────────────────────────────────────────────
 function showPage(name, btn) {
@@ -1257,6 +1414,7 @@ function irPaso3() {
     STATE.modulo  = qs('#insc-modulo').value.trim();
     STATE.horario = qs('#insc-horario').value.trim();
   }
+  setHtml('#res-sede',      escHtml(STATE.sedeRecaudo));
   setHtml('#res-persona',   escHtml(STATE.persona.nombre));
   setHtml('#res-actividad', escHtml(STATE.actividad.nombre));
   if (STATE.modulo) {
@@ -1281,16 +1439,45 @@ function seleccionarMetodo(metodo, btn) {
   qsa('.metodo-btn').forEach(function(b) { b.classList.remove('selected'); b.setAttribute('aria-pressed', 'false'); });
   btn.classList.add('selected');
   btn.setAttribute('aria-pressed', 'true');
+  toggle('#subpaso-efectivo', metodo === 'Efectivo');
   toggle('#subpaso-datafono', metodo === 'Datáfono');
   toggle('#subpaso-nequi', metodo === 'Nequi');
   if (metodo === 'Datáfono' && STATE.monto) { qs('#dt-valor').value = '$ ' + Number(STATE.monto).toLocaleString('es-CO'); }
+  if (metodo === 'Efectivo') { qs('#ef-recibido').value = ''; hide('#ef-vuelto-box'); hide('#ef-vuelto-insuficiente'); }
   qs('#btn-registrar').disabled = false;
+}
+
+// Calculadora de cambio: puramente informativa en pantalla, no se envía al
+// backend ni se guarda como parte de la transacción.
+function calcularVuelto() {
+  const recibido = Number(qs('#ef-recibido').value.replace(/[^0-9]/g, '')) || 0;
+  if (!recibido) { hide('#ef-vuelto-box'); hide('#ef-vuelto-insuficiente'); return; }
+  if (recibido < STATE.monto) {
+    hide('#ef-vuelto-box');
+    show('#ef-vuelto-insuficiente');
+    return;
+  }
+  hide('#ef-vuelto-insuficiente');
+  setText('#ef-vuelto-val', fmt.cop(recibido - STATE.monto));
+  show('#ef-vuelto-box');
 }
 
 // ─── COMPROBANTE NEQUI ────────────────────────────────────────────────────────
 // Comprime la foto en el navegador (máx. 1000px de ancho, JPEG 70%) antes de
 // enviarla al backend — una foto de celular sin comprimir puede pesar varios MB
 // y hacer que el registro del pago se sienta lento o falle en datos móviles.
+// La miniatura del comprobante (280px de alto) no alcanza para leer el
+// número de referencia con mala luz — se puede ampliar a pantalla completa
+// antes de enviar el pago.
+function ampliarComprobanteNequi() {
+  if (!STATE.nequiComprobante) return;
+  qs('#nq-zoom-img').src = STATE.nequiComprobante;
+  show('#nq-zoom-overlay');
+}
+function cerrarZoomComprobante() {
+  hide('#nq-zoom-overlay');
+}
+
 function onComprobanteNequiChange(event) {
   var file = event.target.files && event.target.files[0];
   if (!file) return;
@@ -1322,6 +1509,155 @@ function seleccionarTitularDiferente(valor, btn) {
   btn.setAttribute('aria-pressed', 'true');
   toggle('#subpaso-titular', valor === 'No');
 }
+
+// ─── TECLADO NUMÉRICO PROPIO ─────────────────────────────────────────────────
+// Reemplaza el teclado del sistema operativo en los campos de monto (los
+// inputs quedan "readonly" y abren esto al tocarlos) por uno propio, más
+// grande y sin autocorrector/predicción de texto de por medio. Escribe en el
+// mismo input de siempre y dispara su evento 'input', así que formatearMonto
+// y cualquier validación que ya lea ese campo siguen funcionando igual.
+let _keypadTargetId = null;
+let _keypadDigits = '';
+
+function abrirKeypad(inputId) {
+  const input = qs('#' + inputId);
+  if (!input) return;
+  _keypadTargetId = inputId;
+  _keypadDigits = (input.value || '').replace(/[^0-9]/g, '');
+  _actualizarKeypadDisplay();
+  show('#keypad-overlay');
+}
+
+function _actualizarKeypadDisplay() {
+  setText('#keypad-display', '$ ' + Number(_keypadDigits || '0').toLocaleString('es-CO'));
+}
+
+function keypadTecla(t) {
+  if (t === 'borrar') {
+    _keypadDigits = _keypadDigits.slice(0, -1);
+  } else if (_keypadDigits.length < 10) {
+    _keypadDigits += t;
+  }
+  _actualizarKeypadDisplay();
+  const input = qs('#' + _keypadTargetId);
+  if (input) {
+    input.value = _keypadDigits;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+function cerrarKeypad() {
+  hide('#keypad-overlay');
+  _keypadTargetId = null;
+}
+
+// Muestra un texto de fase mientras se espera la respuesta del servidor
+// (no refleja el progreso real dentro de crearTransaccion — es una sola
+// llamada atómica — pero ayuda a que la espera no se sienta "colgada",
+// sobre todo cuando hay una foto de comprobante de por medio).
+function _iniciarFaseRegistro(esNequi) {
+  var timers = [];
+  function set(texto) { setText('#registro-fase', texto); show('#registro-fase'); }
+  if (esNequi) {
+    set('Subiendo comprobante…');
+    timers.push(setTimeout(function() { set('Guardando pago…'); }, 1200));
+    timers.push(setTimeout(function() { set('Confirmando…'); }, 2600));
+  } else {
+    set('Guardando pago…');
+    timers.push(setTimeout(function() { set('Confirmando…'); }, 1200));
+  }
+  return function detener() {
+    timers.forEach(clearTimeout);
+    hide('#registro-fase');
+  };
+}
+
+// ─── COLA LOCAL DE TRANSACCIONES FALLIDAS ────────────────────────────────────
+// Si el registro de un pago falla por red (no por un error de validación),
+// el dinero ya se cobró físicamente — no tiene sentido perder el formulario.
+// Se guarda el intento completo en este dispositivo y se reintenta solo,
+// usando siempre la misma idempotencyKey por intento: si la primera llamada
+// en realidad sí llegó a guardarse en el servidor y solo la respuesta no
+// llegó a tiempo, el backend (ver crearTransaccion) detecta la clave repetida
+// y devuelve el pago ya existente en vez de crear uno duplicado.
+const COLA_PENDIENTES_KEY = 'manantial_cola_pendientes';
+
+function _generarIdempotencyKey() {
+  return 'idem_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+}
+
+// Solo se consideran "de red" errores que de verdad parecen serlo — un error
+// de validación de negocio (monto inválido, inscripción duplicada, etc.) NO
+// se encola nunca, porque reintentar el mismo payload roto no lo arregla y
+// ocultaría el error real al asesor.
+function _pareceErrorDeRed(e) {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+  const msg = ((e && e.message) || '').toLowerCase();
+  return /tardó demasiado|conexión|failed to fetch|networkerror|network error|load failed/.test(msg);
+}
+
+function _leerColaPendientes() {
+  try { return JSON.parse(localStorage.getItem(COLA_PENDIENTES_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+// Devuelve true/false según si realmente quedó guardado — localStorage tiene
+// un límite de tamaño (~5-10MB) y un pago en Nequi incluye la foto del
+// comprobante ya comprimida en base64, así que varias en cola sí pueden
+// llenarlo. El llamador debe avisar distinto si esto falla: aquí NO se puede
+// asumir que "se intentó guardar" es lo mismo que "quedó guardado".
+function _guardarColaPendientes(cola) {
+  try {
+    localStorage.setItem(COLA_PENDIENTES_KEY, JSON.stringify(cola));
+    _actualizarBadgePendientes();
+    return true;
+  } catch (e) {
+    _actualizarBadgePendientes();
+    return false;
+  }
+}
+function _encolarTransaccionPendiente(payload) {
+  const cola = _leerColaPendientes();
+  cola.push({ payload, guardadoEn: new Date().toISOString() });
+  return _guardarColaPendientes(cola);
+}
+function _actualizarBadgePendientes() {
+  const n = _leerColaPendientes().length;
+  const badge = qs('#badge-pendientes');
+  if (!badge) return;
+  toggle(badge, n > 0);
+  setText('#badge-pendientes-n', n);
+}
+
+let _reintentandoPendientes = false;
+async function reintentarPendientes(manual) {
+  if (_reintentandoPendientes) return;
+  let cola = _leerColaPendientes();
+  if (!cola.length) { if (manual) toast.info('No hay pagos pendientes por enviar'); return; }
+  _reintentandoPendientes = true;
+  let enviados = 0;
+  const restantes = [];
+  for (const item of cola) {
+    try {
+      await gsr('crearTransaccion', item.payload);
+      enviados++;
+    } catch (e) {
+      if (_pareceErrorDeRed(e)) {
+        restantes.push(item); // sigue sin haber conexión — se reintenta más tarde
+      } else {
+        // Error real de negocio (ej. la actividad ya no existe): no se puede
+        // reintentar tal cual; se descarta de la cola pero se avisa, para no
+        // reintentarlo en un loop infinito que nunca va a funcionar.
+        toast.error('Un pago pendiente no se pudo registrar y se descartó: ' + e.message);
+      }
+    }
+  }
+  _guardarColaPendientes(restantes);
+  _reintentandoPendientes = false;
+  if (enviados > 0) toast.success(enviados + ' pago(s) pendiente(s) enviado(s) ✓');
+  else if (manual && restantes.length) toast.warn('Sigue sin haber conexión. ' + restantes.length + ' pago(s) siguen pendientes.');
+}
+
+window.addEventListener('online', () => reintentarPendientes(false));
 
 async function registrarTransaccion() {
   if (!STATE.metodoPago) { toast.warn('Selecciona un método de pago'); return; }
@@ -1369,6 +1705,14 @@ async function registrarTransaccion() {
       dtNombreTitular: nombreTit, dtDocTitular: docTit, dtCelularTitular: celularTit,
       dtNoAutorizacion: noAut, dtNoDatafono: noDatafono
     });
+
+    if (STATE.monto && valor !== STATE.monto) {
+      const ok = await confirmDialog(
+        `El valor del datáfono (${fmt.cop(valor)}) no coincide con el monto de la actividad (${fmt.cop(STATE.monto)}). Puede haber una razón válida (propina, redondeo), pero confirma que es correcto antes de continuar.`,
+        { title: 'Valores no coinciden', confirmText: 'Sí, es correcto', danger: false }
+      );
+      if (!ok) return;
+    }
   }
 
   if (STATE.metodoPago === 'Nequi' && !STATE.nequiComprobante) {
@@ -1379,6 +1723,7 @@ async function registrarTransaccion() {
 
   const btn = qs('#btn-registrar');
   setLoading(btn, true);
+  const detenerFase = _iniciarFaseRegistro(STATE.metodoPago === 'Nequi');
   const payload = {
     nombrePersona: STATE.persona.nombre,
     documentoPersona: STATE.persona.documento || '',
@@ -1388,14 +1733,30 @@ async function registrarTransaccion() {
     monto: STATE.monto, metodoPago: STATE.metodoPago,
     sede: STATE.sedeRecaudo, modulo: STATE.modulo, horario: STATE.horario,
     nequiComprobante: STATE.metodoPago === 'Nequi' ? STATE.nequiComprobante : null,
+    idempotencyKey: _generarIdempotencyKey(),
     ...dtData
   };
   try {
     const res = await gsr('crearTransaccion', payload);
     mostrarExito(res.transaccion, res.inscripcion);
     toast.success('Pago registrado ✓');
-  } catch(e) { toast.error('Error: ' + e.message); }
-  finally { setLoading(btn, false); }
+    if (res.emailSolicitado && !res.emailEnviado) {
+      toast.warn('No se pudo enviar el comprobante por correo. El pago sí quedó registrado.');
+    }
+  } catch(e) {
+    if (_pareceErrorDeRed(e)) {
+      const guardadoLocal = _encolarTransaccionPendiente(payload);
+      if (guardadoLocal) {
+        mostrarExitoPendiente(payload);
+        toast.warn('Sin conexión: el pago quedó guardado en este dispositivo y se enviará solo.');
+      } else {
+        toast.error('Sin conexión y no se pudo guardar en este dispositivo (memoria local llena). ANOTA A MANO: ' + payload.nombrePersona + ' — ' + fmt.cop(payload.monto) + ' — ' + payload.metodoPago + ', y regístralo en cuanto vuelva la señal.');
+      }
+    } else {
+      toast.error('Error: ' + e.message);
+    }
+  }
+  finally { setLoading(btn, false); detenerFase(); }
 }
 
 function mostrarExito(t, ins) {
@@ -1413,7 +1774,28 @@ function mostrarExito(t, ins) {
   actualizarStepIndicator(4);
 }
 
+function mostrarExitoPendiente(payload) {
+  hide('#step3');
+  setText('#success-icon', '📶');
+  setText('#success-titulo', 'Guardado sin conexión');
+  qs('#success-titulo').style.color = 'var(--yellow)';
+  setText('#success-subtitulo', 'El pago quedó guardado en este dispositivo y se enviará solo cuando vuelva la señal.');
+  const rows = [
+    ['Persona', payload.nombrePersona], ['Actividad', payload.nombreActividad],
+    ['Monto', fmt.cop(payload.monto)], ['Método', payload.metodoPago]
+  ];
+  setHtml('#success-resumen', rows.map(function(r) {
+    return `<div class="summary-row"><span class="text-muted">${escHtml(r[0])}</span><span class="fw-600">${escHtml(r[1])}</span></div>`;
+  }).join(''));
+  show('#step-success');
+  actualizarStepIndicator(4);
+}
+
 function nuevaTransaccion() {
+  setText('#success-icon', '🎉');
+  setText('#success-titulo', '¡Pago registrado!');
+  qs('#success-titulo').style.color = 'var(--green)';
+  setText('#success-subtitulo', 'El pago fue registrado exitosamente.');
   STATE.persona = STATE.actividad = STATE.metodoPago = null;
   STATE.monto = 0; STATE.modulo = ''; STATE.horario = ''; STATE.dtTitularMismo = null;
   STATE.nequiComprobante = null;
@@ -1452,7 +1834,7 @@ function nuevaTransaccion() {
   hide('#nq-comprobante-preview');
 
   // Limpiar resumen paso 3
-  setHtml('#res-persona', ''); setHtml('#res-actividad', ''); setHtml('#res-monto', '');
+  setHtml('#res-sede', ''); setHtml('#res-persona', ''); setHtml('#res-actividad', ''); setHtml('#res-monto', '');
   setHtml('#res-modulo', ''); setHtml('#res-horario', '');
   hide('#res-modulo-row'); hide('#res-horario-row');
   setHtml('#success-resumen', '');
@@ -1507,13 +1889,26 @@ function renderCartera(items) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
         <div class="cartera-monto">${fmt.cop(i.ultimaMonto)}</div>
-        <button class="btn btn-ghost" style="font-size:.7rem;padding:2px 8px;color:var(--accent)" onclick="abrirEditarPersona('${escHtml(i.nombrePersona)}')">Editar</button>
+        <button class="btn btn-ghost" style="font-size:.7rem;padding:2px 8px;color:var(--accent)" onclick="abrirEditarPersona('${escHtml(i.documentoPersona)}', '${escHtml(i.nombrePersona)}')">Editar</button>
       </div>
     </div>`; }).join('');
 }
 
 // ─── CIERRE ──────────────────────────────────────────────────────────────────
-function onSedeRecaudoChange(sede) {
+async function onSedeRecaudoChange(sede) {
+  var anterior = STATE.sedeRecaudo;
+  if (sede === anterior) return;
+  // Un roce accidental en este selector (queda junto a otros botones
+  // pequeños del top-bar) reasignaría en silencio los próximos pagos a la
+  // sede equivocada — se detectaría solo al cuadrar caja. Se confirma antes.
+  var ok = await confirmDialog(
+    '¿Cambiar la sede de recaudo a ' + sede + '? Los próximos pagos que registres quedarán asignados a esa sede.',
+    { title: 'Cambiar de sede', confirmText: 'Sí, cambiar' }
+  );
+  if (!ok) {
+    qs('#sede-recaudo-select').value = anterior;
+    return;
+  }
   STATE.sedeRecaudo = sede;
   toast.info('Sede de recaudo: ' + sede);
 }
@@ -1531,7 +1926,71 @@ async function cargarCierre() {
       }).join('');
     cierreAsesorFiltro = '';
     renderCierre();
+    renderResumenPersonal();
   } catch(e) { toast.error('Error cargando cierre'); }
+}
+
+// Usa los mismos datos ya cargados para "Cierre del turno" (todas las
+// transacciones de la sede hoy) y los filtra por el nombre del asesor en
+// sesión — no hace ninguna llamada nueva al servidor.
+// ─── ARQUEO DE CAJA ───────────────────────────────────────────────────────────
+// Calculadora en pantalla para contar el efectivo físico al cerrar turno y
+// compararlo contra lo que el sistema espera (la suma de pagos en efectivo
+// de hoy, ya calculada en renderCierre). No envía ni guarda nada al backend.
+const DENOMINACIONES_COP = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50];
+
+function abrirArqueoCaja() {
+  const filas = DENOMINACIONES_COP.map(function(v) {
+    return `<div style="display:flex;align-items:center;gap:8px">
+      <span style="width:76px;font-size:.8rem;flex:none" class="text-muted">${fmt.cop(v)}</span>
+      <input type="number" min="0" inputmode="numeric" class="input" style="flex:1" data-denom="${v}" oninput="actualizarArqueo()" placeholder="0">
+      <span style="width:88px;text-align:right;font-size:.8rem;flex:none" id="arqueo-sub-${v}">$ 0</span>
+    </div>`;
+  }).join('');
+  setHtml('#arqueo-filas', filas);
+  actualizarArqueo();
+  openModal('modal-arqueo');
+}
+
+function actualizarArqueo() {
+  let total = 0;
+  qsa('#arqueo-filas input[data-denom]').forEach(function(input) {
+    const denom = Number(input.dataset.denom);
+    const cant  = Number(input.value) || 0;
+    const sub   = denom * cant;
+    total += sub;
+    setText('#arqueo-sub-' + denom, fmt.cop(sub));
+  });
+  setText('#arqueo-total-contado', fmt.cop(total));
+
+  const box = qs('#arqueo-diferencia');
+  if (!total) { hide(box); _ultimoArqueoDiff = null; return; }
+  show(box);
+  const diff = total - _cierreTotEfectivo;
+  _ultimoArqueoDiff = diff;
+  if (diff === 0) {
+    box.className = 'alert alert-success';
+    box.textContent = '✅ Cuadra exacto con el efectivo esperado (' + fmt.cop(_cierreTotEfectivo) + ')';
+  } else if (diff > 0) {
+    box.className = 'alert alert-warning';
+    box.textContent = '⚠️ Sobran ' + fmt.cop(diff) + ' frente al efectivo esperado (' + fmt.cop(_cierreTotEfectivo) + ')';
+  } else {
+    box.className = 'alert alert-error';
+    box.textContent = '⚠️ Faltan ' + fmt.cop(-diff) + ' frente al efectivo esperado (' + fmt.cop(_cierreTotEfectivo) + ')';
+  }
+}
+
+function renderResumenPersonal() {
+  // Se compara por email (identificador único del asesor) en vez de nombre,
+  // para no mezclar los totales de dos asesores que compartan el mismo nombre.
+  var trans = (cierreData.transacciones || []).filter(function(t) {
+    if (t.estado === 'Anulada') return false;
+    return STATE.miEmail ? t.asesorEmail === STATE.miEmail : t.asesorNombre === STATE.miNombre;
+  });
+  var total = 0;
+  trans.forEach(function(t) { total += _montoReal(t); });
+  setText('#mi-resumen-monto', fmt.cop(total));
+  setText('#mi-resumen-conteo', trans.length + (trans.length === 1 ? ' pago registrado hoy' : ' pagos registrados hoy'));
 }
 
 function filtrarCierreMetodo(metodo, btn) {
@@ -1555,11 +2014,14 @@ function renderCierre() {
 
   var totEfectivo = 0, totDatafono = 0, totNequi = 0, totTotal = 0;
   trans.forEach(function(t) {
-    totTotal += t.monto;
-    if (t.metodoPago === 'Efectivo')  totEfectivo += t.monto;
-    if (t.metodoPago === 'Datáfono')  totDatafono += t.monto;
-    if (t.metodoPago === 'Nequi')     totNequi    += t.monto;
+    var montoReal = _montoReal(t);
+    totTotal += montoReal;
+    if (t.metodoPago === 'Efectivo')  totEfectivo += montoReal;
+    if (t.metodoPago === 'Datáfono')  totDatafono += montoReal;
+    if (t.metodoPago === 'Nequi')     totNequi    += montoReal;
   });
+
+  _cierreTotEfectivo = totEfectivo;
 
   setText('#cierre-tot-todos',    fmt.cop(totTotal));
   setText('#cierre-tot-efectivo', fmt.cop(totEfectivo));
@@ -1599,12 +2061,12 @@ function renderCierreTabla(lista, container, metodo) {
       '<td>' + escHtml(hora) + '</td>' +
       '<td>' + escHtml(t.nombrePersona) + '</td>' +
       '<td>' + escHtml(t.actividad) + '</td>' +
-      '<td class="monto-col">' + fmt.cop(t.monto) + '</td>' +
+      '<td class="monto-col">' + fmt.cop(_montoReal(t)) + '</td>' +
       (showMetodo ? '<td>' + badgeEstado(t.metodoPago) + '</td>' : '') +
       '<td>' + escHtml(t.asesorNombre || '') + '</td></tr>';
   });
 
-  var total = lista.reduce(function(s, t) { return s + t.monto; }, 0);
+  var total = lista.reduce(function(s, t) { return s + _montoReal(t); }, 0);
   var colSpan = showMetodo ? 3 : 2;
   html += '</tbody><tfoot><tr class="cierre-subtotal-row">' +
     '<td colspan="' + colSpan + '" style="text-align:right">Total:</td>' +
@@ -1635,7 +2097,7 @@ function renderCierreDatafono(lista, container) {
 
   nums.forEach(function(num) {
     var items = porDatafono[num];
-    var total = items.reduce(function(s, t) { return s + t.monto; }, 0);
+    var total = items.reduce(function(s, t) { return s + _montoReal(t); }, 0);
 
     html += '<div class="cierre-df-header"><span>💳 Datáfono #' + escHtml(num) + '</span><span>' + fmt.cop(total) + '</span></div>';
     html += '<div class="cierre-table-wrap" style="margin-bottom:16px"><table class="cierre-table" style="border-radius:0 0 10px 10px"><thead><tr>' +
@@ -1649,7 +2111,7 @@ function renderCierreDatafono(lista, container) {
         '<td>' + escHtml(hora) + '</td>' +
         '<td>' + escHtml(t.nombrePersona) + '</td>' +
         '<td>' + escHtml(t.actividad) + '</td>' +
-        '<td class="monto-col">' + fmt.cop(t.monto) + '</td>' +
+        '<td class="monto-col">' + fmt.cop(_montoReal(t)) + '</td>' +
         '<td>' + escHtml(t.asesorNombre || '') + '</td>' +
         '<td>' + escHtml(t.dtNoAutorizacion || '') + '</td></tr>';
     });
@@ -1723,6 +2185,18 @@ function abrirDetalleTransaccion(t) {
 
 function generarCierre() {
   setText('#modal-cierre-sede', STATE.sedeRecaudo);
+  // El arqueo es solo una calculadora en pantalla — si detectó una
+  // diferencia, se le recuerda aquí, en el único paso que sí queda
+  // registrado (el cierre), en vez de que esa diferencia se pierda.
+  const avisoArqueo = qs('#modal-cierre-arqueo-aviso');
+  if (_ultimoArqueoDiff) {
+    avisoArqueo.textContent = _ultimoArqueoDiff > 0
+      ? '⚠️ El último arqueo mostró ' + fmt.cop(_ultimoArqueoDiff) + ' de sobrante en caja, sin resolver.'
+      : '⚠️ El último arqueo mostró ' + fmt.cop(-_ultimoArqueoDiff) + ' de faltante en caja, sin resolver.';
+    show(avisoArqueo);
+  } else {
+    hide(avisoArqueo);
+  }
   qs('#modal-confirmar-cierre').style.display = 'flex';
 }
 
@@ -1730,12 +2204,19 @@ function cerrarModalCierre() {
   qs('#modal-confirmar-cierre').style.display = 'none';
 }
 
-async function ejecutarCierre() {
+async function ejecutarCierre(forzar) {
   var btn = qs('#btn-confirmar-cierre');
   setLoading(btn, true);
   try {
-    var res = await gsrPublic('generarCierreSede', STATE.sedeRecaudo);
+    var res = await gsr('generarCierreSede', STATE.sedeRecaudo, !!forzar);
+    if (res.yaExiste) {
+      cerrarModalCierre();
+      var ok = await confirmDialog(res.mensaje, { title: 'Cierre ya existe', confirmText: 'Sí, reemplazar' });
+      if (ok) await ejecutarCierre(true);
+      return;
+    }
     cerrarModalCierre();
+    _ultimoArqueoDiff = null; // ya se generó el cierre — no arrastrar el aviso a un futuro cierre
     toast.success(res.mensaje || 'Cierre generado ✓');
   } catch(e) { toast.error('Error: ' + e.message); cerrarModalCierre(); }
   finally { setLoading(btn, false); }
@@ -1751,6 +2232,35 @@ async function anularTransaccionUI(idTrans) {
   } catch(e) { toast.error(e.message); }
 }
 
+// ─── HISTORIAL DE PERSONA ─────────────────────────────────────────────────────
+// Antes solo existía en el panel de coordinadora. Un asesor no tenía forma de
+// confirmar un "ya pagué esto la semana pasada" cuando el pago original lo
+// registró otro asesor (su propia "Cartera" solo muestra lo que él mismo cobró).
+async function verHistorialPersona() {
+  if (!STATE.persona) return;
+  setHtml('#historial-persona-body', '<div class="skeleton" style="height:48px;margin-bottom:8px"></div>'.repeat(3));
+  openModal('modal-historial-persona');
+  try {
+    const res = await gsr('obtenerPersona', STATE.persona.documento);
+    setText('#historial-persona-titulo', 'Historial de ' + res.persona.nombre);
+    if (!res.transacciones.length) {
+      setHtml('#historial-persona-body', '<p class="text-muted text-center">Sin pagos registrados todavía</p>');
+      return;
+    }
+    setHtml('#historial-persona-body', res.transacciones.map(function(t) {
+      return `<div class="summary-row" style="border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px">
+        <div>
+          <div class="fw-600">${escHtml(t.actividad)}</div>
+          <div class="text-muted" style="font-size:.75rem">${escHtml(t.timestamp)} · ${escHtml(t.asesorNombre || '')} · ${escHtml(t.metodoPago)}${t.estado === 'Anulada' ? ' · Anulada' : ''}</div>
+        </div>
+        <span class="fw-600 text-accent">${fmt.cop(t.monto)}</span>
+      </div>`;
+    }).join(''));
+  } catch (e) {
+    setHtml('#historial-persona-body', '<p class="text-muted text-center">Error cargando historial: ' + escHtml(e.message) + '</p>');
+  }
+}
+
 // ─── EDITAR PERSONA ──────────────────────────────────────────────────────────
 function editarPersonaSeleccionada() {
   if (!STATE.persona) return;
@@ -1763,10 +2273,15 @@ function editarPersonaSeleccionada() {
   qs('#modal-editar-persona').style.display = 'flex';
 }
 
-async function abrirEditarPersona(nombre) {
+async function abrirEditarPersona(documento, nombre) {
   try {
-    const resultados = await gsr('buscarPersonas', nombre);
-    const persona = resultados.find(function(p) { return p.nombre === nombre; });
+    // Filas antiguas de la cartera pueden no tener documento guardado — en
+    // ese caso se busca por nombre, igual que ya hace getCarteraAsesor para
+    // no perder de vista a esas personas.
+    const resultados = await gsr('buscarPersonas', documento || nombre);
+    const persona = documento
+      ? resultados.find(function(p) { return p.documento === documento; })
+      : resultados.find(function(p) { return p.nombre === nombre; });
     if (!persona) { toast.warn('Persona no encontrada'); return; }
     qs('#ep-documento-original').value = persona.documento;
     qs('#ep-nombre').value    = persona.nombre;
@@ -1786,24 +2301,27 @@ function cerrarEditarPersona() {
 async function guardarEdicionPersona() {
   var docOriginal = qs('#ep-documento-original').value;
   var datos = {
-    nombre:  qs('#ep-nombre').value.trim(),
-    celular: qs('#ep-celular').value.trim(),
-    correo:  qs('#ep-correo').value.trim(),
-    sede:    qs('#ep-sede').value
+    nombre:    qs('#ep-nombre').value.trim(),
+    documento: qs('#ep-documento').value.trim(),
+    celular:   qs('#ep-celular').value.trim(),
+    correo:    qs('#ep-correo').value.trim(),
+    sede:      qs('#ep-sede').value
   };
   if (!datos.nombre) { toast.warn('El nombre es obligatorio'); return; }
+  if (!datos.documento) { toast.warn('La cédula es obligatoria'); return; }
   var btn = qs('#btn-guardar-persona');
   setLoading(btn, true);
   try {
     await gsr('actualizarPersona', docOriginal, datos);
     toast.success('Persona actualizada ✓');
     if (STATE.persona && STATE.persona.documento === docOriginal) {
-      STATE.persona.nombre  = datos.nombre;
-      STATE.persona.celular = datos.celular;
-      STATE.persona.correo  = datos.correo;
-      STATE.persona.sede    = datos.sede;
+      STATE.persona.nombre     = datos.nombre;
+      STATE.persona.documento  = datos.documento;
+      STATE.persona.celular    = datos.celular;
+      STATE.persona.correo     = datos.correo;
+      STATE.persona.sede       = datos.sede;
       setHtml('#ps-nombre', escHtml(datos.nombre));
-      setHtml('#ps-detalle', 'CC ' + escHtml(docOriginal) + ' · ' + escHtml(datos.sede) + (datos.correo ? ' · ' + escHtml(datos.correo) : ''));
+      setHtml('#ps-detalle', 'CC ' + escHtml(datos.documento) + ' · ' + escHtml(datos.sede) + (datos.correo ? ' · ' + escHtml(datos.correo) : ''));
     }
     cerrarEditarPersona();
     cargarCartera();

@@ -7,14 +7,16 @@ const CONFIG_DEFAULTS_ = {
   SPREADSHEET_ID:             '1YTlDfnO-vfQp1L9zYIZDbc38nS9MJn0phIifIrV_O64',
   CIERRE_DATAFONO_SHEET_ID:   '1GnCSSsVp_bRcBGSbe6D9XpZN4-Z87iB-DNzi0be9dxY',
   CIERRE_GENERAL_SHEET_ID:    '17eM2YYQHXoMjV-dttSsGjEutL-llatbUo1rwfdRCuNU',
-  CIERRE_GENERAL_EMAIL:       'elcamino.norte@manantial.co'
+  CIERRE_GENERAL_EMAIL:       'elcamino.norte@manantial.co',
+  CIERRE_ALERTA_CHAT_WEBHOOK: ''
 };
 
 const CONFIG_LABELS_ = {
   SPREADSHEET_ID:           'Hoja de cálculo principal (ID)',
   CIERRE_DATAFONO_SHEET_ID: 'Hoja de cierre de datáfono (ID)',
   CIERRE_GENERAL_SHEET_ID:  'Hoja de cierre general (ID)',
-  CIERRE_GENERAL_EMAIL:     'Correo que recibe el cierre gerencial'
+  CIERRE_GENERAL_EMAIL:     'Correo que recibe el cierre gerencial',
+  CIERRE_ALERTA_CHAT_WEBHOOK: 'Webhook de Google Chat para avisos de cierre pendiente'
 };
 
 /**
@@ -148,6 +150,38 @@ function getCarpetaComprobantes_() {
   const nombre = 'CRM Manantial - Comprobantes de pago';
   const it = DriveApp.getFoldersByName(nombre);
   return _folderComprobantes_ = it.hasNext() ? it.next() : DriveApp.createFolder(nombre);
+}
+
+// ─── HELPERS COMPARTIDOS DE REPORTES ──────────────────────────────────────────
+
+/**
+ * Valor real de una transacción para efectos de recaudo. Para Datáfono es lo
+ * que efectivamente pasó por la máquina (Datafono_Valor) — puede diferir del
+ * precio oficial de la actividad (Monto) por un error de digitación, caso
+ * que el propio asesor ya confirma explícitamente al registrar el pago. Para
+ * los demás métodos, Monto ya es el valor real cobrado.
+ * Usar SIEMPRE esto (no `Number(t.Monto)`) en cualquier reporte/agregado de
+ * recaudo, para que el total de Datáfono coincida entre todas las pantallas,
+ * hojas de cierre y correos que deberían mostrar la misma cifra.
+ * @param {Object} t - fila cruda de Transacciones (de sheetToObjects_)
+ */
+function montoReal_(t) {
+  if (t.Metodo_Pago === 'Datáfono' && Number(t.Datafono_Valor)) return Number(t.Datafono_Valor);
+  return Number(t.Monto) || 0;
+}
+
+/**
+ * Formato único de pesos colombianos para todos los reportes generados en el
+ * servidor (hojas de cierre, correos). Antes existían copias casi idénticas
+ * de esta función en Reportes.js y Email.js — visualmente iguales, pero una
+ * de ellas concatenaba '$ ' a mano (espacio normal) y la otra usaba el
+ * formato de moneda de Intl (que inserta un espacio de no separación, un
+ * carácter distinto aunque se vea igual en pantalla). Esta versión usa el
+ * mismo criterio que ya usa fmt.cop del lado del cliente (utils.js.html),
+ * que es el que ve el usuario en el resto de la app.
+ */
+function formatCOP_(monto) {
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(monto) || 0);
 }
 
 function getSheet_(name, createIfMissing = false) {

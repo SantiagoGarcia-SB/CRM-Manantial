@@ -243,7 +243,7 @@
 <body>
 
 <!-- PANTALLA DE LOGIN COORDINADORA -->
-<div id="login-screen-coord" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--bg)">
+<div id="login-screen-coord" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:100vh;padding:24px;background:var(--bg)">
   <img src="https://www.soymanantial.com/footer/50.svg" alt="Manantial" style="width:180px;margin-bottom:12px;filter:drop-shadow(0 0 20px rgba(102,126,234,0.4))">
   <h1 style="font-size:1.2rem;color:var(--accent);margin-bottom:4px">Punto de Información</h1>
   <p style="font-size:.82rem;color:var(--text-dim);margin-bottom:24px">Panel Coordinadora</p>
@@ -467,9 +467,11 @@
           <div class="form-grid-2">
             <div class="input-group"><label for="et-dt-franquicia">Franquicia</label><input id="et-dt-franquicia" class="input"></div>
             <div class="input-group"><label for="et-dt-tipo">Tipo tarjeta</label><input id="et-dt-tipo" class="input"></div>
+            <div class="input-group"><label for="et-dt-valor">Valor cobrado en datáfono</label><input id="et-dt-valor" class="input" type="text" inputmode="numeric" oninput="formatearMonto(this)"></div>
             <div class="input-group"><label for="et-dt-autorizacion">N° Autorización</label><input id="et-dt-autorizacion" class="input"></div>
             <div class="input-group"><label for="et-dt-datafono">N° Datáfono</label><input id="et-dt-datafono" class="input"></div>
           </div>
+          <small id="et-dt-valor-aviso" class="hidden" style="color:var(--yellow);display:block;margin-top:6px">⚠️ El valor de datáfono no coincide con el monto de la transacción.</small>
         </div>
       </div>
       <div class="modal-footer">
@@ -487,6 +489,7 @@
         <button class="modal-close" onclick="closeModal('modal-caja')">✕</button>
       </div>
       <div class="modal-body">
+        <div id="caja-resumen"></div>
         <div class="input-group">
           <label for="caja-numero">Número de caja *</label>
           <input id="caja-numero" class="input" placeholder="Ej: Caja 1">
@@ -935,6 +938,19 @@ function limpiarFiltrosGlobales() {
   (SECTION_LOADERS[CURRENT_SECTION] || (() => {}))();
 }
 
+// Filtros globales tal como los espera aplicarFiltrosTransacciones_ en el
+// backend (Dashboard y Análisis) — antes se ignoraban todos menos la sede.
+function filtrosDashboard_() {
+  return {
+    sede:          GLOBAL_SEDE   || undefined,
+    asesorEmail:   GLOBAL_ASESOR || undefined,
+    metodoPago:    GLOBAL_METODO || undefined,
+    estadoIglesia: GLOBAL_ESTADO || undefined,
+    fechaDesde:    GLOBAL_DESDE  || undefined,
+    fechaHasta:    GLOBAL_HASTA  || undefined
+  };
+}
+
 const CHART_COLORS = ['#667eea','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#8b5cf6','#06b6d4'];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -991,21 +1007,22 @@ function recargarSeccion() { (SECTION_LOADERS[CURRENT_SECTION] || (() => {}))();
 // ═══════════════════════════════════════════════════════════════════════════
 async function cargarDashboard() {
   try {
-    const s = GLOBAL_SEDE || null;
+    const f = filtrosDashboard_();
     const [kpis, porAct, porSede, porMetodo, reciente, desempeno, estadoCierre] = await Promise.all([
-      gsr('getKPIsDashboard',          null, s),
-      gsr('getRecaudoPorActividad',    null, s),
-      gsr('getDistribucionPorSede',    null, s),
-      gsr('getDistribucionPorMetodo',  null, s),
-      gsr('getActividadReciente',      15, null, s),
-      gsr('getDesempenoAsesores',      null, s),
+      gsr('getKPIsDashboard',          f),
+      gsr('getRecaudoPorActividad',    f),
+      gsr('getDistribucionPorSede',    f),
+      gsr('getDistribucionPorMetodo',  f),
+      gsr('getActividadReciente',      15, f),
+      gsr('getDesempenoAsesores',      f),
       gsr('getEstadoCierreHoy')
     ]);
 
     renderEstadoCierre(estadoCierre);
 
     // KPIs
-    const etiquetaScope = 'Histórico';
+    const hayFiltrosExtra = !!(GLOBAL_DESDE || GLOBAL_HASTA || GLOBAL_ASESOR || GLOBAL_METODO || GLOBAL_ESTADO);
+    const etiquetaScope = hayFiltrosExtra ? 'Filtrado' : 'Histórico';
     const etiquetaSede  = GLOBAL_SEDE ? ` · ${GLOBAL_SEDE}` : '';
     setHtml('#kpis-grid', `
       <div class="kpi-card kpi-accent">
@@ -1077,14 +1094,36 @@ function renderEstadoCierre(estado) {
   }
 
   if (!estado.consolidadoEnviado && estado.sedesActivas.length >= 2 && estado.sedesFaltantes.length > 0) {
+    var botones = estado.sedesFaltantes.map(function(s) {
+      return `<button class="btn btn-secondary" style="margin-top:8px;margin-right:8px;font-size:.78rem;padding:5px 12px" onclick="generarCierreDesdeDashboard('${escHtml(s)}')">📄 Generar cierre ${escHtml(s)}</button>`;
+    }).join('');
     setHtml('#estado-cierre', `<div class="alert alert-info mb-24">
       <span>🕒</span>
-      <div><strong>Cierre consolidado pendiente hoy</strong> — falta que generen su cierre: ${estado.sedesFaltantes.map(escHtml).join(', ')}.</div>
+      <div><strong>Cierre consolidado pendiente hoy</strong> — falta que generen su cierre: ${estado.sedesFaltantes.map(escHtml).join(', ')}.
+      <div>${botones}</div></div>
     </div>`);
     return;
   }
 
   setHtml('#estado-cierre', '');
+}
+
+// La coordinadora puede generar el cierre de cualquier sede desde aquí mismo
+// (antes solo lo podía hacer el asesor desde su panel) — mismo backend, mismo
+// flujo de "ya existe, ¿reemplazar?" que ya usa asesor.html.
+async function generarCierreDesdeDashboard(sede, forzar) {
+  try {
+    const res = await gsr('generarCierreSede', sede, !!forzar);
+    if (res.yaExiste) {
+      const ok = await confirmDialog(res.mensaje, { title: 'Cierre ya existe', confirmText: 'Sí, reemplazar' });
+      if (ok) await generarCierreDesdeDashboard(sede, true);
+      return;
+    }
+    toast.success(res.mensaje || ('Cierre generado para ' + sede + ' ✓'));
+    cargarDashboard();
+  } catch (e) {
+    toast.error('Error generando cierre: ' + e.message);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1178,30 +1217,24 @@ async function exportarDatafono() {
     const rows = await gsr('exportarTransaccionesDatafono', filtros);
     if (!rows || !rows.length) { toast.warn('No hay transacciones de Datáfono para exportar'); return; }
 
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2,'0');
-    const mm = String(now.getMonth()+1).padStart(2,'0');
-    const yyyy = now.getFullYear();
-    const hh = String(now.getHours()).padStart(2,'0');
-    const min = String(now.getMinutes()).padStart(2,'0');
-    const fechaGen = `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+    const fechaGen = fmt.fechaGenBogota();
 
     const headers = [
       'FECHA DATÁFONO','FRANQUICIA','N° AUTORIZACIÓN','VALOR',
       'NOMBRE TITULAR','CÉDULA','CELULAR',
       'BENEFICIARIO DE PAGO','CÉDULA DE BENEFICIARIO','CELULAR DE BENEFICIARIO',
-      'CONCEPTO','DÉBITO/CRÉDITO','N° DATÁFONO'
+      'CONCEPTO','DÉBITO/CRÉDITO','N° DATÁFONO','ASESOR'
     ];
     const keys = [
       'fechaDatafono','franquicia','noAutorizacion','valor',
       'nombreTitular','cedula','celular',
       'beneficiarioPago','cedulaBeneficiario','celularBeneficiario',
-      'concepto','debitoCredito','noDatafono'
+      'concepto','debitoCredito','noDatafono','asesor'
     ];
     const totalCols = headers.length;
-    const thStyle = 'style="background:#2d3640;color:#fff;font-weight:bold;padding:6px 10px;font-size:11px;border:1px solid #555"';
+    const thStyle = 'style="background:#0d1829;color:#fff;font-weight:bold;padding:6px 10px;font-size:11px;border:1px solid #555"';
     const tdStyle = 'style="padding:5px 10px;font-size:11px;border:1px solid #ccc"';
-    const fmtCOP = v => new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(v||0);
+    const fmtCOP = fmt.cop;
 
     // Agrupar por sede
     const porSede = {};
@@ -1234,9 +1267,9 @@ async function exportarDatafono() {
         <td colspan="${totalCols-3}" style="border:none"></td></tr>`;
     });
     body += `<tr>
-      <td style="font-weight:bold;background:#2d3640;color:#fff;padding:6px 10px;border:1px solid #555">GRAN TOTAL</td>
-      <td style="font-weight:bold;background:#2d3640;color:#fff;text-align:center;padding:6px 10px;border:1px solid #555">${rows.length}</td>
-      <td style="font-weight:bold;background:#2d3640;color:#fff;text-align:right;padding:6px 10px;border:1px solid #555">${fmtCOP(granTotal)}</td>
+      <td style="font-weight:bold;background:#0d1829;color:#fff;padding:6px 10px;border:1px solid #555">GRAN TOTAL</td>
+      <td style="font-weight:bold;background:#0d1829;color:#fff;text-align:center;padding:6px 10px;border:1px solid #555">${rows.length}</td>
+      <td style="font-weight:bold;background:#0d1829;color:#fff;text-align:right;padding:6px 10px;border:1px solid #555">${fmtCOP(granTotal)}</td>
       <td colspan="${totalCols-3}" style="border:none"></td></tr>`;
 
     // ── BLOQUES POR SEDE ──
@@ -1264,9 +1297,9 @@ async function exportarDatafono() {
     // ── GRAN TOTAL FINAL ──
     body += `<tr><td colspan="${totalCols}" style="border:none">&nbsp;</td></tr>`;
     body += `<tr>
-      ${`<td colspan="${keys.indexOf('valor')}" style="text-align:right;font-weight:bold;background:#2d3640;color:#fff;padding:8px 10px;font-size:12px;border:1px solid #555">GRAN TOTAL DATÁFONO</td>`}
-      <td style="text-align:right;font-weight:bold;background:#2d3640;color:#fff;padding:8px 10px;font-size:12px;border:1px solid #555">${fmtCOP(granTotal)}</td>
-      <td colspan="${totalCols - keys.indexOf('valor') - 1}" style="background:#2d3640;border:1px solid #555"></td>
+      ${`<td colspan="${keys.indexOf('valor')}" style="text-align:right;font-weight:bold;background:#0d1829;color:#fff;padding:8px 10px;font-size:12px;border:1px solid #555">GRAN TOTAL DATÁFONO</td>`}
+      <td style="text-align:right;font-weight:bold;background:#0d1829;color:#fff;padding:8px 10px;font-size:12px;border:1px solid #555">${fmtCOP(granTotal)}</td>
+      <td colspan="${totalCols - keys.indexOf('valor') - 1}" style="background:#0d1829;border:1px solid #555"></td>
     </tr>`;
 
     const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -1336,7 +1369,9 @@ async function anularTransaccionCoord(idTrans) {
   } catch(e) { toast.error(e.message); }
 }
 
+let _etOriginal = null;
 function abrirEditarTransaccion(t) {
+  _etOriginal = t;
   qs('#et-id').value        = t.id;
   qs('#et-nombre').value    = t.nombrePersona || '';
   qs('#et-documento').value = t.documentoPersona || '';
@@ -1345,8 +1380,10 @@ function abrirEditarTransaccion(t) {
   qs('#et-metodo').value    = t.metodoPago || 'Efectivo';
   qs('#et-dt-franquicia').value    = t.dtFranquicia || '';
   qs('#et-dt-tipo').value          = t.dtTipoTarjeta || '';
+  qs('#et-dt-valor').value         = t.dtValor ? '$ ' + Number(t.dtValor).toLocaleString('es-CO') : '';
   qs('#et-dt-autorizacion').value  = t.dtNoAutorizacion || '';
   qs('#et-dt-datafono').value      = t.dtNoDatafono || '';
+  hide('#et-dt-valor-aviso');
   toggle('#et-datafono-section', t.metodoPago === 'Datáfono');
   openModal('modal-editar-trans');
 }
@@ -1368,9 +1405,35 @@ async function guardarEdicionTransaccion() {
   if (datos.metodoPago === 'Datáfono') {
     datos.dtFranquicia     = qs('#et-dt-franquicia').value.trim();
     datos.dtTipoTarjeta    = qs('#et-dt-tipo').value.trim();
+    datos.dtValor          = Number(qs('#et-dt-valor').value.replace(/[^0-9]/g, '')) || 0;
     datos.dtNoAutorizacion = qs('#et-dt-autorizacion').value.trim();
     datos.dtNoDatafono     = qs('#et-dt-datafono').value.trim();
+    toggle('#et-dt-valor-aviso', datos.dtValor > 0 && datos.dtValor !== monto);
+    if (datos.dtValor > 0 && datos.dtValor !== monto) {
+      const ok = await confirmDialog(
+        `El valor de datáfono (${fmt.cop(datos.dtValor)}) no coincide con el monto de la transacción (${fmt.cop(monto)}). Puede haber una razón válida (propina, redondeo), pero confirma que es correcto.`,
+        { title: 'Valores no coinciden', confirmText: 'Sí, es correcto', danger: false }
+      );
+      if (!ok) return;
+    }
   }
+
+  if (_etOriginal) {
+    const ET_LABELS = {
+      nombrePersona: 'Nombre', documentoPersona: 'Cédula', celularPersona: 'Celular',
+      monto: 'Monto', metodoPago: 'Método de pago', dtFranquicia: 'Franquicia', dtValor: 'Valor datáfono',
+      dtTipoTarjeta: 'Tipo de tarjeta', dtNoAutorizacion: 'N° autorización', dtNoDatafono: 'N° datáfono'
+    };
+    const fmtVal = (campo, v) => (campo === 'monto' || campo === 'dtValor') ? fmt.cop(v) : (v || '—');
+    const cambios = Object.keys(datos)
+      .filter(campo => String(_etOriginal[campo] ?? '') !== String(datos[campo] ?? ''))
+      .map(campo => `${ET_LABELS[campo] || campo}: ${fmtVal(campo, _etOriginal[campo])} → ${fmtVal(campo, datos[campo])}`);
+    if (cambios.length) {
+      const ok = await confirmDialog('Vas a guardar estos cambios:\n\n' + cambios.join('\n'), { title: 'Confirmar edición', confirmText: 'Guardar cambios', danger: false });
+      if (!ok) return;
+    }
+  }
+
   const btn = qs('#btn-guardar-edicion-trans');
   setLoading(btn, true);
   try {
@@ -1400,7 +1463,12 @@ function abrirDetalleTransaccion(t) {
       <div><div class="text-muted">Email asesor</div><div class="fw-600 truncate">${escHtml(t.asesorEmail)}</div></div>
       <div><div class="text-muted">Leg. Pago</div><div class="fw-600">${badgeEstado(t.estadoIglesia)}</div></div>
       <div><div class="text-muted">Leg. Inscripción</div><div class="fw-600">${badgeEstado(t.estadoAcademia)}</div></div>
+      ${t.emailEnviado ? `<div><div class="text-muted">Correo comprobante</div><div class="fw-600">${badgeEstado(t.emailEnviado)}</div></div>` : ''}
     </div>`;
+
+  if (t.editadoPor) {
+    html += `<div style="margin-top:8px;font-size:.78rem;color:var(--text-dim)">Editado por ${escHtml(t.editadoPor)}${t.editadoFecha ? ' el ' + escHtml(t.editadoFecha) : ''}</div>`;
+  }
 
   if (esDatafono) {
     html += `
@@ -1476,18 +1544,19 @@ async function filtrarInscripciones(page = 1) {
       { key:'monto',           label:'Monto',    render: v => fmt.cop(v) },
       { key:'metodoPago',      label:'Método',   render: v => badgeEstado(v) },
       { key:'estadoIglesia',   label:'Leg. Pago',  render: (v, r) => v === 'Pendiente'
-        ? `${badgeEstado(v)} <button class="btn btn-ghost" style="font-size:.65rem;padding:1px 6px;color:var(--green);margin-left:4px" onclick="legalizarInscripcionFila('${escHtml(r.idTrans)}','iglesia', this)">Legalizar</button>`
+        ? `${badgeEstado(v)} <button class="btn btn-ghost" style="font-size:.65rem;padding:1px 6px;color:var(--green);margin-left:4px" onclick='legalizarInscripcionFila(${JSON.stringify({idTrans:r.idTrans, tipo:"iglesia", nombrePersona:r.nombrePersona, actividad:r.actividad, modulo:r.modulo, horario:r.horario, monto:r.monto}).replace(/'/g, "&#39;")}, this)'>Legalizar</button>`
         : badgeEstado(v) },
       { key:'estadoAcademia',  label:'Leg. Inscripción', render: (v, r) => v === 'Pendiente'
-        ? `${badgeEstado(v)} <button class="btn btn-ghost" style="font-size:.65rem;padding:1px 6px;color:var(--green);margin-left:4px" onclick="legalizarInscripcionFila('${escHtml(r.idTrans)}','academia', this)">Legalizar</button>`
+        ? `${badgeEstado(v)} <button class="btn btn-ghost" style="font-size:.65rem;padding:1px 6px;color:var(--green);margin-left:4px" onclick='legalizarInscripcionFila(${JSON.stringify({idTrans:r.idTrans, tipo:"academia"}).replace(/'/g, "&#39;")}, this)'>Legalizar</button>`
         : badgeEstado(v) }
     ]);
     renderPaginacion('pag-insc', res, filtrarInscripciones);
   } catch(e) { toast.error('Error: ' + e.message); }
 }
 
-async function legalizarInscripcionFila(idTrans, tipo, btn) {
-  if (tipo === 'iglesia') { abrirModalCaja({ idTrans, tipo, source: 'inscripciones' }); return; }
+async function legalizarInscripcionFila(ctx, btn) {
+  const { idTrans, tipo } = ctx;
+  if (tipo === 'iglesia') { abrirModalCaja({ ...ctx, source: 'inscripciones' }); return; }
   setLoading(btn, true);
   try {
     await gsr('marcarLegalizado', idTrans, tipo, '');
@@ -1501,18 +1570,17 @@ async function exportarInscripcionesExcel() {
     const rows = await gsr('exportarInscripciones', filtrosInscripciones_());
     if (!rows || !rows.length) { toast.warn('No hay inscripciones para exportar'); return; }
 
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2,'0');
-    const mm = String(now.getMonth()+1).padStart(2,'0');
-    const yyyy = now.getFullYear();
-    const hh = String(now.getHours()).padStart(2,'0');
-    const min = String(now.getMinutes()).padStart(2,'0');
+    // Hora de Bogotá, no la del navegador — para que el nombre del archivo
+    // coincida con la hora real de generación, igual que el resto de reportes.
+    const [fechaGenDdmmyyyy, fechaGenHhmm] = fmt.fechaGenBogota().split(' ');
+    const [dd, mm, yyyy] = fechaGenDdmmyyyy.split('/');
+    const [hh, min] = fechaGenHhmm.split(':');
 
     const headers = ['Fecha','Persona','Cédula','Celular','Actividad','Módulo','Horario','Sede','Monto','Método','Leg. Pago','Leg. Inscripción'];
     const keys    = ['fecha','nombrePersona','documentoPersona','celularPersona','actividad','modulo','horario','sede','monto','metodoPago','estadoIglesia','estadoAcademia'];
-    const thStyle = 'style="background:#2d3640;color:#fff;font-weight:bold;padding:6px 10px;font-size:11px;border:1px solid #555"';
+    const thStyle = 'style="background:#0d1829;color:#fff;font-weight:bold;padding:6px 10px;font-size:11px;border:1px solid #555"';
     const tdStyle = 'style="padding:5px 10px;font-size:11px;border:1px solid #ccc"';
-    const fmtCOP  = v => new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(v||0);
+    const fmtCOP  = fmt.cop;
 
     let body = `<tr>${headers.map(h => `<th ${thStyle}>${escHtml(h)}</th>`).join('')}</tr>`;
     let total = 0;
@@ -1657,7 +1725,7 @@ function renderCola(items) {
     const control = esLegalizado
       ? `<span class="badge badge-green" style="flex-shrink:0">✓ Legalizado</span>`
       : (i.tipo === 'iglesia'
-        ? `<button class="btn btn-success" style="font-size:.78rem;padding:6px 14px;flex-shrink:0" onclick='abrirModalCaja({idTrans:"${escHtml(i.idTrans)}",tipo:"${escHtml(i.tipo)}",source:"legalizacion"})'>✅ Legalizar</button>`
+        ? `<button class="btn btn-success" style="font-size:.78rem;padding:6px 14px;flex-shrink:0" onclick='abrirModalCaja(${JSON.stringify({idTrans:i.idTrans, tipo:i.tipo, source:"legalizacion", nombrePersona:i.nombrePersona, actividad:i.actividad, modulo:i.modulo, horario:i.horario, monto:i.monto}).replace(/'/g, "&#39;")})'>✅ Legalizar</button>`
         : `<input type="checkbox" data-id="${escHtml(i.idTrans)}" data-tipo="${escHtml(i.tipo)}" aria-label="Seleccionar ${escHtml(i.nombrePersona)} para legalizar">`);
 
     const documento = i.documentoPersona
@@ -1690,11 +1758,19 @@ async function marcarSeleccionados() {
   const btn = qs('#btn-legalizar-sel');
   setLoading(btn, true);
   try {
-    await Promise.all(checks.map(c => gsr('marcarLegalizado', c.dataset.id, c.dataset.tipo, '')));
-    toast.success(`${checks.length} registro(s) legalizados`);
+    const resultados = await Promise.allSettled(checks.map(c => gsr('marcarLegalizado', c.dataset.id, c.dataset.tipo, '')));
+    const ok = resultados.filter(r => r.status === 'fulfilled').length;
+    const fallidos = resultados.filter(r => r.status === 'rejected');
+    if (fallidos.length) {
+      const detalle = fallidos.map(r => r.reason && r.reason.message).filter(Boolean).join('; ');
+      toast.error(`${ok} de ${resultados.length} legalizados. ${fallidos.length} fallaron${detalle ? ': ' + detalle : ''}`);
+    } else {
+      toast.success(`${ok} registro(s) legalizados`);
+    }
+  } finally {
     cargarCola(LEGAL_TAB_ACTUAL);
-  } catch(e) { toast.error('Error: ' + e.message); }
-  finally { setLoading(btn, false); }
+    setLoading(btn, false);
+  }
 }
 
 let _cajaContext = null;
@@ -1702,6 +1778,10 @@ let _cajaContext = null;
 function abrirModalCaja(context) {
   _cajaContext = context;
   qs('#caja-numero').value = '';
+  const detalle = [context.nombrePersona, context.actividad, context.modulo, context.horario].filter(Boolean).map(escHtml).join(' · ');
+  setHtml('#caja-resumen', detalle
+    ? `<div class="text-muted" style="margin-bottom:12px;font-size:.85rem">${detalle}${context.monto ? ' — <b>' + fmt.cop(context.monto) + '</b>' : ''}</div>`
+    : '');
   openModal('modal-caja');
 }
 
@@ -1731,14 +1811,13 @@ async function exportarColaActual() {
 // 7. ANÁLISIS
 // ═══════════════════════════════════════════════════════════════════════════
 async function cargarAnalisis() {
-  const p = null;
-  const s = GLOBAL_SEDE || null;
+  const f = filtrosDashboard_();
   try {
     const [porAct, porSede, porMetodo, desempeno] = await Promise.all([
-      gsr('getRecaudoPorActividad',  p, s),
-      gsr('getDistribucionPorSede',  p, s),
-      gsr('getDistribucionPorMetodo',p, s),
-      gsr('getDesempenoAsesores',    p, s)
+      gsr('getRecaudoPorActividad',  f),
+      gsr('getDistribucionPorSede',  f),
+      gsr('getDistribucionPorMetodo',f),
+      gsr('getDesempenoAsesores',    f)
     ]);
 
     const totalRec = porAct.reduce((s,a)=>s+a.recaudado,0);
@@ -1762,8 +1841,21 @@ async function cargarAnalisis() {
 }
 
 function exportarAnalisis() {
-  gsr('getRecaudoPorActividad', null, GLOBAL_SEDE || null)
-    .then(data => exportCSV(data, 'analisis_actividades.csv'))
+  // Mismo nivel de detalle que el agrupado por actividad del cierre oficial
+  // (columnas %, y ticket promedio) — antes el CSV solo traía cantidad y
+  // recaudado, menos completo que el mismo agrupamiento en el reporte de cierre.
+  gsr('getRecaudoPorActividad', filtrosDashboard_())
+    .then(data => {
+      const totalRec = data.reduce((s, a) => s + a.recaudado, 0);
+      const conDetalle = data.map(a => ({
+        actividad:      a.actividad,
+        cantidad:       a.cantidad,
+        recaudado:      a.recaudado,
+        porcentaje:     totalRec ? ((a.recaudado / totalRec) * 100).toFixed(1) + '%' : '0%',
+        ticketPromedio: a.cantidad ? Math.round(a.recaudado / a.cantidad) : 0
+      }));
+      exportCSV(conDetalle, 'analisis_actividades.csv');
+    })
     .catch(e => toast.error(e.message));
 }
 
@@ -1790,8 +1882,8 @@ async function cargarActividades() {
       { key:'activa',              label:'Activa', render: v => v ? '<span class="badge badge-green">Sí</span>' : '<span class="badge badge-red">No</span>' },
       { key:'id', label:'', render: (v,r) => `
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" onclick='editarActividad(${JSON.stringify(r)})'>✏️</button>
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" onclick="toggleAct('${v}',${!r.activa})">${r.activa?'🚫':'✅'}</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" title="Editar actividad" aria-label="Editar actividad" onclick='editarActividad(${JSON.stringify(r)})'>✏️</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" title="${r.activa?'Desactivar':'Activar'} actividad" aria-label="${r.activa?'Desactivar':'Activar'} actividad" onclick="toggleAct('${v}',${!r.activa})">${r.activa?'🚫':'✅'}</button>
         </div>` }
     ]);
   } catch(e) { toast.error('Error: ' + e.message); }
@@ -2064,6 +2156,14 @@ async function guardarActividad() {
   const isVar    = document.querySelector('input[name="ma-tipovalor"]:checked').value === 'variable';
   const usaModulos = document.querySelector('input[name="ma-usa-modulos"]:checked').value === 'si';
 
+  if (!usaModulos && _maModulos.length > 0) {
+    const ok = await confirmDialog(
+      `Esto eliminará ${_maModulos.length} módulo${_maModulos.length === 1 ? '' : 's'} configurado${_maModulos.length === 1 ? '' : 's'} (con sus horarios). ¿Continuar?`,
+      { title: 'Eliminar módulos', confirmText: 'Sí, eliminar' }
+    );
+    if (!ok) return;
+  }
+
   if (usaModulos) {
     if (!_maModulos.length) {
       toast.warn('Debes agregar al menos un módulo');
@@ -2134,8 +2234,8 @@ async function cargarAsesores() {
       { key:'email', label:'Última', render: v => (desMap[v]||{}).ultimaActividad||'–' },
       { key:'email', label:'', render: (v,r) => `
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" onclick='editarAsesor(${JSON.stringify(r)})'>✏️</button>
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" onclick="toggleAs('${v}',${!r.activo})">${r.activo?'🚫':'✅'}</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" title="Editar asesor" aria-label="Editar asesor" onclick='editarAsesor(${JSON.stringify(r)})'>✏️</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem" title="${r.activo?'Desactivar':'Activar'} asesor" aria-label="${r.activo?'Desactivar':'Activar'} asesor" onclick="toggleAs('${v}',${!r.activo})">${r.activo?'🚫':'✅'}</button>
         </div>` }
     ]);
   } catch(e) { toast.error('Error: ' + e.message); }
@@ -2284,7 +2384,7 @@ async function cargarAjustes() {
     setHtml('#ajustes-form', config.map(c => `
       <div class="input-group">
         <label for="cfg-${c.key}">${escHtml(c.label)}</label>
-        <input id="cfg-${c.key}" class="input" data-key="${c.key}" value="${escHtml(c.valor)}">
+        <input id="cfg-${c.key}" class="input" data-key="${c.key}" data-label="${escHtml(c.label)}" data-original="${escHtml(c.valor)}" value="${escHtml(c.valor)}">
       </div>`).join(''));
 
     renderSaludSistema(salud);
@@ -2332,10 +2432,21 @@ function renderSaludSistema(salud) {
 
 async function guardarAjustes() {
   const datos = {};
-  qsa('#ajustes-form [data-key]').forEach(el => { datos[el.dataset.key] = el.value.trim(); });
+  const cambios = [];
+  qsa('#ajustes-form [data-key]').forEach(el => {
+    const val = el.value.trim();
+    datos[el.dataset.key] = val;
+    if (val !== (el.dataset.original || '')) {
+      cambios.push(`${el.dataset.label || el.dataset.key}: ${el.dataset.original || '—'} → ${val || '—'}`);
+    }
+  });
+  if (!cambios.length) { toast.info('No hay cambios que guardar'); return; }
+  const ok = await confirmDialog('Vas a cambiar estos ajustes del sistema:\n\n' + cambios.join('\n'), { title: 'Confirmar ajustes', confirmText: 'Guardar cambios', danger: false });
+  if (!ok) return;
   try {
     await gsr('actualizarConfiguracion', datos);
     toast.success('Ajustes guardados ✓');
+    cargarAjustes();
   } catch(e) { toast.error('Error guardando ajustes: ' + e.message); }
 }
 

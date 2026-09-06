@@ -80,6 +80,25 @@ function obtenerActividad_(id) {
 }
 
 /**
+ * Valida la forma de un arreglo de módulos antes de guardarlo: cada módulo
+ * necesita un nombre no vacío y un valor numérico >= 0. El frontend ya exige
+ * esto mismo antes de enviar el formulario; esta validación cierra la puerta
+ * a que datos incompletos lleguen por otra vía (ej. una llamada directa).
+ */
+function validarModulos_(modulos) {
+  if (!Array.isArray(modulos)) throw new Error('Los módulos deben ser una lista');
+  modulos.forEach((m, i) => {
+    if (!m || !m.nombre || !String(m.nombre).trim()) {
+      throw new Error('Cada módulo debe tener un nombre (módulo ' + (i + 1) + ')');
+    }
+    const valor = Number(m.valor);
+    if (m.valor === '' || m.valor === null || m.valor === undefined || isNaN(valor) || valor < 0) {
+      throw new Error('Cada módulo debe tener un valor numérico válido (módulo ' + (i + 1) + ': ' + m.nombre + ')');
+    }
+  });
+}
+
+/**
  * Crea una nueva actividad en el catálogo.
  * @param {{nombre:string, categoria:string, valorBase:number, valorVariable:boolean,
  *          requiereInscripcion:boolean, legalizarIglesia:boolean, legalizarAcademia:boolean}} datos
@@ -89,6 +108,7 @@ function crearActividad(token, datos) {
   authenticate_(token);
   const actorInfo = requireRol_('coordinadora');
   validateRequired_(datos, ['nombre', 'categoria']);
+  if (datos.modulos !== undefined) validarModulos_(datos.modulos);
 
   const sheet = getSheet_('Actividades', true);
   const id    = generateId_('ACT');
@@ -123,6 +143,7 @@ function crearActividad(token, datos) {
 function actualizarActividad(token, id, datos) {
   authenticate_(token);
   const actorInfo = requireRol_('coordinadora');
+  if (datos.modulos !== undefined) validarModulos_(datos.modulos);
   const sheet   = getSheet_('Actividades');
   const values  = sheet.getDataRange().getValues();
   const headers = values[0];

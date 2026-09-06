@@ -15,6 +15,18 @@ const fmt = {
   },
   pct(n) {
     return (n >= 0 ? '+' : '') + n + '%';
+  },
+  // "Generado: dd/MM/yyyy HH:mm" en hora de Bogotá, sin importar la zona
+  // horaria del navegador — para que el sello de una exportación hecha desde
+  // el cliente coincida con la hora de los reportes generados en el servidor
+  // (que siempre usan America/Bogota).
+  fechaGenBogota() {
+    const partes = new Intl.DateTimeFormat('es-CO', {
+      timeZone: 'America/Bogota',
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(new Date());
+    const get = t => (partes.find(p => p.type === t) || {}).value || '';
+    return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}`;
   }
 };
 
@@ -78,7 +90,7 @@ function gsr(fnName, ...args) {
   }));
 }
 
-// Llama una función pública (sin token): solicitarAcceso, verificarCodigo, cerrarSesion, getCurrentUserInfo.
+// Llama una función pública (sin token): seleccionarAsesor, verificarPinCoordinadora, cerrarSesion, getCurrentUserInfo.
 function gsrPublic(fnName, ...args) {
   return conTimeout_(new Promise((resolve, reject) => {
     const runner = google.script.run
@@ -121,7 +133,9 @@ function badgeEstado(estado) {
     'Datáfono':    '<span class="badge badge-blue">💳 Datáfono</span>',
     'Nequi':       '<span class="badge badge-purple">📱 Nequi</span>',
     'Anulada':     '<span class="badge badge-red">Anulada</span>',
-    'Activa':      '<span class="badge badge-green">Activa</span>'
+    'Activa':      '<span class="badge badge-green">Activa</span>',
+    'Enviado':     '<span class="badge badge-green">Enviado</span>',
+    'Falló':       '<span class="badge badge-red">Falló</span>'
   };
   return map[estado] || `<span class="badge badge-muted">${escHtml(estado)}</span>`;
 }

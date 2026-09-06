@@ -136,9 +136,7 @@ Iglesia Manantial – Punto de Información
 // evitar una colisión silenciosa de nombre en el namespace global de Apps Script.
 
 function formatMoneyCOP_(monto) {
-  return new Intl.NumberFormat('es-CO', {
-    style:    'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0
-  }).format(Number(monto) || 0);
+  // Delegado a formatCOP_ (Code.js) — antes era una copia casi idéntica que
+  // podía desalinearse en silencio si alguien cambiaba solo una de las dos.
+  return formatCOP_(monto);
 }

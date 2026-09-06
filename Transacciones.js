@@ -101,11 +101,35 @@ function crearTransaccion(token, payload) {
   }
 
   let ahora, idTrans, transaccion, inscripcion = null, legalizaciones;
+  let filaTransaccion, emailEnviadoColIdx = null, sheet;
   try {
+    // Idempotencia: si el dispositivo del asesor ya envió este mismo intento
+    // antes (p. ej. la red se cayó justo cuando el servidor ya había
+    // guardado el pago, y el dispositivo reintenta sin saber si se guardó),
+    // no crear un segundo pago — se devuelve el que ya existe. La clave la
+    // genera el dispositivo una sola vez por intento y se reutiliza en cada
+    // reintento automático de ESE mismo intento.
+    const transExistentes = sheetToObjects_('Transacciones');
+
+    if (payload.idempotencyKey) {
+      const yaExistente = transExistentes.find(t => t.Idempotency_Key === payload.idempotencyKey);
+      if (yaExistente) {
+        const inscYaExistente = sheetToObjects_('Inscripciones').find(i => i.ID_Trans === yaExistente.ID_Trans);
+        return {
+          ok: true,
+          yaExistia: true,
+          transaccion: mapTransaccion_(yaExistente),
+          inscripcion: inscYaExistente ? {} : null,
+          legalizaciones: [],
+          emailEnviado: true,
+          emailSolicitado: !!payload.correoPersona
+        };
+      }
+    }
+
     if (debeInscribir) {
       // Validar que no exista inscripción duplicada (misma persona + actividad + módulo + horario)
       const inscExistentes  = sheetToObjects_('Inscripciones');
-      const transExistentes = sheetToObjects_('Transacciones');
       const yaInscrito = inscExistentes.some(function(ins) {
         if (ins.Actividad !== payload.nombreActividad) return false;
         if (payload.modulo && ins.Modulo !== payload.modulo) return false;
@@ -114,6 +138,9 @@ function crearTransaccion(token, payload) {
         var transAsociada = transExistentes.find(function(t) { return t.ID_Trans === ins.ID_Trans; });
         if (!transAsociada) return false;
         if ((transAsociada.Estado || 'Activa') === 'Anulada') return false;
+        if (payload.documentoPersona && transAsociada.Documento_Persona) {
+          return String(transAsociada.Documento_Persona) === String(payload.documentoPersona);
+        }
         return transAsociada.Nombre_Persona === payload.nombrePersona;
       });
       if (yaInscrito) {
@@ -129,7 +156,7 @@ function crearTransaccion(token, payload) {
     const estadoAcademia = actividad.legalizarInscripcion  ? 'Pendiente' : 'NA';
 
     // Insertar en Transacciones
-    const sheet = getSheet_('Transacciones', true);
+    sheet = getSheet_('Transacciones', true);
     sheet.appendRow([
       idTrans,
       ahora,
@@ -159,9 +186,21 @@ function crearTransaccion(token, payload) {
     // Columna aparte (no en el array posicional de arriba): así una hoja ya
     // existente en producción, sin esta columna todavía, la agrega sola en vez
     // de escribir un valor "fantasma" en una columna sin encabezado.
+    filaTransaccion = sheet.getLastRow();
     if (nequiComprobanteUrl) {
       const colIdx = ensureColumn_(sheet, 'Nequi_Comprobante_URL');
-      sheet.getRange(sheet.getLastRow(), colIdx + 1).setValue(nequiComprobanteUrl);
+      sheet.getRange(filaTransaccion, colIdx + 1).setValue(nequiComprobanteUrl);
+    }
+    if (payload.idempotencyKey) {
+      const idemColIdx = ensureColumn_(sheet, 'Idempotency_Key');
+      sheet.getRange(filaTransaccion, idemColIdx + 1).setValue(payload.idempotencyKey);
+    }
+    // Se reserva la columna aquí, bajo el mismo bloqueo que las de arriba
+    // (evita la misma condición de carrera al crear la columna). El valor
+    // real se escribe más abajo, después de intentar el envío — que a
+    // propósito ocurre fuera del bloqueo por ser una llamada lenta.
+    if (payload.correoPersona) {
+      emailEnviadoColIdx = ensureColumn_(sheet, 'Email_Enviado');
     }
 
     transaccion = {
@@ -209,23 +248,42 @@ function crearTransaccion(token, payload) {
   }
 
   // ── Enviar email de confirmación (fuera del lock; no bloquea si falla) ────
+  // El resultado se devuelve al frontend (emailEnviado) para que, si falla,
+  // el asesor lo sepa en vez de asumir que el comprobante sí llegó.
+  var emailEnviado = false;
   try {
     if (payload.correoPersona) {
+      // Si el pago fue por Datáfono y el valor realmente cobrado difiere del
+      // precio oficial de la actividad (error de digitación ya confirmado
+      // por el asesor), el comprobante que recibe el cliente debe reflejar
+      // lo que de verdad se le debitó de la tarjeta, no el precio de lista.
+      const montoComprobante = (payload.metodoPago === 'Datáfono' && payload.dtValor)
+        ? Number(payload.dtValor)
+        : Number(payload.monto);
       enviarConfirmacion({
         nombre:    payload.nombrePersona,
         correo:    payload.correoPersona,
         actividad: payload.nombreActividad,
-        monto:     Number(payload.monto),
+        monto:     montoComprobante,
         metodo:    payload.metodoPago,
         asesor:    asesorInfo.nombre,
         fecha:     formatDate_(ahora)
       });
+      emailEnviado = true;
     }
   } catch (e) {
     Logger.log('Email no enviado: ' + e.message);
   }
 
-  return { ok: true, transaccion, inscripcion, legalizaciones };
+  // Queda registrado en la propia hoja (columna "Email_Enviado") para poder
+  // auditar después sin tener que revisar el log de ejecuciones de Apps
+  // Script ni la carpeta de Enviados de Gmail. Escritura de una sola celda
+  // en la fila que esta misma ejecución ya creó — no hace falta bloqueo.
+  if (payload.correoPersona && emailEnviadoColIdx !== null) {
+    sheet.getRange(filaTransaccion, emailEnviadoColIdx + 1).setValue(emailEnviado ? 'Enviado' : 'Falló');
+  }
+
+  return { ok: true, transaccion, inscripcion, legalizaciones, emailEnviado, emailSolicitado: !!payload.correoPersona };
 }
 
 /**
@@ -271,6 +329,34 @@ function anularTransaccion(token, idTrans) {
 }
 
 /**
+ * Aplica los filtros comunes de sede/asesor/método/estado/fecha a un arreglo
+ * de filas de Transacciones (formato crudo de sheetToObjects_). Centraliza el
+ * criterio que ya usaba listarTransacciones, para que el Dashboard y Análisis
+ * puedan aplicar exactamente el mismo criterio en vez de ignorar estos filtros.
+ */
+function aplicarFiltrosTransacciones_(trans, filtros) {
+  filtros = filtros || {};
+  if (filtros.sede) {
+    const sedeMap = buildAsesorSedeMap_();
+    trans = trans.filter(t => sedeMap[t.Asesor_Email] === filtros.sede);
+  }
+  if (filtros.asesorEmail)    trans = trans.filter(t => t.Asesor_Email === filtros.asesorEmail);
+  if (filtros.metodoPago)     trans = trans.filter(t => t.Metodo_Pago === filtros.metodoPago);
+  if (filtros.estadoIglesia)  trans = trans.filter(t => t.Estado_Legalizacion_Iglesia === filtros.estadoIglesia);
+  if (filtros.estadoAcademia) trans = trans.filter(t => t.Estado_Legalizacion_Academia === filtros.estadoAcademia);
+  if (filtros.fechaDesde) {
+    const desde = new Date(filtros.fechaDesde);
+    trans = trans.filter(t => t.Timestamp && new Date(t.Timestamp) >= desde);
+  }
+  if (filtros.fechaHasta) {
+    const hasta = new Date(filtros.fechaHasta);
+    hasta.setHours(23, 59, 59);
+    trans = trans.filter(t => t.Timestamp && new Date(t.Timestamp) <= hasta);
+  }
+  return trans;
+}
+
+/**
  * Lista transacciones con filtros combinables.
  * @param {{sede?:string, asesorEmail?:string, actividad?:string, metodoPago?:string,
  *          estadoIglesia?:string, estadoAcademia?:string,
@@ -281,29 +367,12 @@ function anularTransaccion(token, idTrans) {
 function listarTransacciones(token, filtros = {}) {
   authenticate_(token);
   requireRol_('coordinadora');
-  let trans = sheetToObjects_('Transacciones');
+  let trans = aplicarFiltrosTransacciones_(sheetToObjects_('Transacciones'), filtros);
 
-  if (filtros.sede) {
-    const sedeMap = buildAsesorSedeMap_();
-    trans = trans.filter(t => sedeMap[t.Asesor_Email] === filtros.sede);
-  }
-  if (filtros.asesorEmail)   trans = trans.filter(t => t.Asesor_Email === filtros.asesorEmail);
-  if (filtros.actividad)     trans = trans.filter(t => (t.Actividad||'').toLowerCase().includes(filtros.actividad.toLowerCase()));
-  if (filtros.metodoPago)    trans = trans.filter(t => t.Metodo_Pago === filtros.metodoPago);
-  if (filtros.estadoIglesia) trans = trans.filter(t => t.Estado_Legalizacion_Iglesia === filtros.estadoIglesia);
-  if (filtros.estadoAcademia)trans = trans.filter(t => t.Estado_Legalizacion_Academia === filtros.estadoAcademia);
+  if (filtros.actividad) trans = trans.filter(t => (t.Actividad||'').toLowerCase().includes(filtros.actividad.toLowerCase()));
   if (filtros.busqueda) {
     const q = filtros.busqueda.toString().toLowerCase();
     trans = trans.filter(t => (t.Documento_Persona || '').toString().toLowerCase().includes(q));
-  }
-  if (filtros.fechaDesde) {
-    const desde = new Date(filtros.fechaDesde);
-    trans = trans.filter(t => t.Timestamp && new Date(t.Timestamp) >= desde);
-  }
-  if (filtros.fechaHasta) {
-    const hasta = new Date(filtros.fechaHasta);
-    hasta.setHours(23, 59, 59);
-    trans = trans.filter(t => t.Timestamp && new Date(t.Timestamp) <= hasta);
   }
 
   // Rango de tiempo predefinido
@@ -392,11 +461,15 @@ function getCarteraAsesor(token) {
     .filter(t => t.Asesor_Email === asesorInfo.email && (t.Estado || 'Activa') !== 'Anulada')
     .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
 
-  // Agrupar por persona (última transacción de cada una)
+  // Agrupar por persona (última transacción de cada una). Se usa el documento
+  // como llave porque el nombre puede repetirse entre personas distintas; si
+  // una fila antigua no tiene documento, se cae de vuelta al nombre para no
+  // perder esa fila de la agrupación.
   const porPersona = {};
   trans.forEach(t => {
-    if (!porPersona[t.Nombre_Persona]) {
-      porPersona[t.Nombre_Persona] = t;
+    const key = t.Documento_Persona || ('nombre:' + t.Nombre_Persona);
+    if (!porPersona[key]) {
+      porPersona[key] = t;
     }
   });
 
@@ -414,6 +487,7 @@ function getCarteraAsesor(token) {
 
     return {
       nombrePersona:   t.Nombre_Persona,
+      documentoPersona:t.Documento_Persona || '',
       ultimaActividad: t.Actividad,
       ultimaMonto:     t.Monto,
       ultimaMetodoPago:t.Metodo_Pago,
@@ -469,7 +543,7 @@ function actualizarEstadoLegalizacion_(idTrans, tipo, estado) {
  */
 function actualizarTransaccion(token, idTrans, datos) {
   authenticate_(token);
-  requireRol_('coordinadora');
+  const actorInfo = requireRol_('coordinadora');
 
   if (datos.metodoPago && !['Efectivo','Datáfono','Nequi'].includes(datos.metodoPago)) {
     throw new Error('Método de pago inválido: ' + datos.metodoPago);
@@ -487,6 +561,7 @@ function actualizarTransaccion(token, idTrans, datos) {
     celularPersona:   'Celular_Persona',
     monto:            'Monto',
     metodoPago:       'Metodo_Pago',
+    dtValor:          'Datafono_Valor',
     dtFranquicia:     'Datafono_Franquicia',
     dtTipoTarjeta:    'Datafono_Tipo_Tarjeta',
     dtNoAutorizacion: 'Datafono_No_Autorizacion',
@@ -508,9 +583,26 @@ function actualizarTransaccion(token, idTrans, datos) {
         if (datos[key] === undefined) return;
         const colIdx = headers.indexOf(colMap[key]);
         if (colIdx === -1) return;
-        const val = key === 'monto' ? Number(datos[key]) || 0 : datos[key];
+        const val = (key === 'monto' || key === 'dtValor') ? Number(datos[key]) || 0 : datos[key];
         sheet.getRange(i + 1, colIdx + 1).setValue(val);
       });
+      // ensureColumn_ puede insertar una columna nueva (Editado_Por/Fecha).
+      // crearTransaccion hace lo mismo (Nequi_Comprobante_URL/Idempotency_Key)
+      // bajo este mismo bloqueo global — sin él, dos ejecuciones concurrentes
+      // podrían leer el mismo "última columna" antes de que cualquiera
+      // escriba, y una pisaría el encabezado de la otra.
+      const lock = LockService.getScriptLock();
+      if (!lock.tryLock(10000)) {
+        throw new Error('El sistema está ocupado procesando otro registro. Intenta de nuevo en unos segundos.');
+      }
+      try {
+        const editadoPorIdx   = ensureColumn_(sheet, 'Editado_Por');
+        const editadoFechaIdx = ensureColumn_(sheet, 'Editado_Fecha');
+        sheet.getRange(i + 1, editadoPorIdx + 1).setValue(actorInfo.email);
+        sheet.getRange(i + 1, editadoFechaIdx + 1).setValue(formatDate_(new Date()));
+      } finally {
+        lock.releaseLock();
+      }
       return { ok: true };
     }
   }
@@ -569,7 +661,8 @@ function exportarTransaccionesDatafono(token, filtros = {}) {
       celularBeneficiario:    esDiferente ? t.Celular_Persona              || '' : '',
       concepto:               t.Actividad                     || '',
       debitoCredito:          t.Datafono_Tipo_Tarjeta         || '',
-      noDatafono:             t.Datafono_No_Datafono          || ''
+      noDatafono:             t.Datafono_No_Datafono          || '',
+      asesor:                 t.Asesor_Nombre                 || ''
     };
   });
 }
@@ -601,6 +694,9 @@ function mapTransaccion_(t) {
     dtCelularTitular:   t.Datafono_Celular_Titular || '',
     dtNoAutorizacion:        t.Datafono_No_Autorizacion      || '',
     dtNoDatafono:            t.Datafono_No_Datafono          || '',
-    nequiComprobanteUrl:     t.Nequi_Comprobante_URL         || ''
+    nequiComprobanteUrl:     t.Nequi_Comprobante_URL         || '',
+    editadoPor:              t.Editado_Por                   || '',
+    editadoFecha:            t.Editado_Fecha ? formatDate_(new Date(t.Editado_Fecha)) : '',
+    emailEnviado:            t.Email_Enviado                 || ''
   };
 }
