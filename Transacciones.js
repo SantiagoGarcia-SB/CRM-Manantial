@@ -8,6 +8,7 @@
 //   getCarteraAsesor()                     → Object[]  (semáforo por persona)
 //   exportarTransaccionesDatafono(filtros) → Object[]  (datos para CSV frontend)
 //   obtenerSaldoActividad(params)          → {valorEsperado, totalPagado, saldoPendiente}
+//   getCarteraAbonos()                     → Object[]  (personas con saldo pendiente en actividades con abonos)
 
 /**
  * Payload esperado de crearTransaccion:
@@ -757,6 +758,70 @@ function obtenerSaldoActividad(token, params) {
   const transacciones = sheetToObjects_('Transacciones');
   const totalPagado = sumaPagosPersonaActividad_(transacciones, actividad.nombre, params.documentoPersona, params.nombrePersona, params.modulo);
   return { valorEsperado: valorEsperado, totalPagado: totalPagado, saldoPendiente: Math.max(0, valorEsperado - totalPagado) };
+}
+
+/**
+ * Cartera de abonos: todas las personas con saldo pendiente en actividades
+ * que permiten abonos, agrupado por persona + actividad (+ módulo si aplica).
+ * Solo mira transacciones activas (no anuladas). Pensado para que la
+ * coordinadora vea de un vistazo quién quedó debiendo y cuánto.
+ * @returns {{nombrePersona, documentoPersona, celularPersona, actividad, modulo,
+ *            valorEsperado, totalPagado, saldoPendiente, ultimaFecha}[]}
+ */
+function getCarteraAbonos(token) {
+  authenticate_(token);
+  requireRol_('coordinadora');
+
+  const actividadesAbonos = sheetToObjects_('Actividades')
+    .map(mapActividad_)
+    .filter(a => a.permiteAbonos && !a.valorVariable);
+  if (!actividadesAbonos.length) return [];
+
+  const actividadPorNombre = {};
+  actividadesAbonos.forEach(a => { actividadPorNombre[a.nombre] = a; });
+
+  const transacciones = sheetToObjects_('Transacciones')
+    .filter(t => actividadPorNombre.hasOwnProperty(t.Actividad) && (t.Estado || 'Activa') !== 'Anulada');
+
+  const grupos = {};
+  transacciones.forEach(function(t) {
+    const doc    = t.Documento_Persona || '';
+    const modulo = t.Modulo || '';
+    const key    = (doc || t.Nombre_Persona) + '|' + t.Actividad + '|' + modulo;
+    if (!grupos[key]) {
+      grupos[key] = {
+        nombrePersona:    t.Nombre_Persona,
+        documentoPersona: doc,
+        celularPersona:   t.Celular_Persona || '',
+        actividad:        t.Actividad,
+        modulo:           modulo,
+        totalPagado:      0,
+        ultimaFecha:      null
+      };
+    }
+    grupos[key].totalPagado += Number(t.Monto) || 0;
+    const fecha = t.Timestamp ? new Date(t.Timestamp) : null;
+    if (fecha && (!grupos[key].ultimaFecha || fecha > grupos[key].ultimaFecha)) grupos[key].ultimaFecha = fecha;
+  });
+
+  return Object.values(grupos)
+    .map(function(g) {
+      const valorEsperado  = valorEsperadoActividad_(actividadPorNombre[g.actividad], g.modulo);
+      const saldoPendiente = Math.max(0, valorEsperado - g.totalPagado);
+      return {
+        nombrePersona:    g.nombrePersona,
+        documentoPersona: g.documentoPersona,
+        celularPersona:   g.celularPersona,
+        actividad:        g.actividad,
+        modulo:           g.modulo,
+        valorEsperado:    valorEsperado,
+        totalPagado:      g.totalPagado,
+        saldoPendiente:   saldoPendiente,
+        ultimaFecha:      g.ultimaFecha ? formatDate_(g.ultimaFecha) : ''
+      };
+    })
+    .filter(function(r) { return r.saldoPendiente > 0; })
+    .sort(function(a, b) { return b.saldoPendiente - a.saldoPendiente; });
 }
 
 function mapTransaccion_(t) {

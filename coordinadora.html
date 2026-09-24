@@ -403,6 +403,10 @@
 
   <!-- ─────────────────── 3. TRANSACCIONES ─────────────────────────── -->
   <div id="sec-transacciones" class="section">
+    <div id="panel-cartera-abonos" class="hidden mb-24">
+      <h3 class="mb-16">🟡 Saldos pendientes (abonos)</h3>
+      <div id="tabla-cartera-abonos"></div>
+    </div>
     <div class="tabs mb-16">
       <button class="tab active" onclick="tabTrans('hoy',this)">Hoy</button>
       <button class="tab" onclick="tabTrans('semana',this)">Esta semana</button>
@@ -987,7 +991,7 @@ const CHART_COLORS = ['#667eea','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899
 const SECTION_LOADERS = {
   dashboard:    cargarDashboard,
   alertas:      cargarAlertas,
-  transacciones:() => filtrarTransacciones(1),
+  transacciones:() => { filtrarTransacciones(1); cargarCarteraAbonos(); },
   inscripciones:() => filtrarInscripciones(1),
   personas:     () => filtrarPersonas(1),
   legalizacion: () => cargarCola(LEGAL_TAB_ACTUAL),
@@ -1386,6 +1390,27 @@ async function filtrarTransacciones(page = 1) {
     ], abrirDetalleTransaccion);
     renderPaginacion('pag-trans', res, filtrarTransacciones);
   } catch(e) { toast.error('Error: ' + e.message); }
+}
+
+// Personas con saldo pendiente en actividades que permiten abonos. El panel
+// se oculta por completo si nadie debe nada (o si ninguna actividad tiene
+// abonos activados), para no ensuciar la pantalla en el caso normal.
+async function cargarCarteraAbonos() {
+  try {
+    const cartera = await gsr('getCarteraAbonos');
+    if (!cartera.length) { hide('#panel-cartera-abonos'); return; }
+    show('#panel-cartera-abonos');
+    renderTable('tabla-cartera-abonos', cartera, [
+      { key:'nombrePersona',    label:'Persona' },
+      { key:'documentoPersona', label:'Cédula' },
+      { key:'celularPersona',   label:'Celular' },
+      { key:'actividad',        label:'Actividad', render: (v, r) => r.modulo ? `${escHtml(v)} · ${escHtml(r.modulo)}` : escHtml(v) },
+      { key:'totalPagado',      label:'Abonado',   render: v => fmt.cop(v) },
+      { key:'valorEsperado',    label:'Total',     render: v => fmt.cop(v) },
+      { key:'saldoPendiente',   label:'Saldo pendiente', render: v => `<strong style="color:var(--yellow)">${fmt.cop(v)}</strong>` },
+      { key:'ultimaFecha',      label:'Último abono' }
+    ]);
+  } catch(e) { toast.error('Error cargando saldos pendientes: ' + e.message); }
 }
 
 async function anularTransaccionCoord(idTrans) {
