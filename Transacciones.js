@@ -147,7 +147,7 @@ function crearTransaccion(token, payload) {
     // el pago que se está registrando ahora mismo. Solo se necesita cuando hay
     // un valor total fijo contra el cual medir abonos.
     var totalPagadoPrevio = valorEsperado !== null
-      ? sumaPagosPersonaActividad_(transExistentes, payload.nombreActividad, payload.documentoPersona, payload.nombrePersona, payload.modulo)
+      ? sumaPagosPersonaActividad_(transExistentes, payload.idActividad, payload.nombreActividad, payload.documentoPersona, payload.nombrePersona, payload.modulo)
       : 0;
 
     var inscripcionExistente = null;
@@ -155,13 +155,15 @@ function crearTransaccion(token, payload) {
       // Buscar inscripción existente (misma persona + actividad + módulo + horario)
       const inscExistentes  = sheetToObjects_('Inscripciones');
       inscripcionExistente = inscExistentes.find(function(ins) {
-        if (ins.Actividad !== payload.nombreActividad) return false;
         if (payload.modulo && ins.Modulo !== payload.modulo) return false;
         if (payload.horario && ins.Horario !== payload.horario) return false;
-        // Verificar que la transacción asociada es de la misma persona y no está anulada
+        // Verificar que la transacción asociada es de la misma persona, no está
+        // anulada, y es realmente la misma actividad (por ID; el nombre de una
+        // fila vieja sin ID guardado se usa como respaldo — ver mismaActividadFila_).
         var transAsociada = transExistentes.find(function(t) { return t.ID_Trans === ins.ID_Trans; });
         if (!transAsociada) return false;
         if ((transAsociada.Estado || 'Activa') === 'Anulada') return false;
+        if (!mismaActividadFila_(transAsociada, payload.idActividad, payload.nombreActividad)) return false;
         if (payload.documentoPersona && transAsociada.Documento_Persona) {
           return String(transAsociada.Documento_Persona) === String(payload.documentoPersona);
         }
@@ -244,6 +246,12 @@ function crearTransaccion(token, payload) {
       const moduloColIdx = ensureColumn_(sheet, 'Modulo');
       sheet.getRange(filaTransaccion, moduloColIdx + 1).setValue(payload.modulo);
     }
+    // Se guarda en todas las transacciones (no solo las de actividades con
+    // abonos): el nombre de una actividad se puede repetir entre ediciones
+    // distintas (misma actividad recreada meses después con el mismo nombre),
+    // y solo el ID distingue de forma confiable a cuál pertenece cada pago.
+    const idActColIdx = ensureColumn_(sheet, 'ID_Actividad');
+    sheet.getRange(filaTransaccion, idActColIdx + 1).setValue(payload.idActividad);
 
     var saldoPendiente = (valorEsperado !== null && actividad.permiteAbonos)
       ? Math.max(0, valorEsperado - totalPagadoPrevio - Number(payload.monto))
@@ -720,15 +728,27 @@ function exportarTransaccionesDatafono(token, filtros = {}) {
 // ─── HELPERS INTERNOS ─────────────────────────────────────────────────────────
 
 /**
+ * ¿Esta fila de Transacciones corresponde a la misma actividad que idActividad?
+ * Compara por ID (preciso: dos actividades distintas con el mismo nombre —p.ej.
+ * dos ediciones de "Aposento Alto" creadas meses aparte— nunca se confunden).
+ * Las filas guardadas antes de que existiera esta columna no tienen ID, así
+ * que para esas se cae al nombre (comportamiento previo, ya conocido).
+ */
+function mismaActividadFila_(t, idActividad, nombreActividad) {
+  if (t.ID_Actividad) return t.ID_Actividad === idActividad;
+  return t.Actividad === nombreActividad;
+}
+
+/**
  * Suma lo pagado (transacciones activas, no anuladas) por una persona en una
  * actividad — y, si se indica, en un módulo puntual de esa actividad — para
  * medir cuánto lleva abonado contra el valor total. La persona se identifica
  * por documento cuando está disponible (más confiable que el nombre).
  */
-function sumaPagosPersonaActividad_(transacciones, nombreActividad, documentoPersona, nombrePersona, modulo) {
+function sumaPagosPersonaActividad_(transacciones, idActividad, nombreActividad, documentoPersona, nombrePersona, modulo) {
   return transacciones
     .filter(function(t) {
-      if (t.Actividad !== nombreActividad) return false;
+      if (!mismaActividadFila_(t, idActividad, nombreActividad)) return false;
       if ((t.Estado || 'Activa') === 'Anulada') return false;
       if (modulo && (t.Modulo || '') !== modulo) return false;
       if (!modulo && t.Modulo) return false;
@@ -756,7 +776,7 @@ function obtenerSaldoActividad(token, params) {
     return { valorEsperado: valorEsperado, totalPagado: 0, saldoPendiente: null };
   }
   const transacciones = sheetToObjects_('Transacciones');
-  const totalPagado = sumaPagosPersonaActividad_(transacciones, actividad.nombre, params.documentoPersona, params.nombrePersona, params.modulo);
+  const totalPagado = sumaPagosPersonaActividad_(transacciones, params.idActividad, actividad.nombre, params.documentoPersona, params.nombrePersona, params.modulo);
   return { valorEsperado: valorEsperado, totalPagado: totalPagado, saldoPendiente: Math.max(0, valorEsperado - totalPagado) };
 }
 
@@ -777,22 +797,40 @@ function getCarteraAbonos(token) {
     .filter(a => a.permiteAbonos && !a.valorVariable);
   if (!actividadesAbonos.length) return [];
 
-  const actividadPorNombre = {};
-  actividadesAbonos.forEach(a => { actividadPorNombre[a.nombre] = a; });
+  // Por ID (preciso) y por nombre (respaldo, solo para filas guardadas antes
+  // de que existiera la columna ID_Actividad). Si dos actividades activas con
+  // abonos comparten nombre — dos ediciones del mismo evento a la vez—, una
+  // fila vieja sin ID no se puede asignar de forma confiable a ninguna de las
+  // dos, así que se ignora en vez de arriesgarse a mezclarlas.
+  const actividadPorId = {};
+  const idsPorNombre = {};
+  actividadesAbonos.forEach(function(a) {
+    actividadPorId[a.id] = a;
+    (idsPorNombre[a.nombre] = idsPorNombre[a.nombre] || []).push(a.id);
+  });
 
-  const transacciones = sheetToObjects_('Transacciones')
-    .filter(t => actividadPorNombre.hasOwnProperty(t.Actividad) && (t.Estado || 'Activa') !== 'Anulada');
+  const transacciones = sheetToObjects_('Transacciones').filter(t => (t.Estado || 'Activa') !== 'Anulada');
 
   const grupos = {};
   transacciones.forEach(function(t) {
+    var idActividad = null;
+    if (t.ID_Actividad && actividadPorId.hasOwnProperty(t.ID_Actividad)) {
+      idActividad = t.ID_Actividad;
+    } else if (!t.ID_Actividad) {
+      var candidatos = idsPorNombre[t.Actividad];
+      if (candidatos && candidatos.length === 1) idActividad = candidatos[0];
+    }
+    if (!idActividad) return;
+
     const doc    = t.Documento_Persona || '';
     const modulo = t.Modulo || '';
-    const key    = (doc || t.Nombre_Persona) + '|' + t.Actividad + '|' + modulo;
+    const key    = (doc || t.Nombre_Persona) + '|' + idActividad + '|' + modulo;
     if (!grupos[key]) {
       grupos[key] = {
         nombrePersona:    t.Nombre_Persona,
         documentoPersona: doc,
         celularPersona:   t.Celular_Persona || '',
+        idActividad:      idActividad,
         actividad:        t.Actividad,
         modulo:           modulo,
         totalPagado:      0,
@@ -806,7 +844,7 @@ function getCarteraAbonos(token) {
 
   return Object.values(grupos)
     .map(function(g) {
-      const valorEsperado  = valorEsperadoActividad_(actividadPorNombre[g.actividad], g.modulo);
+      const valorEsperado  = valorEsperadoActividad_(actividadPorId[g.idActividad], g.modulo);
       const saldoPendiente = Math.max(0, valorEsperado - g.totalPagado);
       return {
         nombrePersona:    g.nombrePersona,
