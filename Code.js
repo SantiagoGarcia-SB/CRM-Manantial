@@ -102,7 +102,7 @@ const SHEET_HEADERS = {
   Actividades:    ['ID_Actividad','Nombre','Categoria','Valor_Base','Valor_Variable',
                    'Requiere_Inscripcion','Legalizar_Iglesia','Legalizar_Academia','Activa',
                    'Legalizar_Pago','Legalizar_Inscripcion','Horarios','Modulos',
-                   'Modificado_Por','Modificado_Fecha'],
+                   'Modificado_Por','Modificado_Fecha','Permite_Abonos','Metodos_Pago'],
   Categorias:     ['ID_Categoria','Nombre'],
   Asesores:       ['Email','Nombre','Sede','Rol','Activo','Pin','Modificado_Por','Modificado_Fecha'],
   Legalizaciones: ['ID_Legal','ID_Trans','Tipo','Estado','Fecha_Legalizacion','Notas','Legalizado_Por','Numero_Caja']

@@ -635,6 +635,31 @@
           </div>
           <div style="margin-top:8px">
             <div class="act-section-label">Configuración</div>
+            <div id="ma-abonos-row" class="act-check-row" style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px">
+              <span>Permite abonos</span>
+              <div style="display:flex;gap:12px">
+                <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer">
+                  <input type="radio" name="ma-permite-abonos" value="si" style="accent-color:var(--accent)"> Sí
+                </label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer">
+                  <input type="radio" name="ma-permite-abonos" value="no" checked style="accent-color:var(--accent)"> No
+                </label>
+              </div>
+            </div>
+            <div class="act-check-row" style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px">
+              <span>Método de pago</span>
+              <div style="display:flex;gap:12px">
+                <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer">
+                  <input type="radio" name="ma-metodos-pago" value="Efectivo" style="accent-color:var(--accent)"> Efectivo
+                </label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer">
+                  <input type="radio" name="ma-metodos-pago" value="Datáfono" style="accent-color:var(--accent)"> Datáfono
+                </label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer">
+                  <input type="radio" name="ma-metodos-pago" value="Ambos" checked style="accent-color:var(--accent)"> Ambos
+                </label>
+              </div>
+            </div>
             <div class="act-check-row" style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px">
               <span>Legalizar pago</span>
               <div style="display:flex;gap:12px">
@@ -1885,6 +1910,8 @@ async function cargarActividades() {
       { key:'legalizarInscripcion', label:'Inscripción', render: v => v ? '✓' : '–' },
       { key:'legalizarPago',       label:'Leg. Pago',  render: v => v ? '✓' : '–' },
       { key:'legalizarInscripcion',label:'Leg. Inscripción', render: v => v ? '✓' : '–' },
+      { key:'permiteAbonos',       label:'Abonos', render: v => v ? '✓' : '–' },
+      { key:'metodosPago',         label:'Método', render: v => v || 'Ambos' },
       { key:'activa',              label:'Activa', render: v => v ? '<span class="badge badge-green">Sí</span>' : '<span class="badge badge-red">No</span>' },
       { key:'id', label:'', render: (v,r) => `
         <div style="display:flex;gap:6px">
@@ -1960,11 +1987,17 @@ function onActUsaModulosChange() {
   const usaModulos = document.querySelector('input[name="ma-usa-modulos"]:checked').value === 'si';
   qs('#act-modulos-section').classList.toggle('hidden', !usaModulos);
   qs('#ma-valor-section').classList.toggle('hidden', usaModulos);
+  // Con módulos cada uno tiene su propio valor fijo, así que "permite abonos" vuelve a aplicar.
+  if (usaModulos) qs('#ma-abonos-row').classList.remove('hidden');
+  else onActTipoValorChange();
 }
 
 function onActTipoValorChange() {
   const isVar = document.querySelector('input[name="ma-tipovalor"]:checked').value === 'variable';
   qs('#ma-valor-wrap').classList.toggle('hidden', isVar);
+  // Los abonos se miden contra un valor total fijo; con valor variable no aplica.
+  qs('#ma-abonos-row').classList.toggle('hidden', isVar);
+  if (isVar) document.querySelector('input[name="ma-permite-abonos"][value="no"]').checked = true;
 }
 
 const DIAS_SEMANA_ = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo','Otro'];
@@ -2120,6 +2153,9 @@ async function abrirModalActividad() {
   document.querySelector('input[name="ma-legal-pago"][value="no"]').checked = true;
   document.querySelector('input[name="ma-legal-inscripcion"][value="no"]').checked = true;
   document.querySelector('input[name="ma-usa-modulos"][value="no"]').checked = true;
+  document.querySelector('input[name="ma-permite-abonos"][value="no"]').checked = true;
+  document.querySelector('input[name="ma-metodos-pago"][value="Ambos"]').checked = true;
+  qs('#ma-abonos-row').classList.remove('hidden');
   actRenderModulos();
   await loadActCats();
   qs('#ma-cat').value = '';
@@ -2152,6 +2188,9 @@ async function editarActividad(act) {
   document.querySelector(`input[name="ma-usa-modulos"][value="${usaModulos ? 'si' : 'no'}"]`).checked = true;
   qs('#act-modulos-section').classList.toggle('hidden', !usaModulos);
   qs('#ma-valor-section').classList.toggle('hidden', usaModulos);
+  document.querySelector(`input[name="ma-permite-abonos"][value="${act.permiteAbonos ? 'si' : 'no'}"]`).checked = true;
+  qs('#ma-abonos-row').classList.toggle('hidden', !usaModulos && isVar);
+  document.querySelector(`input[name="ma-metodos-pago"][value="${act.metodosPago || 'Ambos'}"]`).checked = true;
   actRenderModulos();
   openModal('modal-actividad');
 }
@@ -2200,6 +2239,8 @@ async function guardarActividad() {
     valorVariable:       usaModulos ? false : isVar,
     legalizarPago:       document.querySelector('input[name="ma-legal-pago"]:checked').value === 'si',
     legalizarInscripcion:document.querySelector('input[name="ma-legal-inscripcion"]:checked').value === 'si',
+    permiteAbonos:       document.querySelector('input[name="ma-permite-abonos"]:checked').value === 'si',
+    metodosPago:         document.querySelector('input[name="ma-metodos-pago"]:checked').value,
     modulos:             usaModulos ? _maModulos : []
   };
   const btn = qs('#btn-guardar-act');

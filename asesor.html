@@ -457,6 +457,14 @@
       </div>
     </div>
 
+    <div id="monto-abono" class="hidden">
+      <div class="alert alert-info" id="monto-abono-info" style="margin-bottom:8px"></div>
+      <div class="input-group">
+        <label for="monto-abono-input">Monto a pagar (COP) *</label>
+        <input id="monto-abono-input" class="input" type="text" inputmode="numeric" placeholder="$ 0" style="font-size:1.1rem;font-weight:700" oninput="formatearMonto(this)" readonly onclick="abrirKeypad('monto-abono-input')">
+      </div>
+    </div>
+
     <button id="btn-paso3" class="btn btn-primary btn-full cta-sticky" onclick="irPaso3()" disabled>
       Continuar →
     </button>
@@ -497,10 +505,10 @@
     </div>
 
     <div class="metodo-grid" role="group" aria-label="Método de pago">
-      <button class="metodo-btn" aria-pressed="false" onclick="seleccionarMetodo('Efectivo', this)">
+      <button id="metodo-btn-efectivo" class="metodo-btn" aria-pressed="false" onclick="seleccionarMetodo('Efectivo', this)">
         <span class="metodo-icon">💵</span> Efectivo
       </button>
-      <button class="metodo-btn" aria-pressed="false" onclick="seleccionarMetodo('Datáfono', this)">
+      <button id="metodo-btn-datafono" class="metodo-btn" aria-pressed="false" onclick="seleccionarMetodo('Datáfono', this)">
         <span class="metodo-icon">💳</span> Datáfono
       </button>
       <button class="metodo-btn" aria-pressed="false" onclick="seleccionarMetodo('Nequi', this)">
@@ -1130,6 +1138,7 @@ const STATE = {
   sedeRecaudo: ''
 };
 let actividadesCache = [];
+let _saldoAbonoActual = null; // {valorEsperado, totalPagado, saldoPendiente} de la actividad/módulo en curso, si permite abonos
 let catFiltroActual  = '';
 let cierreData = { transacciones: [], totales: {}, asesores: [] };
 let cierreMetodoFiltro = 'todos';
@@ -1320,6 +1329,8 @@ function seleccionarActividad(act, el) {
   qsa('.actividad-item').forEach(function(i) { i.classList.remove('selected'); });
   el.classList.add('selected');
   var hasModulos = act.modulos && act.modulos.length > 0;
+  _saldoAbonoActual = null;
+  hide('#monto-abono');
   if (hasModulos) {
     hide('#monto-variable');
     hide('#monto-fijo-display');
@@ -1328,6 +1339,10 @@ function seleccionarActividad(act, el) {
     show('#monto-variable'); hide('#monto-fijo-display');
     qs('#monto-input').value = '';
     qs('#monto-input').focus();
+  } else if (act.permiteAbonos) {
+    hide('#monto-variable'); hide('#monto-fijo-display');
+    STATE.monto = 0;
+    actualizarSaldoAbono_('');
   } else {
     hide('#monto-variable');
     show('#monto-fijo-display');
@@ -1392,6 +1407,39 @@ function renderHorariosModulo_(modulo, publico) {
     }).join('');
 }
 
+// Consulta el saldo pendiente de la persona en curso para una actividad (y,
+// si aplica, un módulo puntual) que permite abonos, y deja lista la sección
+// #monto-abono: prellenada con el saldo y con el "de $Y ya pagó $Z" como guía.
+// Si ya está pagada en su totalidad, deshabilita continuar.
+async function actualizarSaldoAbono_(modulo) {
+  hide('#monto-fijo-display');
+  show('#monto-abono');
+  _saldoAbonoActual = null;
+  setHtml('#monto-abono-info', 'Consultando saldo…');
+  qs('#monto-abono-input').value = '';
+  try {
+    const res = await gsr('obtenerSaldoActividad', {
+      idActividad: STATE.actividad.id,
+      documentoPersona: (STATE.persona && STATE.persona.documento) || '',
+      nombrePersona: STATE.persona ? STATE.persona.nombre : '',
+      modulo: modulo || ''
+    });
+    _saldoAbonoActual = res;
+    if (res.saldoPendiente <= 0) {
+      setHtml('#monto-abono-info', '✅ Esta persona ya pagó el total (' + fmt.cop(res.valorEsperado) + ') de esta actividad.');
+      STATE.monto = 0;
+      return;
+    }
+    var pagadoTxt = res.totalPagado > 0 ? ' · ya abonó ' + fmt.cop(res.totalPagado) : '';
+    setHtml('#monto-abono-info', '💰 Total: ' + fmt.cop(res.valorEsperado) + pagadoTxt + ' · Saldo pendiente: <strong>' + fmt.cop(res.saldoPendiente) + '</strong>');
+    qs('#monto-abono-input').value = '$ ' + res.saldoPendiente.toLocaleString('es-CO');
+    STATE.monto = res.saldoPendiente;
+  } catch(e) {
+    setHtml('#monto-abono-info', '⚠️ No se pudo consultar el saldo: ' + e.message);
+    STATE.monto = 0;
+  }
+}
+
 function onModuloChange() {
   var idx = qs('#insc-modulo').value;
   var horSel = qs('#insc-horario');
@@ -1403,10 +1451,15 @@ function onModuloChange() {
     return;
   }
   var modulo = STATE.actividad.modulos[Number(idx)];
-  STATE.monto = Number(modulo.valor) || 0;
-  hide('#monto-variable');
-  show('#monto-fijo-display');
-  setHtml('#monto-fijo-val', fmt.cop(STATE.monto));
+  if (STATE.actividad.permiteAbonos) {
+    actualizarSaldoAbono_(modulo.nombre);
+  } else {
+    STATE.monto = Number(modulo.valor) || 0;
+    hide('#monto-variable');
+    hide('#monto-abono');
+    show('#monto-fijo-display');
+    setHtml('#monto-fijo-val', fmt.cop(STATE.monto));
+  }
 
   if ((modulo.dirigidoA || 'General') === 'Todos') {
     // El módulo sirve a ambos públicos: primero se pregunta cuál es, y solo
@@ -1461,6 +1514,14 @@ function irPaso3() {
     STATE.modulo  = qs('#insc-modulo').value.trim();
     STATE.horario = qs('#insc-horario').value.trim();
   }
+  if (STATE.actividad.permiteAbonos && !STATE.actividad.valorVariable) {
+    if (!_saldoAbonoActual) { toast.warn('Espera a que se consulte el saldo pendiente'); return; }
+    if (_saldoAbonoActual.saldoPendiente <= 0) { toast.warn('Esta persona ya pagó el total de esta actividad'); return; }
+    var montoAbono = Number(qs('#monto-abono-input').value.replace(/[^0-9]/g, ''));
+    if (!montoAbono || montoAbono <= 0) { toast.warn('Ingresa el monto a pagar'); return; }
+    if (montoAbono > _saldoAbonoActual.saldoPendiente) { toast.warn('El monto no puede superar el saldo pendiente (' + fmt.cop(_saldoAbonoActual.saldoPendiente) + ')'); return; }
+    STATE.monto = montoAbono;
+  }
   setHtml('#res-sede',      escHtml(STATE.sedeRecaudo));
   setHtml('#res-persona',   escHtml(STATE.persona.nombre));
   setHtml('#res-actividad', escHtml(STATE.actividad.nombre));
@@ -1473,8 +1534,26 @@ function irPaso3() {
     show('#res-horario-row');
   } else { hide('#res-horario-row'); }
   setHtml('#res-monto',     fmt.cop(STATE.monto));
+  actualizarMetodosDisponibles_();
   hide('#step2'); show('#step3');
   actualizarStepIndicator(3);
+}
+
+// Oculta Efectivo/Datáfono si la actividad no los admite (configuración de la
+// actividad). Nequi nunca se restringe por esta vía. Si el método que ya
+// estaba seleccionado deja de estar disponible, se limpia la selección.
+function actualizarMetodosDisponibles_() {
+  var metodos = (STATE.actividad && STATE.actividad.metodosPago) || 'Ambos';
+  var permiteEfectivo = metodos !== 'Datáfono';
+  var permiteDatafono = metodos !== 'Efectivo';
+  toggle('#metodo-btn-efectivo', permiteEfectivo);
+  toggle('#metodo-btn-datafono', permiteDatafono);
+  if ((STATE.metodoPago === 'Efectivo' && !permiteEfectivo) || (STATE.metodoPago === 'Datáfono' && !permiteDatafono)) {
+    STATE.metodoPago = null;
+    qsa('.metodo-btn').forEach(function(b) { b.classList.remove('selected'); b.setAttribute('aria-pressed', 'false'); });
+    hide('#subpaso-efectivo'); hide('#subpaso-datafono');
+    qs('#btn-registrar').disabled = true;
+  }
 }
 
 function volverPaso2() { hide('#step3'); show('#step2'); actualizarStepIndicator(2); }
@@ -1812,6 +1891,7 @@ function mostrarExito(t, ins) {
     ['Persona', t.nombrePersona], ['Actividad', t.actividad],
     ['Monto', fmt.cop(t.monto)], ['Método', t.metodoPago],
     ['Fecha', t.timestamp],
+    ...(t.saldoPendiente > 0 ? [['Saldo pendiente', fmt.cop(t.saldoPendiente)]] : []),
     ...(ins ? [['Inscripción', '✓ Creada']] : [])
   ];
   setHtml('#success-resumen', rows.map(function(r) {

@@ -7,6 +7,7 @@
 //   getHistorialTurno(sede?)               → {transacciones:[], totales:{}}
 //   getCarteraAsesor()                     → Object[]  (semáforo por persona)
 //   exportarTransaccionesDatafono(filtros) → Object[]  (datos para CSV frontend)
+//   obtenerSaldoActividad(params)          → {valorEsperado, totalPagado, saldoPendiente}
 
 /**
  * Payload esperado de crearTransaccion:
@@ -70,6 +71,11 @@ function crearTransaccion(token, payload) {
   const actividad = obtenerActividad_(payload.idActividad);
   if (!actividad.activa) throw new Error('La actividad "' + actividad.nombre + '" está inactiva y no permite transacciones.');
 
+  // Nequi es un canal aparte (comprobante propio) y nunca se restringe aquí.
+  if (payload.metodoPago !== 'Nequi' && !metodosPagoPermitidos_(actividad).includes(payload.metodoPago)) {
+    throw new Error('La actividad "' + actividad.nombre + '" solo admite pago por ' + actividad.metodosPago + '.');
+  }
+
   var debeInscribir = actividad.legalizarInscripcion || (actividad.modulos && actividad.modulos.length > 0);
 
   // Validar módulo y horario si la actividad requiere inscripción y tiene opciones definidas
@@ -80,6 +86,15 @@ function crearTransaccion(token, payload) {
     if (actividad.horarios && actividad.horarios.length > 0 && !payload.horario) {
       throw new Error('Debe seleccionar un horario para la actividad "' + actividad.nombre + '".');
     }
+  }
+
+  // Valor total esperado (null si es de valor variable, sin abonos aplicables) y
+  // validación de abonos: si la actividad no los permite, el monto de esta
+  // transacción debe ser exactamente el valor total. Si sí los permite, se
+  // valida más abajo contra lo ya pagado (requiere sumar transacciones previas).
+  var valorEsperado = valorEsperadoActividad_(actividad, payload.modulo);
+  if (valorEsperado !== null && !actividad.permiteAbonos && Number(payload.monto) !== valorEsperado) {
+    throw new Error('La actividad "' + actividad.nombre + '" no permite abonos. El monto debe ser exactamente ' + formatCOP_(valorEsperado) + '.');
   }
 
   // Subir el comprobante de Nequi ANTES del lock: es I/O a Drive que puede tardar
@@ -127,10 +142,18 @@ function crearTransaccion(token, payload) {
       }
     }
 
+    // Total ya pagado por esta persona en esta actividad (+módulo), sin contar
+    // el pago que se está registrando ahora mismo. Solo se necesita cuando hay
+    // un valor total fijo contra el cual medir abonos.
+    var totalPagadoPrevio = valorEsperado !== null
+      ? sumaPagosPersonaActividad_(transExistentes, payload.nombreActividad, payload.documentoPersona, payload.nombrePersona, payload.modulo)
+      : 0;
+
+    var inscripcionExistente = null;
     if (debeInscribir) {
-      // Validar que no exista inscripción duplicada (misma persona + actividad + módulo + horario)
+      // Buscar inscripción existente (misma persona + actividad + módulo + horario)
       const inscExistentes  = sheetToObjects_('Inscripciones');
-      const yaInscrito = inscExistentes.some(function(ins) {
+      inscripcionExistente = inscExistentes.find(function(ins) {
         if (ins.Actividad !== payload.nombreActividad) return false;
         if (payload.modulo && ins.Modulo !== payload.modulo) return false;
         if (payload.horario && ins.Horario !== payload.horario) return false;
@@ -142,9 +165,21 @@ function crearTransaccion(token, payload) {
           return String(transAsociada.Documento_Persona) === String(payload.documentoPersona);
         }
         return transAsociada.Nombre_Persona === payload.nombrePersona;
-      });
-      if (yaInscrito) {
+      }) || null;
+      if (inscripcionExistente && (!actividad.permiteAbonos || valorEsperado === null)) {
+        // Ya inscrito y no hay forma de que este segundo pago sea un abono
+        // legítimo (la actividad no los permite, o no tiene valor fijo).
         throw new Error('La persona "' + payload.nombrePersona + '" ya tiene una inscripción activa en ' + payload.nombreActividad + (payload.modulo ? ' - ' + payload.modulo : '') + (payload.horario ? ' (' + payload.horario + ')' : '') + '.');
+      }
+    }
+
+    if (valorEsperado !== null && actividad.permiteAbonos) {
+      if (totalPagadoPrevio >= valorEsperado) {
+        throw new Error('La persona "' + payload.nombrePersona + '" ya pagó el total de ' + payload.nombreActividad + (payload.modulo ? ' - ' + payload.modulo : '') + '.');
+      }
+      var saldoPendienteAntes = valorEsperado - totalPagadoPrevio;
+      if (Number(payload.monto) > saldoPendienteAntes) {
+        throw new Error('El monto supera el saldo pendiente de ' + formatCOP_(saldoPendienteAntes) + ' para ' + payload.nombreActividad + '.');
       }
     }
 
@@ -202,6 +237,16 @@ function crearTransaccion(token, payload) {
     if (payload.correoPersona) {
       emailEnviadoColIdx = ensureColumn_(sheet, 'Email_Enviado');
     }
+    // Guardado solo para poder sumar abonos por módulo más adelante
+    // (sumaPagosPersonaActividad_); las actividades sin módulos no la usan.
+    if (payload.modulo) {
+      const moduloColIdx = ensureColumn_(sheet, 'Modulo');
+      sheet.getRange(filaTransaccion, moduloColIdx + 1).setValue(payload.modulo);
+    }
+
+    var saldoPendiente = (valorEsperado !== null && actividad.permiteAbonos)
+      ? Math.max(0, valorEsperado - totalPagadoPrevio - Number(payload.monto))
+      : null;
 
     transaccion = {
       id:              idTrans,
@@ -211,6 +256,7 @@ function crearTransaccion(token, payload) {
       sede:            payload.sede,
       monto:           Number(payload.monto),
       metodoPago:      payload.metodoPago,
+      saldoPendiente:  saldoPendiente,
       asesorEmail:     asesorInfo.email,
       asesorNombre:    asesorInfo.nombre,
       estadoIglesia,
@@ -230,7 +276,10 @@ function crearTransaccion(token, payload) {
     }
 
     // ── Generar inscripción si aplica ───────────────────────────────────────
-    if (debeInscribir) {
+    // Si ya existía una inscripción activa para esta persona+módulo (abono
+    // sobre un pago anterior), no se crea una segunda — la inscripción ya
+    // está hecha, solo se está terminando de pagar.
+    if (debeInscribir && !inscripcionExistente) {
       inscripcion = crearInscripcionDesdeTransaccion_({
         idTrans,
         actividad:      payload.nombreActividad,
@@ -668,6 +717,47 @@ function exportarTransaccionesDatafono(token, filtros = {}) {
 }
 
 // ─── HELPERS INTERNOS ─────────────────────────────────────────────────────────
+
+/**
+ * Suma lo pagado (transacciones activas, no anuladas) por una persona en una
+ * actividad — y, si se indica, en un módulo puntual de esa actividad — para
+ * medir cuánto lleva abonado contra el valor total. La persona se identifica
+ * por documento cuando está disponible (más confiable que el nombre).
+ */
+function sumaPagosPersonaActividad_(transacciones, nombreActividad, documentoPersona, nombrePersona, modulo) {
+  return transacciones
+    .filter(function(t) {
+      if (t.Actividad !== nombreActividad) return false;
+      if ((t.Estado || 'Activa') === 'Anulada') return false;
+      if (modulo && (t.Modulo || '') !== modulo) return false;
+      if (!modulo && t.Modulo) return false;
+      if (documentoPersona && t.Documento_Persona) {
+        return String(t.Documento_Persona) === String(documentoPersona);
+      }
+      return t.Nombre_Persona === nombrePersona;
+    })
+    .reduce(function(sum, t) { return sum + (Number(t.Monto) || 0); }, 0);
+}
+
+/**
+ * Saldo pendiente de una persona en una actividad de valor fijo que permite
+ * abonos — usado por el frontend para mostrar/prellenar el monto antes de
+ * registrar un pago. Para actividades de valor variable o sin abonos
+ * devuelve saldoPendiente:null (no aplica).
+ * @param {{idActividad, documentoPersona?, nombrePersona, modulo?}} params
+ */
+function obtenerSaldoActividad(token, params) {
+  authenticate_(token);
+  requireRol_('asesor', 'coordinadora');
+  const actividad = obtenerActividad_(params.idActividad);
+  const valorEsperado = valorEsperadoActividad_(actividad, params.modulo);
+  if (valorEsperado === null || !actividad.permiteAbonos) {
+    return { valorEsperado: valorEsperado, totalPagado: 0, saldoPendiente: null };
+  }
+  const transacciones = sheetToObjects_('Transacciones');
+  const totalPagado = sumaPagosPersonaActividad_(transacciones, actividad.nombre, params.documentoPersona, params.nombrePersona, params.modulo);
+  return { valorEsperado: valorEsperado, totalPagado: totalPagado, saldoPendiente: Math.max(0, valorEsperado - totalPagado) };
+}
 
 function mapTransaccion_(t) {
   return {

@@ -18,6 +18,14 @@ function toBool_(val) {
 }
 
 /**
+ * Métodos de pago restringibles por actividad. 'Ambos' (por defecto, incluso
+ * en actividades creadas antes de que existiera este campo) no restringe
+ * nada. Nequi no se incluye aquí: es un canal aparte con su propio flujo de
+ * comprobante y siempre está disponible sin importar esta configuración.
+ */
+const METODOS_PAGO_VALIDOS_ = ['Efectivo', 'Datáfono', 'Ambos'];
+
+/**
  * Mapea una fila de actividad a objeto normalizado.
  */
 function mapActividad_(a) {
@@ -36,10 +44,39 @@ function mapActividad_(a) {
     legalizarAcademia:   toBool_(a.Legalizar_Academia),
     legalizarPago:       toBool_(a.Legalizar_Pago),
     legalizarInscripcion:toBool_(a.Legalizar_Inscripcion),
+    permiteAbonos:       toBool_(a.Permite_Abonos),
+    metodosPago:         METODOS_PAGO_VALIDOS_.includes(a.Metodos_Pago) ? a.Metodos_Pago : 'Ambos',
     horarios:            horarios,
     modulos:             modulos,
     activa:              toBool_(a.Activa)
   };
+}
+
+/**
+ * Métodos de pago (entre Efectivo/Datáfono) permitidos por una actividad ya
+ * mapeada. Nequi nunca se restringe por esta vía (ver METODOS_PAGO_VALIDOS_).
+ * @returns {string[]}
+ */
+function metodosPagoPermitidos_(actividad) {
+  if (actividad.metodosPago === 'Efectivo') return ['Efectivo'];
+  if (actividad.metodosPago === 'Datáfono') return ['Datáfono'];
+  return ['Efectivo', 'Datáfono'];
+}
+
+/**
+ * Valor total a pagar por una actividad ya mapeada, o null si es de valor
+ * variable (no hay un total fijo contra el cual medir abonos/saldo).
+ * @param {Object} actividad
+ * @param {string} [nombreModulo] - Si la actividad tiene módulos, el módulo elegido.
+ * @returns {number|null}
+ */
+function valorEsperadoActividad_(actividad, nombreModulo) {
+  if (actividad.valorVariable) return null;
+  if (nombreModulo && actividad.modulos && actividad.modulos.length) {
+    const mod = actividad.modulos.find(m => m.nombre === nombreModulo);
+    return mod ? (Number(mod.valor) || 0) : (Number(actividad.valorBase) || 0);
+  }
+  return Number(actividad.valorBase) || 0;
 }
 
 /**
@@ -109,6 +146,9 @@ function crearActividad(token, datos) {
   const actorInfo = requireRol_('coordinadora');
   validateRequired_(datos, ['nombre', 'categoria']);
   if (datos.modulos !== undefined) validarModulos_(datos.modulos);
+  if (datos.metodosPago !== undefined && !METODOS_PAGO_VALIDOS_.includes(datos.metodosPago)) {
+    throw new Error('Método de pago inválido: ' + datos.metodosPago);
+  }
 
   const sheet = getSheet_('Actividades', true);
   const id    = generateId_('ACT');
@@ -131,6 +171,15 @@ function crearActividad(token, datos) {
     formatDate_(new Date())
   ]);
 
+  // Columnas agregadas después del lanzamiento inicial: se garantizan aquí
+  // (en vez de ir en el array posicional de arriba) para no desalinear las
+  // hojas ya existentes en producción, que todavía no las tienen.
+  const filaNueva = sheet.getLastRow();
+  const abonosColIdx  = ensureColumn_(sheet, 'Permite_Abonos');
+  const metodosColIdx = ensureColumn_(sheet, 'Metodos_Pago');
+  sheet.getRange(filaNueva, abonosColIdx  + 1).setValue(datos.permiteAbonos ? true : false);
+  sheet.getRange(filaNueva, metodosColIdx + 1).setValue(datos.metodosPago || 'Ambos');
+
   return { ok: true, id };
 }
 
@@ -144,7 +193,16 @@ function actualizarActividad(token, id, datos) {
   authenticate_(token);
   const actorInfo = requireRol_('coordinadora');
   if (datos.modulos !== undefined) validarModulos_(datos.modulos);
+  if (datos.metodosPago !== undefined && !METODOS_PAGO_VALIDOS_.includes(datos.metodosPago)) {
+    throw new Error('Método de pago inválido: ' + datos.metodosPago);
+  }
   const sheet   = getSheet_('Actividades');
+  // Columnas agregadas después del lanzamiento inicial: se garantizan antes de
+  // leer los encabezados, para que actividades creadas antes de este cambio
+  // también puedan editarlas (si no, el guardado de estos campos se ignora
+  // silenciosamente más abajo).
+  if (datos.permiteAbonos !== undefined) ensureColumn_(sheet, 'Permite_Abonos');
+  if (datos.metodosPago   !== undefined) ensureColumn_(sheet, 'Metodos_Pago');
   const values  = sheet.getDataRange().getValues();
   const headers = values[0];
   const idIdx   = headers.indexOf('ID_Actividad');
@@ -159,6 +217,8 @@ function actualizarActividad(token, id, datos) {
     legalizarAcademia:   'Legalizar_Academia',
     legalizarPago:       'Legalizar_Pago',
     legalizarInscripcion:'Legalizar_Inscripcion',
+    permiteAbonos:       'Permite_Abonos',
+    metodosPago:         'Metodos_Pago',
     horarios:            'Horarios',
     modulos:             'Modulos'
   };
