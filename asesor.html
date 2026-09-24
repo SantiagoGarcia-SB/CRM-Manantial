@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Manantial · Punto de Información</title>
   <link rel="icon" type="image/png" sizes="32x32" href="https://www.soymanantial.com/32x32.png?v=2">
   <link rel="icon" type="image/png" sizes="16x16" href="https://www.soymanantial.com/16x16.png?v=2">
@@ -79,6 +79,7 @@
       display: flex; flex-direction: column; gap: 16px;
     }
     .actividad-item {
+      width: 100%; text-align: left; font-family: inherit; margin: 0;
       padding: 14px 16px;
       background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
       cursor: pointer; transition: all 0.15s; display: flex; justify-content: space-between; align-items: center;
@@ -352,9 +353,9 @@
           <div id="ps-detalle" style="font-size:.78rem;margin-top:2px;color:var(--text-dim)"></div>
         </div>
         <div style="margin-left:auto;display:flex;gap:4px">
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem;color:var(--accent)" onclick="verHistorialPersona()">Historial</button>
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.75rem;color:var(--accent)" onclick="editarPersonaSeleccionada()">Editar</button>
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.8rem" onclick="resetPersona()">✕</button>
+          <button class="btn btn-ghost" style="padding:9px 10px;font-size:.75rem;color:var(--accent)" onclick="verHistorialPersona()">Historial</button>
+          <button class="btn btn-ghost" style="padding:9px 10px;font-size:.75rem;color:var(--accent)" onclick="editarPersonaSeleccionada()">Editar</button>
+          <button class="btn btn-ghost" style="padding:9px 12px;font-size:.8rem" onclick="resetPersona()">✕</button>
         </div>
       </div>
     </div>
@@ -696,6 +697,7 @@
 
     <!-- Filtro asesor -->
     <div class="input-group" style="margin-bottom:12px">
+      <label for="cierre-asesor-filtro">Filtrar por asesor</label>
       <select id="cierre-asesor-filtro" class="input" onchange="filtrarCierreAsesor()" style="font-size:.82rem">
         <option value="">Todos los asesores</option>
       </select>
@@ -829,7 +831,7 @@
 
 <!-- BOTTOM NAV -->
 <nav class="bottom-nav">
-  <button class="nav-btn active" onclick="showPage('nueva', this)">
+  <button class="nav-btn active" aria-current="page" onclick="showPage('nueva', this)">
     <span class="nav-icon">➕</span> Nueva
   </button>
   <button class="nav-btn" onclick="showPage('cartera', this); cargarCartera()">
@@ -844,6 +846,40 @@
 
 <?!= include('utils.js'); ?>
 <script>
+// ─── FOCO EN OVERLAYS MANUALES ────────────────────────────────────────────────
+// #modal-editar-persona y #modal-confirmar-cierre no usan openModal()/closeModal()
+// de utils.js (tienen su propio overlay hecho a mano), así que replican aquí el
+// mismo manejo de foco: guardar/restaurar foco y atrapar Tab mientras están abiertos.
+let _overlayLastFocused = null;
+function abrirOverlayManual(id) {
+  _overlayLastFocused = document.activeElement;
+  const el = qs('#' + id);
+  el.style.display = 'flex';
+  const focusables = getFocusable(el);
+  (focusables[0] || el).focus();
+}
+function cerrarOverlayManual(id) {
+  qs('#' + id).style.display = 'none';
+  if (_overlayLastFocused && typeof _overlayLastFocused.focus === 'function') _overlayLastFocused.focus();
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Tab' && e.key !== 'Escape') return;
+  const abierto = ['modal-editar-persona', 'modal-confirmar-cierre']
+    .map(function(id) { return qs('#' + id); })
+    .find(function(el) { return el && el.style.display === 'flex'; });
+  if (!abierto) return;
+  if (e.key === 'Escape') {
+    if (abierto.id === 'modal-editar-persona') cerrarEditarPersona();
+    else cerrarModalCierre();
+    return;
+  }
+  const focusables = getFocusable(abierto);
+  if (!focusables.length) return;
+  const first = focusables[0], last = focusables[focusables.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+
 // ─── VALIDACIÓN CORREO ───────────────────────────────────────────────────────
 function validarInputCorreo(input) {
   var v = input.value.trim();
@@ -964,7 +1000,16 @@ function precargarDatos() {
   }
 }
 
-function salir() {
+async function salir() {
+  // Salir en medio de un registro (persona/actividad/método ya elegidos) borra
+  // ese avance sin aviso — se confirma antes si hay algo sin terminar.
+  if (STATE.persona || STATE.actividad || STATE.metodoPago) {
+    var ok = await confirmDialog(
+      'Tienes un registro sin terminar. Si sales ahora se perderá.',
+      { title: 'Salir', confirmText: 'Sí, salir' }
+    );
+    if (!ok) return;
+  }
   gsrPublic('cerrarSesion', window._sessionToken).catch(function(){});
   window._sessionToken = '';
   localStorage.removeItem('crm_token');
@@ -1105,8 +1150,8 @@ let _ultimoArqueoDiff = null; // null = no se ha contado caja todavía en este t
 function showPage(name, btn) {
   qsa('.page').forEach(function(p) { p.classList.remove('active'); });
   qs('#page-' + name).classList.add('active');
-  qsa('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
-  if (btn) btn.classList.add('active');
+  qsa('.nav-btn').forEach(function(b) { b.classList.remove('active'); b.removeAttribute('aria-current'); });
+  if (btn) { btn.classList.add('active'); btn.setAttribute('aria-current', 'page'); }
 }
 
 // ─── PASO 1: BÚSQUEDA DE PERSONA ─────────────────────────────────────────────
@@ -1146,17 +1191,17 @@ function renderResultados(lista, query) {
   const c = qs('#resultados-busqueda');
   qs('#btn-nueva-persona').disabled = false;
   if (!lista.length) {
-    c.innerHTML = `<div class="search-results"><div class="search-item" onclick="showFormNuevaPersona()" style="cursor:pointer">
+    c.innerHTML = `<div class="search-results"><button type="button" class="search-item" onclick="showFormNuevaPersona()" style="cursor:pointer">
       <div class="search-item-name">No se encontró a nadie con "${escHtml(query)}"</div>
       <div class="search-item-sub" style="color:var(--accent)">➕ Toca aquí para registrarla como nueva persona</div>
-    </div></div>`;
+    </button></div>`;
     return;
   }
   c.innerHTML = `<div class="search-results">${lista.map(function(p) { return `
-    <div class="search-item" onclick='seleccionarPersona(${JSON.stringify(p)})'>
+    <button type="button" class="search-item" onclick='seleccionarPersona(${JSON.stringify(p)})'>
       <div class="search-item-name">👤 ${escHtml(p.nombre)}</div>
       <div class="search-item-sub">CC ${escHtml(p.documento)} · ${escHtml(p.celular||'')} · ${escHtml(p.sede)}</div>
-    </div>`; }).join('')}</div>`;
+    </button>`; }).join('')}</div>`;
 }
 
 function seleccionarPersona(p) {
@@ -1205,6 +1250,8 @@ async function crearPersonaYContinuar() {
   if (!datos.nombre)    errores.push(['np-nombre',    'Ingresa el nombre completo']);
   if (!datos.documento) errores.push(['np-documento', 'Ingresa el número de cédula']);
   if (!datos.sede)      errores.push(['np-sede',      'Selecciona la sede']);
+  const npCorreoErr = qs('#np-correo-error');
+  if (npCorreoErr && npCorreoErr.style.display === 'block') errores.push(['np-correo', 'Corrige el formato del correo']);
   if (errores.length) {
     errores.forEach(([id]) => { const el = qs('#' + id); if (el) el.classList.add('input-error'); });
     toast.error(errores.length === 1 ? errores[0][1] : `Revisa ${errores.length} campos: ` + errores.map(e => e[1]).join(' · '));
@@ -1260,7 +1307,7 @@ function renderActividades(lista) {
 
   var c = qs('#lista-actividades');
   if (!filtradas.length) { c.innerHTML = '<p class="text-muted text-center">Sin actividades en esta categoría</p>'; return; }
-  c.innerHTML = filtradas.map(function(a) { return '<div class="actividad-item" onclick=\'seleccionarActividad(' + JSON.stringify(a).replace(/'/g, "&#39;") + ', this)\' id="act-' + a.id + '"><div><div class="actividad-nombre">' + escHtml(a.nombre) + '</div></div><span class="actividad-check">✓</span></div>'; }).join('');
+  c.innerHTML = filtradas.map(function(a) { return '<button type="button" class="actividad-item" onclick=\'seleccionarActividad(' + JSON.stringify(a).replace(/'/g, "&#39;") + ', this)\' id="act-' + a.id + '"><div><div class="actividad-nombre">' + escHtml(a.nombre) + '</div></div><span class="actividad-check">✓</span></button>'; }).join('');
 }
 
 function filtrarCat(cat) {
@@ -1889,7 +1936,7 @@ function renderCartera(items) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
         <div class="cartera-monto">${fmt.cop(i.ultimaMonto)}</div>
-        <button class="btn btn-ghost" style="font-size:.7rem;padding:2px 8px;color:var(--accent)" onclick="abrirEditarPersona('${escHtml(i.documentoPersona)}', '${escHtml(i.nombrePersona)}')">Editar</button>
+        <button class="btn btn-ghost" style="font-size:.7rem;padding:9px 10px;color:var(--accent)" onclick="abrirEditarPersona('${escHtml(i.documentoPersona)}', '${escHtml(i.nombrePersona)}')">Editar</button>
       </div>
     </div>`; }).join('');
 }
@@ -1903,7 +1950,7 @@ async function onSedeRecaudoChange(sede) {
   // sede equivocada — se detectaría solo al cuadrar caja. Se confirma antes.
   var ok = await confirmDialog(
     '¿Cambiar la sede de recaudo a ' + sede + '? Los próximos pagos que registres quedarán asignados a esa sede.',
-    { title: 'Cambiar de sede', confirmText: 'Sí, cambiar' }
+    { title: 'Cambiar de sede', confirmText: 'Sí, cambiar', danger: false }
   );
   if (!ok) {
     qs('#sede-recaudo-select').value = anterior;
@@ -2197,11 +2244,11 @@ function generarCierre() {
   } else {
     hide(avisoArqueo);
   }
-  qs('#modal-confirmar-cierre').style.display = 'flex';
+  abrirOverlayManual('modal-confirmar-cierre');
 }
 
 function cerrarModalCierre() {
-  qs('#modal-confirmar-cierre').style.display = 'none';
+  cerrarOverlayManual('modal-confirmar-cierre');
 }
 
 async function ejecutarCierre(forzar) {
@@ -2270,7 +2317,7 @@ function editarPersonaSeleccionada() {
   qs('#ep-celular').value   = STATE.persona.celular || '';
   qs('#ep-correo').value    = STATE.persona.correo  || '';
   qs('#ep-sede').value      = STATE.persona.sede    || '';
-  qs('#modal-editar-persona').style.display = 'flex';
+  abrirOverlayManual('modal-editar-persona');
 }
 
 async function abrirEditarPersona(documento, nombre) {
@@ -2279,9 +2326,19 @@ async function abrirEditarPersona(documento, nombre) {
     // ese caso se busca por nombre, igual que ya hace getCarteraAsesor para
     // no perder de vista a esas personas.
     const resultados = await gsr('buscarPersonas', documento || nombre);
-    const persona = documento
-      ? resultados.find(function(p) { return p.documento === documento; })
-      : resultados.find(function(p) { return p.nombre === nombre; });
+    let persona;
+    if (documento) {
+      persona = resultados.find(function(p) { return p.documento === documento; });
+    } else {
+      const coincidencias = resultados.filter(function(p) { return p.nombre === nombre; });
+      if (coincidencias.length > 1) {
+        toast.warn('Hay ' + coincidencias.length + ' personas registradas como "' + nombre + '" (cédulas: ' +
+          coincidencias.map(function(p) { return p.documento || 'sin cédula'; }).join(', ') +
+          '). Busca por cédula para editar a la persona correcta.');
+        return;
+      }
+      persona = coincidencias[0];
+    }
     if (!persona) { toast.warn('Persona no encontrada'); return; }
     qs('#ep-documento-original').value = persona.documento;
     qs('#ep-nombre').value    = persona.nombre;
@@ -2289,13 +2346,12 @@ async function abrirEditarPersona(documento, nombre) {
     qs('#ep-celular').value   = persona.celular || '';
     qs('#ep-correo').value    = persona.correo  || '';
     qs('#ep-sede').value      = persona.sede    || '';
-    var modal = qs('#modal-editar-persona');
-    modal.style.display = 'flex';
+    abrirOverlayManual('modal-editar-persona');
   } catch(e) { toast.error('Error: ' + e.message); }
 }
 
 function cerrarEditarPersona() {
-  qs('#modal-editar-persona').style.display = 'none';
+  cerrarOverlayManual('modal-editar-persona');
 }
 
 async function guardarEdicionPersona() {
@@ -2309,6 +2365,8 @@ async function guardarEdicionPersona() {
   };
   if (!datos.nombre) { toast.warn('El nombre es obligatorio'); return; }
   if (!datos.documento) { toast.warn('La cédula es obligatoria'); return; }
+  var epCorreoErr = qs('#ep-correo-error');
+  if (epCorreoErr && epCorreoErr.style.display === 'block') { toast.warn('Corrige el formato del correo antes de guardar'); return; }
   var btn = qs('#btn-guardar-persona');
   setLoading(btn, true);
   try {

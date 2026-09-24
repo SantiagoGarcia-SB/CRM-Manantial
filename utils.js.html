@@ -145,13 +145,26 @@ function badgeSemaforo(s) {
 }
 
 // ── Modal helpers ─────────────────────────────────────────────────────────────
+// Elementos que pueden recibir foco por teclado dentro de un contenedor visible.
+function getFocusable(container) {
+  return qsa('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', container)
+    .filter(el => !el.disabled && el.offsetParent !== null);
+}
 function openModal(id)  {
   const m = qs(`#${id}`);
-  if (m) { m.classList.add('open'); m.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden'; }
+  if (m) {
+    m._lastFocused = document.activeElement;
+    m.classList.add('open'); m.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
+    const focusables = getFocusable(m);
+    (focusables[0] || m).focus();
+  }
 }
 function closeModal(id) {
   const m = qs(`#${id}`);
-  if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
+  if (m) {
+    m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); document.body.style.overflow = '';
+    if (m._lastFocused && typeof m._lastFocused.focus === 'function') m._lastFocused.focus();
+  }
 }
 document.addEventListener('click', e => {
   if (e.target.classList.contains('modal-backdrop')) closeModal(e.target.id);
@@ -161,9 +174,17 @@ document.addEventListener('click', e => {
   }
 });
 document.addEventListener('keydown', e => {
-  if (e.key !== 'Escape') return;
   const abierto = qs('.modal-backdrop.open');
-  if (abierto) closeModal(abierto.id);
+  if (!abierto) return;
+  if (e.key === 'Escape') { closeModal(abierto.id); return; }
+  if (e.key !== 'Tab') return;
+  // Atrapa el foco dentro del modal mientras está abierto, para que Tab no
+  // se escape hacia contenido oculto detrás del backdrop.
+  const focusables = getFocusable(abierto);
+  if (!focusables.length) return;
+  const first = focusables[0], last = focusables[focusables.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
 
 // ── Tabla helpers ─────────────────────────────────────────────────────────────
@@ -255,6 +276,7 @@ function autocapitalizarNombre(input) {
 function confirmDialog(message, opts = {}) {
   const { title = 'Confirmar acción', confirmText = 'Confirmar', cancelText = 'Cancelar', danger = true } = opts;
   return new Promise(resolve => {
+    const previamenteEnfocado = document.activeElement;
     const wrap = document.createElement('div');
     wrap.id = 'confirm-dialog-' + Date.now();
     wrap.className = 'modal-backdrop open';
@@ -271,9 +293,12 @@ function confirmDialog(message, opts = {}) {
       '</div>';
     document.body.appendChild(wrap);
     document.body.style.overflow = 'hidden';
+    const focusables = getFocusable(wrap);
+    (focusables[0] || wrap).focus();
     function cleanup(result) {
       wrap.remove();
       document.body.style.overflow = '';
+      if (previamenteEnfocado && typeof previamenteEnfocado.focus === 'function') previamenteEnfocado.focus();
       resolve(result);
     }
     wrap.addEventListener('click', e => {

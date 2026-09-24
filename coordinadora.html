@@ -38,11 +38,12 @@
     .sidebar-nav { flex: 1; padding: 8px 0; }
     .nav-item {
       display: flex; align-items: center; gap: 10px;
+      width: 100%; text-align: left; font-family: inherit; margin: 0;
       padding: 10px 16px;
       font-size: 0.82rem; font-weight: 600;
       color: var(--text-dim);
       cursor: pointer; transition: all 0.15s;
-      border-left: 3px solid transparent;
+      background: none; border: none; border-left: 3px solid transparent;
       user-select: none;
     }
     .nav-item:hover  { color: var(--text); background: var(--surface2); }
@@ -286,17 +287,17 @@
     <div style="margin-top:4px"><button type="button" onclick="salir()" style="font:inherit;font-size:0.7rem;color:var(--text-dim);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline">Cerrar sesión</button></div>
   </div>
   <nav class="sidebar-nav">
-    <div class="nav-item active"  onclick="navTo('dashboard')">   <span class="nav-icon">📊</span><span>Dashboard</span></div>
-    <div class="nav-item"         onclick="navTo('alertas')">     <span class="nav-icon">🔔</span><span>Alertas</span><span id="badge-alertas" class="nav-badge hidden">!</span></div>
-    <div class="nav-item"         onclick="navTo('transacciones')"><span class="nav-icon">💰</span><span>Transacciones</span></div>
-    <div class="nav-item"         onclick="navTo('inscripciones')"><span class="nav-icon">📋</span><span>Inscripciones</span></div>
-    <div class="nav-item"         onclick="navTo('personas')">     <span class="nav-icon">👥</span><span>Personas</span></div>
-    <div class="nav-item"         onclick="navTo('legalizacion')"> <span class="nav-icon">✅</span><span>Legalización</span></div>
-    <div class="nav-item"         onclick="navTo('analisis')">     <span class="nav-icon">📈</span><span>Análisis</span></div>
-    <div class="nav-item"         onclick="navTo('actividades')">  <span class="nav-icon">🎯</span><span>Actividades</span></div>
-    <div class="nav-item"         onclick="navTo('asesores')">     <span class="nav-icon">👤</span><span>Asesores</span></div>
-    <div class="nav-item"         onclick="navTo('vista-asesor')"> <span class="nav-icon">👁️</span><span>Vista Asesor</span></div>
-    <div class="nav-item"         onclick="navTo('ajustes')">      <span class="nav-icon">⚙️</span><span>Ajustes</span></div>
+    <button type="button" class="nav-item active"  aria-current="page" onclick="navTo('dashboard')">   <span class="nav-icon">📊</span><span>Dashboard</span></button>
+    <button type="button" class="nav-item"         onclick="navTo('alertas')">     <span class="nav-icon">🔔</span><span>Alertas</span><span id="badge-alertas" class="nav-badge hidden">!</span></button>
+    <button type="button" class="nav-item"         onclick="navTo('transacciones')"><span class="nav-icon">💰</span><span>Transacciones</span></button>
+    <button type="button" class="nav-item"         onclick="navTo('inscripciones')"><span class="nav-icon">📋</span><span>Inscripciones</span></button>
+    <button type="button" class="nav-item"         onclick="navTo('personas')">     <span class="nav-icon">👥</span><span>Personas</span></button>
+    <button type="button" class="nav-item"         onclick="navTo('legalizacion')"> <span class="nav-icon">✅</span><span>Legalización</span></button>
+    <button type="button" class="nav-item"         onclick="navTo('analisis')">     <span class="nav-icon">📈</span><span>Análisis</span></button>
+    <button type="button" class="nav-item"         onclick="navTo('actividades')">  <span class="nav-icon">🎯</span><span>Actividades</span></button>
+    <button type="button" class="nav-item"         onclick="navTo('asesores')">     <span class="nav-icon">👤</span><span>Asesores</span></button>
+    <button type="button" class="nav-item"         onclick="navTo('vista-asesor')"> <span class="nav-icon">👁️</span><span>Vista Asesor</span></button>
+    <button type="button" class="nav-item"         onclick="navTo('ajustes')">      <span class="nav-icon">⚙️</span><span>Ajustes</span></button>
   </nav>
 </aside>
 
@@ -314,27 +315,29 @@
   </div>
   <!-- ─── FILTROS GLOBALES ─────────────────────────────────────────── -->
   <div class="global-filter-bar">
-    <select id="gf-sede" class="input" onchange="onGlobalFilterChange()" title="Sede">
+    <select id="gf-sede" class="input" onchange="onGlobalFilterChange()" title="Sede" aria-label="Sede">
       <option value="">Todas las sedes</option>
       <option value="Norte">Norte</option>
       <option value="Suba">Suba</option>
     </select>
-    <input id="gf-desde" type="date" class="input" onchange="onGlobalFilterChange()" title="Desde">
-    <input id="gf-hasta" type="date" class="input" onchange="onGlobalFilterChange()" title="Hasta">
-    <input id="gf-asesor" class="input" placeholder="Asesor email…" oninput="onGlobalTextChange()">
-    <select id="gf-metodo" class="input" onchange="onGlobalFilterChange()" title="Método de pago">
+    <input id="gf-desde" type="date" class="input" onchange="onGlobalFilterChange()" title="Desde" aria-label="Desde">
+    <input id="gf-hasta" type="date" class="input" onchange="onGlobalFilterChange()" title="Hasta" aria-label="Hasta">
+    <select id="gf-asesor" class="input" onchange="onGlobalFilterChange()" title="Asesor" aria-label="Asesor">
+      <option value="">Todos los asesores</option>
+    </select>
+    <select id="gf-metodo" class="input" onchange="onGlobalFilterChange()" title="Método de pago" aria-label="Método de pago">
       <option value="">Método…</option>
       <option value="Efectivo">Efectivo</option>
       <option value="Datáfono">Datáfono</option>
       <option value="Nequi">Nequi</option>
     </select>
-    <select id="gf-estado" class="input" onchange="onGlobalFilterChange()" title="Estado legalización">
+    <select id="gf-estado" class="input" onchange="onGlobalFilterChange()" title="Estado legalización" aria-label="Estado legalización">
       <option value="">Estado leg.…</option>
       <option value="Pendiente">Pendiente</option>
       <option value="Legalizado">Legalizado</option>
       <option value="NA">N/A</option>
     </select>
-    <input id="gf-busqueda" class="input" placeholder="Buscar por documento…" inputmode="numeric" oninput="onGlobalTextChange()">
+    <input id="gf-busqueda" class="input" placeholder="Buscar por documento…" inputmode="numeric" oninput="onGlobalTextChange()" aria-label="Buscar por documento">
     <span class="gf-clear" onclick="limpiarFiltrosGlobales()">✕ Limpiar</span>
   </div>
 
@@ -988,12 +991,12 @@ function navTo(sec) {
   if (CURRENT_SECTION === sec) { closeSidebar(); return; }
   closeSidebar();
   qsa('.section').forEach(s => s.classList.remove('active'));
-  qsa('.nav-item').forEach(n => n.classList.remove('active'));
+  qsa('.nav-item').forEach(n => { n.classList.remove('active'); n.removeAttribute('aria-current'); });
   qs(`#sec-${sec}`).classList.add('active');
   const navItems = qsa('.nav-item');
   const secMap = ['dashboard','alertas','transacciones','inscripciones','personas','legalizacion','analisis','actividades','asesores','vista-asesor','ajustes'];
   const idx = secMap.indexOf(sec);
-  if (idx >= 0 && navItems[idx]) navItems[idx].classList.add('active');
+  if (idx >= 0 && navItems[idx]) { navItems[idx].classList.add('active'); navItems[idx].setAttribute('aria-current', 'page'); }
   const titles = { dashboard:'Dashboard', alertas:'Alertas', transacciones:'Transacciones', inscripciones:'Inscripciones', personas:'Personas', legalizacion:'Legalización', analisis:'Análisis',actividades:'Catálogo de actividades', asesores:'Gestión de asesores', 'vista-asesor':'Vista Asesor (preview)', ajustes:'Ajustes del sistema' };
   setText('#topbar-title', titles[sec] || sec);
   CURRENT_SECTION = sec;
@@ -1334,6 +1337,7 @@ async function filtrarTransacciones(page = 1) {
     busqueda:     GLOBAL_BUSQUEDA || undefined,
     page, pageSize: 50
   };
+  setHtml('#tabla-transacciones', '<div class="skeleton" style="height:56px;margin-bottom:8px"></div>'.repeat(5));
   try {
     const res = await gsr('listarTransacciones', filtros);
     renderTable('tabla-transacciones', res.transacciones, [
@@ -1620,6 +1624,7 @@ async function exportarInscripcionesExcel() {
 // ═══════════════════════════════════════════════════════════════════════════
 async function filtrarPersonas(page = 1) {
   const filtros = { busqueda: GLOBAL_BUSQUEDA || undefined, sede: GLOBAL_SEDE || undefined, page, pageSize: 50 };
+  setHtml('#tabla-personas', '<div class="skeleton" style="height:56px;margin-bottom:8px"></div>'.repeat(5));
   try {
     const res = await gsr('listarPersonas', filtros);
     renderTable('tabla-personas', res.personas, [
@@ -1866,6 +1871,7 @@ let _maModulos = [];
 let _catCache   = [];
 
 async function cargarActividades() {
+  setHtml('#tabla-actividades', '<div class="skeleton" style="height:56px;margin-bottom:8px"></div>'.repeat(5));
   await loadActCats();
 
   try {
@@ -2217,6 +2223,7 @@ async function toggleAct(id, activa) {
 // 10. ASESORES CRUD
 // ═══════════════════════════════════════════════════════════════════════════
 async function cargarAsesores() {
+  setHtml('#tabla-asesores', '<div class="skeleton" style="height:56px;margin-bottom:8px"></div>'.repeat(5));
   try {
     const asesores = await gsr('listarAsesores');
     const desempeno = await gsr('getDesempenoAsesores');
@@ -2281,12 +2288,13 @@ async function guardarAsesor() {
     toast.success('Asesor guardado');
     closeModal('modal-asesor');
     cargarAsesores();
+    cargarAsesoresFiltroGlobal();
   } catch(e) { toast.error(e.message); }
   finally { setLoading(btn, false); }
 }
 
 async function toggleAs(email, activo) {
-  try { await gsr('toggleAsesor', email, activo); toast.success('Actualizado'); cargarAsesores(); }
+  try { await gsr('toggleAsesor', email, activo); toast.success('Actualizado'); cargarAsesores(); cargarAsesoresFiltroGlobal(); }
   catch(e) { toast.error(e.message); }
 }
 
@@ -2453,9 +2461,22 @@ async function guardarAjustes() {
 // ═══════════════════════════════════════════════════════════════════════════
 function iniciarDashboard() {
   cargarDashboard();
+  cargarAsesoresFiltroGlobal();
   gsr('getAlertasDashboard').then(a => {
     const n = a.sinLegalizar7Dias.length;
     if (n > 0) { setText('#badge-alertas', n); show('#badge-alertas'); }
+  }).catch(() => {});
+}
+
+// Puebla el selector de asesor de la barra de filtros globales — antes era un
+// input de texto libre donde había que recordar y teclear el correo exacto.
+function cargarAsesoresFiltroGlobal() {
+  gsr('listarAsesores').then(asesores => {
+    const sel = qs('#gf-asesor');
+    const actual = sel.value;
+    sel.innerHTML = '<option value="">Todos los asesores</option>' +
+      asesores.map(a => `<option value="${escHtml(a.email)}">${escHtml(a.nombre)}</option>`).join('');
+    sel.value = actual;
   }).catch(() => {});
 }
 </script>
